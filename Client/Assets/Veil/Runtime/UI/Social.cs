@@ -682,7 +682,7 @@ namespace Veil.UI
                 var sp = _app.Cam.WorldToScreenPoint(_app.Stage.HeadPoint(i) + Vector3.down * 0.4f);
                 if (sp.z <= 0) { p.Root.gameObject.SetActive(false); continue; }
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(_plates, sp, null, out var lp);
-                p.Root.anchoredPosition = Vector2.Lerp(p.Root.anchoredPosition, lp + new Vector2(0, 30), p.Root.anchoredPosition == Vector2.zero ? 1 : 0.35f);
+                p.Root.anchoredPosition = lp + new Vector2(0, 30);   // pinned to the head, no sliding
                 p.Name.text = m.Name;
                 p.Level.text = m.Bot ? "BOT" : $"Lv. {m.Level}";
                 bool crown = m.Leader && !m.Bot && _online;

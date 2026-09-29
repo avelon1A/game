@@ -547,6 +547,7 @@ namespace Veil.App
         private void LateUpdate()
         {
             UpdateBackdrop();
+            if (!(State == AppState.Menu && Stage.SquadMode)) _wasSquadShot = false;
             float dt = Time.deltaTime;
             float t = Time.time;
             switch (State)
@@ -559,7 +560,11 @@ namespace Veil.App
                     else if (_lineupShot) CamRig.Shot(Stage.Origin + (_lineupClose ? new Vector3(0, 1.7f, -2.4f) : new Vector3(0, 1.35f, -5.6f)), Stage.Origin + (_lineupClose ? new Vector3(0, 1.45f, 0) : new Vector3(0, 1.05f, 0)), dt, 12f);
                     else if (_menu.Tab == 1) CamRig.Shot(Stage.Origin + new Vector3(1.3f, 1.45f, -3.9f), Stage.Origin + new Vector3(1.3f, 1.1f, 0), dt, 4f);
                     else if (_menu.Tab == 3) CamRig.Shot(Stage.Origin + new Vector3(0, 2.4f, -8.5f), Stage.Origin + new Vector3(0, 1.6f, 0), dt, 3f);
-                    else if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(1.28f, 1.3f, -3.9f), Stage.Origin + new Vector3(1.28f, 1.4f, 0), dt, 3f);   // squad lineup, left of the panel
+                    else if (Stage.SquadMode)
+                    {
+                        CamRig.Shot(Stage.Origin + new Vector3(1.28f, 1.3f, -3.9f), Stage.Origin + new Vector3(1.28f, 1.4f, 0), dt, _wasSquadShot ? 3f : 10000f);
+                        _wasSquadShot = true;
+                    }   // squad lineup, left of the panel
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
                     break;
                 case AppState.Results:
@@ -676,6 +681,7 @@ namespace Veil.App
 
         // ---- squad lobby backdrop: the painted scene, filling the screen behind the squad (camera renders only the lobby layer)
         private SpriteRenderer _backdrop;
+        private bool _wasSquadShot;
 
         private void UpdateBackdrop()
         {
@@ -956,7 +962,7 @@ namespace Veil.App
         }
 
         // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
-        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.3f), new Vector3(1.3f, 0, -0.2f), new Vector3(-1.3f, 0, -0.2f), new Vector3(-2.55f, 0, -0.55f) };
+        private static readonly Vector3[] SquadSlots = { new Vector3(-1.3f, 0, 0.3f), new Vector3(1.3f, 0, -0.2f), new Vector3(0, 0, -0.2f), new Vector3(-2.55f, 0, -0.45f) };
         public const int LobbyLayer = 9;   // squad lobby renders only this layer, in front of the painted backdrop
         public bool SquadMode { get; private set; }
 
@@ -980,7 +986,7 @@ namespace Veil.App
             foreach (var p in _pedestals) p.gameObject.SetActive(false);
             for (int k = 0; k < SquadSlots.Length; k++)
             {
-                _squadStage.transform.Find("SlotRing" + k).gameObject.SetActive(k < looks.Count);
+                _squadStage.transform.Find("SlotRing" + k).gameObject.SetActive(false);
                 _squadStage.transform.Find("Blob" + k).gameObject.SetActive(k < looks.Count);
             }
             // the painted backdrop has its own platform: hide the 3D disc and rim
