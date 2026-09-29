@@ -60,11 +60,17 @@ namespace Veil.App
             };
             // server address: saved choice, else the default baked into the build (Resources/server_default.txt)
             string saved = PlayerPrefs.GetString("server", "");
-            if (string.IsNullOrEmpty(saved))
+            var defAsset = Resources.Load<TextAsset>("server_default");
+            string baked = defAsset != null ? defAsset.text.Trim() : "";
+            // a build with a new baked-in server (e.g. the cloud one) moves existing installs over once
+            if (!string.IsNullOrEmpty(baked) && baked != PlayerPrefs.GetString("serverBaked", ""))
             {
-                var def = Resources.Load<TextAsset>("server_default");
-                saved = def != null ? def.text.Trim() : "";
+                saved = baked;
+                PlayerPrefs.SetString("serverBaked", baked);
+                PlayerPrefs.SetString("server", baked);
+                PlayerPrefs.Save();
             }
+            if (string.IsNullOrEmpty(saved)) saved = baked;
             if (!string.IsNullOrEmpty(saved)) p.ParseAddress(saved);
             p.MatchMinutes = p.MatchMinutes >= 15 ? 15 : p.MatchMinutes >= 10 ? 10 : 5;   // lobby offers 5 / 10 / 15
             p.Look = new Appearance
