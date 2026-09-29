@@ -194,7 +194,8 @@ namespace Veil.UI
             Underline(i == 3 ? 4 : i);
             if (i == 2) FetchLeaderboard();
             // the stage shows your squad on PLAY, the character lineup elsewhere
-            if (i == 0) Squad?.ForceStage(); else App.Stage.LobbyPose(App.Profile.Look);
+            // painted lobby everywhere: your squad on PLAY, only your hero on Characters / Leaderboard (hidden behind Settings)
+            if (i == 0) Squad?.ForceStage(); else App.Stage.SoloPose(App.Profile.Look, visible: i != 3);
         }
 
         private void RefreshProfileChip()

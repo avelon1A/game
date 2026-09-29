@@ -572,7 +572,7 @@ namespace Veil.UI
 
         private void UpdateStage()
         {
-            if (_app.State != GameApp.AppState.Menu) return;
+            if (_app.State != GameApp.AppState.Menu || _app.MenuTab != 0) return;   // other tabs show only your hero
             var looks = new List<Appearance>();
             var key = new System.Text.StringBuilder();
             foreach (var m in _members) { looks.Add(m.Look); key.Append(m.Look.Outfit).Append(m.Look.Color).Append(','); }

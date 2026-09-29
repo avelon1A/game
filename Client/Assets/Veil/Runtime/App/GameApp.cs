@@ -64,6 +64,7 @@ namespace Veil.App
         private Light _sun;
 
         public ClientMatch CurrentMatch => _match;
+        public int MenuTab => _menu != null ? _menu.Tab : 0;
         public bool IsOnlineMatch => _match != null && _match.Driver.IsOnline;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -585,7 +586,7 @@ namespace Veil.App
         private void LateUpdate()
         {
             UpdateBackdrop();
-            if (!(State == AppState.Menu && Stage.SquadMode)) _wasSquadShot = false;
+            if (!(State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode))) _lobbyShot = 0;
             float dt = Time.deltaTime;
             float t = Time.time;
             switch (State)
@@ -596,13 +597,14 @@ namespace Veil.App
                 case AppState.Menu:
                     if (_lineupBack) CamRig.Shot(Stage.Origin + new Vector3(0, 1.45f, 4.6f), Stage.Origin + new Vector3(0, 1.1f, 0), dt, 12f);
                     else if (_lineupShot) CamRig.Shot(Stage.Origin + (_lineupClose ? new Vector3(0, 1.7f, -2.4f) : new Vector3(0, 1.35f, -5.6f)), Stage.Origin + (_lineupClose ? new Vector3(0, 1.45f, 0) : new Vector3(0, 1.05f, 0)), dt, 12f);
-                    else if (_menu.Tab == 1) CamRig.Shot(Stage.Origin + new Vector3(1.3f, 1.45f, -3.9f), Stage.Origin + new Vector3(1.3f, 1.1f, 0), dt, 4f);
-                    else if (_menu.Tab == 3) CamRig.Shot(Stage.Origin + new Vector3(0, 2.4f, -8.5f), Stage.Origin + new Vector3(0, 1.6f, 0), dt, 3f);
-                    else if (Stage.SquadMode)
+                    else if (Stage.SquadMode || Stage.SoloMode)
                     {
-                        CamRig.Shot(Stage.Origin + new Vector3(1.28f, 1.3f, -3.9f), Stage.Origin + new Vector3(1.28f, 1.4f, 0), dt, _wasSquadShot ? 3f : 10000f);
-                        _wasSquadShot = true;
-                    }   // squad lineup, left of the panel
+                        // painted lobby: squad left of the squad panel / your hero left of the Characters & Leaderboard panels
+                        float x = Stage.SquadMode ? 1.28f : 1.75f;
+                        int key = Stage.SquadMode ? 1 : 2;
+                        CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f), Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
+                        _lobbyShot = key;
+                    }
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
                     break;
                 case AppState.Results:
@@ -719,11 +721,11 @@ namespace Veil.App
 
         // ---- squad lobby backdrop: the painted scene, filling the screen behind the squad (camera renders only the lobby layer)
         private SpriteRenderer _backdrop;
-        private bool _wasSquadShot;
+        private int _lobbyShot;   // which painted-lobby shot the camera is on (0 = none): changing shots cuts, never glides
 
         private void UpdateBackdrop()
         {
-            bool on = State == AppState.Menu && Stage.SquadMode;
+            bool on = State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode);
             if (on && _backdrop == null)
             {
                 var tex = Resources.Load<Texture2D>("UI/lobby_bg");
@@ -987,6 +989,7 @@ namespace Veil.App
         {
             _podium = false;
             SquadMode = false;
+            SoloMode = false;
             _squadStage.SetActive(false);
             SetLayer(_root, 0);
             if (!_rigs[0].Look.Equals(mine)) _rigs[0].Rebuild(mine);
@@ -1010,7 +1013,9 @@ namespace Veil.App
         {
             _podium = false;
             SquadMode = true;
+            SoloMode = false;
             _squadStage.SetActive(true);
+            _squadStage.transform.Find("Blob0").localPosition = SquadSlots[0] + new Vector3(0, 0.02f, 0);
             for (int i = 0; i < _rigs.Length; i++)
             {
                 bool on = i < looks.Count && i < SquadSlots.Length;
@@ -1040,15 +1045,41 @@ namespace Veil.App
             foreach (Transform c in t) SetLayer(c, layer);
         }
 
+        public bool SoloMode { get; private set; }
+
+        /// <summary>Only your hero on the painted lobby platform (Characters / Leaderboard / Settings tabs).</summary>
+        public void SoloPose(Appearance mine, bool visible = true)
+        {
+            _podium = false;
+            SquadMode = false;
+            SoloMode = true;
+            for (int i = 1; i < _rigs.Length; i++) _rigs[i].gameObject.SetActive(false);
+            _rigs[0].gameObject.SetActive(visible);
+            if (!_rigs[0].Look.Equals(mine)) _rigs[0].Rebuild(mine);
+            _rigs[0].transform.localPosition = new Vector3(0, 0, 0.3f);
+            _rigs[0].transform.localRotation = Quaternion.Euler(0, 12, 0);
+            _rigs[0].ResetPose();
+            foreach (var p in _pedestals) p.gameObject.SetActive(false);
+            _squadStage.SetActive(true);
+            foreach (Transform c in _squadStage.transform) c.gameObject.SetActive(false);
+            var blob = _squadStage.transform.Find("Blob0");
+            blob.localPosition = new Vector3(0, 0.02f, 0.3f);
+            blob.gameObject.SetActive(visible);
+            SetLayer(_rigs[0].transform, LobbyLayer);
+            SetLayer(_squadStage.transform, LobbyLayer);
+        }
+
         public void UpdateLook(Appearance mine)
         {
             _rigs[0].Rebuild(mine);
+            if (SquadMode || SoloMode) SetLayer(_rigs[0].transform, LobbyLayer);   // rebuilt parts must stay on the lobby layer
         }
 
         public void Podium(List<PlayerResult> results)
         {
             _podium = true;
             SquadMode = false;
+            SoloMode = false;
             _squadStage.SetActive(false);
             SetLayer(_root, 0);
             float[] x = { 0, 1.8f, -1.8f }; // stage faces the camera: local +X is screen-left
@@ -1073,7 +1104,7 @@ namespace Veil.App
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
-                _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
+                _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
                 _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);
