@@ -3,7 +3,7 @@
 # Pipeline: Hunyuan3D shape (GLB) -> cleanup -> decimate -> normalize -> vertex colours projected from the
 # concept art (occlusion-aware, flood-filled to hidden areas, palette-quantised for a cel look) ->
 # heuristic humanoid skeleton -> automatic skin weights -> keyframed animation set -> FBX for Unity.
-import bpy, bmesh, sys, os, math
+import bpy, bmesh, sys, os, math, json
 import numpy as np
 from mathutils import Vector, Quaternion, Matrix
 from mathutils.bvhtree import BVHTree
@@ -20,6 +20,14 @@ POSE = os.path.join(TOOLS, "joints", f"{NAME}.json")
 ART = os.path.join(TOOLS, "masks", f"{NAME}.png")
 OUT_DIR = os.path.join(TOOLS, "..", "..", "Client", "Assets", "Veil", "Characters", NAME)
 RENDER_DIR = os.path.join(TOOLS, "renders")
+# textured mode: a finished, already-textured model (Meshy / hand-made GLB) — keep its own UVs + texture,
+# skip the concept-art cleanup / projection. Joints come from joints/<name>_model.json on its front render.
+SRC_ARG = argv[argv.index("--src") + 1] if "--src" in argv else None
+TEXTURED = SRC_ARG is not None
+if TEXTURED:
+    SRC = os.path.abspath(SRC_ARG)
+    ART = os.path.join(TOOLS, "masks", f"{NAME}_model.png")
+    POSE = os.path.join(TOOLS, "joints", f"{NAME}_model.json")
 HEIGHT = 2.0
 TARGET_FACES = 70000
 FPS = 30
@@ -55,57 +63,58 @@ def verts_np():
     return co.reshape(-1, 3)
 
 
-# ground slab: a thin plate at the bottom that is wider than the feet
-co = verts_np()
-z0, z1 = co[:, 2].min(), co[:, 2].max()
-h = z1 - z0
-band0 = co[co[:, 2] < z0 + 0.012 * h]
-band1 = co[(co[:, 2] > z0 + 0.03 * h) & (co[:, 2] < z0 + 0.05 * h)]
-def area(b): return (np.ptp(b[:, 0]) * np.ptp(b[:, 1])) if len(b) > 10 else 0
-if area(band0) > 1.5 * max(area(band1), 1e-6):
-    cut = z0 + 0.018 * h
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.bisect(plane_co=(0, 0, cut), plane_no=(0, 0, 1), clear_inner=True, use_fill=True)
-    bpy.ops.object.mode_set(mode='OBJECT')
-    log("removed ground slab below", round(float(cut), 3))
+if not TEXTURED:  # AI shape output only: slabs, pedestals, floating islands
+    # ground slab: a thin plate at the bottom that is wider than the feet
+    co = verts_np()
+    z0, z1 = co[:, 2].min(), co[:, 2].max()
+    h = z1 - z0
+    band0 = co[co[:, 2] < z0 + 0.012 * h]
+    band1 = co[(co[:, 2] > z0 + 0.03 * h) & (co[:, 2] < z0 + 0.05 * h)]
+    def area(b): return (np.ptp(b[:, 0]) * np.ptp(b[:, 1])) if len(b) > 10 else 0
+    if area(band0) > 1.5 * max(area(band1), 1e-6):
+        cut = z0 + 0.018 * h
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.bisect(plane_co=(0, 0, cut), plane_no=(0, 0, 1), clear_inner=True, use_fill=True)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        log("removed ground slab below", round(float(cut), 3))
 
-# pedestal/ramp from scenery: keep only low geometry that lies under the shoe footprint
-co = verts_np()
-z0, z1 = co[:, 2].min(), co[:, 2].max(); h = z1 - z0
-ref = co[(co[:, 2] > z0 + 0.09 * h) & (co[:, 2] < z0 + 0.13 * h)][:, :2]
-low_idx = np.where(co[:, 2] < z0 + 0.09 * h)[0]
-if len(ref) and len(low_idx) > 0.08 * len(co):
-    from mathutils.kdtree import KDTree
-    kd = KDTree(len(ref))
-    for i, p2 in enumerate(ref): kd.insert((p2[0], p2[1], 0), i)
-    kd.balance()
-    bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table()
-    dead = [bm.verts[i] for i in low_idx if kd.find((co[i, 0], co[i, 1], 0))[2] > 0.06 * h]
-    bmesh.ops.delete(bm, geom=dead, context='VERTS')
+    # pedestal/ramp from scenery: keep only low geometry that lies under the shoe footprint
+    co = verts_np()
+    z0, z1 = co[:, 2].min(), co[:, 2].max(); h = z1 - z0
+    ref = co[(co[:, 2] > z0 + 0.09 * h) & (co[:, 2] < z0 + 0.13 * h)][:, :2]
+    low_idx = np.where(co[:, 2] < z0 + 0.09 * h)[0]
+    if len(ref) and len(low_idx) > 0.08 * len(co):
+        from mathutils.kdtree import KDTree
+        kd = KDTree(len(ref))
+        for i, p2 in enumerate(ref): kd.insert((p2[0], p2[1], 0), i)
+        kd.balance()
+        bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table()
+        dead = [bm.verts[i] for i in low_idx if kd.find((co[i, 0], co[i, 1], 0))[2] > 0.06 * h]
+        bmesh.ops.delete(bm, geom=dead, context='VERTS')
+        bm.to_mesh(me); bm.free()
+        log("pedestal filter removed", len(dead), "verts")
+
+    # drop small floating islands
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    seen, islands = set(), []
+    for v in bm.verts:
+        if v.index in seen: continue
+        stack, isl = [v], []
+        seen.add(v.index)
+        while stack:
+            x = stack.pop(); isl.append(x)
+            for e in x.link_edges:
+                o = e.other_vert(x)
+                if o.index not in seen:
+                    seen.add(o.index); stack.append(o)
+        islands.append(isl)
+    islands.sort(key=len, reverse=True)
+    kill = [v for isl in islands[1:] if len(isl) < 0.02 * len(bm.verts) for v in isl]
+    bmesh.ops.delete(bm, geom=kill, context='VERTS')
     bm.to_mesh(me); bm.free()
-    log("pedestal filter removed", len(dead), "verts")
-
-# drop small floating islands
-bm = bmesh.new(); bm.from_mesh(me)
-bm.verts.ensure_lookup_table()
-seen, islands = set(), []
-for v in bm.verts:
-    if v.index in seen: continue
-    stack, isl = [v], []
-    seen.add(v.index)
-    while stack:
-        x = stack.pop(); isl.append(x)
-        for e in x.link_edges:
-            o = e.other_vert(x)
-            if o.index not in seen:
-                seen.add(o.index); stack.append(o)
-    islands.append(isl)
-islands.sort(key=len, reverse=True)
-kill = [v for isl in islands[1:] if len(isl) < 0.02 * len(bm.verts) for v in isl]
-bmesh.ops.delete(bm, geom=kill, context='VERTS')
-bm.to_mesh(me); bm.free()
-log("islands", len(islands), "removed verts", len(kill))
+    log("islands", len(islands), "removed verts", len(kill))
 
 # decimate to a game budget
 dec = obj.modifiers.new("dec", 'DECIMATE')
@@ -164,278 +173,323 @@ for i in range(n):
     known[i] = True
 log("projected colours on", int(known.sum()), "of", n, "verts")
 
-# ---- back view (optional reference art seen from behind): mirrored projection onto back-facing surfaces
-ART_B = os.path.join(TOOLS, "masks", f"{NAME}_back.png")
-back_known = np.zeros(n, dtype=bool)
-imgB = None
-if os.path.exists(ART_B):
-    imgB = bpy.data.images.load(ART_B)
-    WB, HB = imgB.size
-    pxB = np.array(imgB.pixels[:], dtype=np.float32).reshape(HB, WB, 4)[::-1]
-    alphaB = pxB[:, :, 3]
-    ysb, xsb = np.where(alphaB > 0.5)
-    bx0, bx1, by0, by1 = xsb.min(), xsb.max(), ysb.min(), ysb.max()
-    viewB = Vector((0, 1, 0))
+if not TEXTURED:
+    # ---- back view (optional reference art seen from behind): mirrored projection onto back-facing surfaces
+    ART_B = os.path.join(TOOLS, "masks", f"{NAME}_back.png")
+    back_known = np.zeros(n, dtype=bool)
+    imgB = None
+    if os.path.exists(ART_B):
+        imgB = bpy.data.images.load(ART_B)
+        WB, HB = imgB.size
+        pxB = np.array(imgB.pixels[:], dtype=np.float32).reshape(HB, WB, 4)[::-1]
+        alphaB = pxB[:, :, 3]
+        ysb, xsb = np.where(alphaB > 0.5)
+        bx0, bx1, by0, by1 = xsb.min(), xsb.max(), ysb.min(), ysb.max()
+        viewB = Vector((0, 1, 0))
+        for i in range(n):
+            if nrm[i, 1] < 0.04:
+                continue
+            hit = bvh.ray_cast(Vector(co[i]) + viewB * 0.003, viewB, 10.0)
+            if hit[0] is not None:
+                continue
+            u = (mx1 - co[i, 0]) / (mx1 - mx0)          # seen from behind: character's left is on the image left
+            v = (co[i, 2] - mz0) / (mz1 - mz0)
+            x = min(max(int(round(bx0 + u * (bx1 - bx0))), 0), WB - 1)
+            y = min(max(int(round(by1 - v * (by1 - by0))), 0), HB - 1)
+            if alphaB[y, x] < 0.5:
+                continue
+            col[i] = pxB[y, x, :3]
+            known[i] = True
+            back_known[i] = True
+        log("back projection on", int(back_known.sum()), "verts")
+    proj_known = known.copy()
+
+    # palette quantisation (k-means) -> flat cartoon colours, removes baked-in shading noise
+    K = 14
+    samples = col[known]
+    rng = np.random.default_rng(0)
+    cent = samples[rng.choice(len(samples), K, replace=False)]
+    for _ in range(20):
+        d = ((samples[:, None, :] - cent[None, :, :]) ** 2).sum(-1)
+        lab = d.argmin(1)
+        for k in range(K):
+            m = lab == k
+            if m.any(): cent[k] = samples[m].mean(0)
+    d = ((col[known][:, None, :] - cent[None, :, :]) ** 2).sum(-1)
+    labels = np.full(n, -1, dtype=np.int32)
+    labels[known] = d.argmin(1)
+
+    # hidden (back/side) verts: sample the concept art near the silhouette edge at the same height.
+    # The back of a jacket = the jacket colour seen at its edge; back of the head = hair/hood colour.
+    row_segs = {}
+    def segs(py_):
+        if py_ in row_segs: return row_segs[py_]
+        m = alpha[py_] > 0.5
+        idx = np.flatnonzero(np.diff(np.concatenate([[0], m.astype(np.int8), [0]])))
+        row_segs[py_] = list(zip(idx[0::2], idx[1::2] - 1))
+        return row_segs[py_]
+    edge_col = np.zeros((n, 3), dtype=np.float32)
+    edge_ok = np.zeros(n, dtype=bool)
+    # head: skip silhouette-edge sampling there. At cheek height the silhouette edge is hair/headphones, which
+    # smeared hair colour over the side of the face. Hidden head verts instead take the nearest projected colour
+    # over the surface (flood fill below), so cheeks continue as skin and hair continues as hair.
+    head_py = iy0 + 0.40 * (iy1 - iy0)
+    try:
+        import json as _json
+        _pj = _json.load(open(POSE))["joints"]
+        head_py = min(_pj["shoulderL_img"][1], _pj["shoulderR_img"][1]) - 0.02 * (iy1 - iy0)
+    except Exception:
+        pass
     for i in range(n):
-        if nrm[i, 1] < 0.04:
-            continue
-        hit = bvh.ray_cast(Vector(co[i]) + viewB * 0.003, viewB, 10.0)
-        if hit[0] is not None:
-            continue
-        u = (mx1 - co[i, 0]) / (mx1 - mx0)          # seen from behind: character's left is on the image left
-        v = (co[i, 2] - mz0) / (mz1 - mz0)
-        x = min(max(int(round(bx0 + u * (bx1 - bx0))), 0), WB - 1)
-        y = min(max(int(round(by1 - v * (by1 - by0))), 0), HB - 1)
-        if alphaB[y, x] < 0.5:
-            continue
-        col[i] = pxB[y, x, :3]
-        known[i] = True
-        back_known[i] = True
-    log("back projection on", int(back_known.sum()), "verts")
-proj_known = known.copy()
+        if proj_known[i]: continue
+        u = (co[i, 0] - mx0) / (mx1 - mx0); v = (co[i, 2] - mz0) / (mz1 - mz0)
+        x = int(round(ix0 + u * (ix1 - ix0))); y = int(round(iy1 - v * (iy1 - iy0)))
+        x = min(max(x, 0), W - 1); y = min(max(y, 0), H - 1)
+        if y < head_py: continue
+        sg = segs(y)
+        if not sg: continue
+        best_s = min(sg, key=lambda t: 0 if t[0] <= x <= t[1] else min(abs(x - t[0]), abs(x - t[1])))
+        width = best_s[1] - best_s[0]
+        inset = max(3, int(0.16 * width))
+        side = 1 if x >= 0.5 * (best_s[0] + best_s[1]) else -1
+        sx_ = best_s[1] - inset if side > 0 else best_s[0] + inset
+        sx_ = min(max(sx_, best_s[0]), best_s[1])
+        ya, yb = max(0, y - 10), min(H, y + 11)
+        xa = max(best_s[0], min(sx_, sx_ - side * inset // 2) - 3)
+        xb = min(best_s[1] + 1, max(sx_, sx_ - side * inset // 2) + 4)
+        patch = px[ya:yb, xa:xb]
+        pm = patch[patch[:, :, 3] > 0.5][:, :3] if patch.size else np.zeros((0, 3))
+        edge_col[i] = np.median(pm, 0) if len(pm) else px[y, sx_, :3]
+        edge_ok[i] = True
+    if edge_ok.any():
+        # diffuse colours over the surface in hidden regions (visible front stays fixed), then snap to the palette
+        bm2 = bmesh.new(); bm2.from_mesh(me)
+        ev = np.array([(e.verts[0].index, e.verts[1].index) for e in bm2.edges], dtype=np.int64); bm2.free()
+        src = np.concatenate([ev[:, 0], ev[:, 1]]); dst = np.concatenate([ev[:, 1], ev[:, 0]])
+        deg = np.bincount(dst, minlength=n).astype(np.float32) + 1
+        cc = np.where(proj_known[:, None], cent[np.clip(labels, 0, K - 1)], edge_col).astype(np.float32)
+        hidden = ~proj_known & edge_ok
+        for _ in range(40):
+            acc = cc.copy()
+            np.add.at(acc, dst, cc[src])
+            smooth = acc / deg[:, None]
+            cc[hidden] = smooth[hidden]
+        d = ((cc[hidden][:, None, :] - cent[None, :, :]) ** 2).sum(-1)
+        labels[hidden] = d.argmin(1)
+        known = proj_known | edge_ok
+    log("edge-sampled hidden verts:", int(edge_ok.sum()))
 
-# palette quantisation (k-means) -> flat cartoon colours, removes baked-in shading noise
-K = 14
-samples = col[known]
-rng = np.random.default_rng(0)
-cent = samples[rng.choice(len(samples), K, replace=False)]
-for _ in range(20):
-    d = ((samples[:, None, :] - cent[None, :, :]) ** 2).sum(-1)
-    lab = d.argmin(1)
-    for k in range(K):
-        m = lab == k
-        if m.any(): cent[k] = samples[m].mean(0)
-d = ((col[known][:, None, :] - cent[None, :, :]) ** 2).sum(-1)
-labels = np.full(n, -1, dtype=np.int32)
-labels[known] = d.argmin(1)
+    # flood-fill anything still unknown through mesh connectivity (geodesic nearest known colour)
+    bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table()
+    from collections import deque
+    nbrs = [[e.other_vert(v).index for e in v.link_edges] for v in bm.verts]
+    bm.free()
+    q = deque(i for i in range(n) if known[i])
+    while q:
+        i = q.popleft()
+        for j in nbrs[i]:
+            if not known[j]:
+                known[j] = True
+                labels[j] = labels[i]
+                q.append(j)
+    # majority (mode) filter: removes speckle noise, leaves clean cartoon colour regions
+    for it in range(14):
+        new = labels.copy()
+        for i in range(n):
+            if not nbrs[i] or (it >= 5 and proj_known[i]): continue
+            cnt = np.bincount(labels[nbrs[i] + [i]], minlength=K)
+            new[i] = int(cnt.argmax())
+        labels = new
+    col = cent[np.clip(labels, 0, K - 1)]
+    # one smoothing pass to soften the seam between projected and filled regions
+    attr = me.color_attributes.new("Col", 'BYTE_COLOR', 'POINT')
+    rgba = np.concatenate([col, np.ones((n, 1), dtype=np.float32)], 1)
+    attr.data.foreach_set("color_srgb", rgba.ravel())
+    me.color_attributes.active_color = attr
+    log("vertex colours done")
 
-# hidden (back/side) verts: sample the concept art near the silhouette edge at the same height.
-# The back of a jacket = the jacket colour seen at its edge; back of the head = hair/hood colour.
-row_segs = {}
-def segs(py_):
-    if py_ in row_segs: return row_segs[py_]
-    m = alpha[py_] > 0.5
-    idx = np.flatnonzero(np.diff(np.concatenate([[0], m.astype(np.int8), [0]])))
-    row_segs[py_] = list(zip(idx[0::2], idx[1::2] - 1))
-    return row_segs[py_]
-edge_col = np.zeros((n, 3), dtype=np.float32)
-edge_ok = np.zeros(n, dtype=bool)
-# head: skip silhouette-edge sampling there. At cheek height the silhouette edge is hair/headphones, which
-# smeared hair colour over the side of the face. Hidden head verts instead take the nearest projected colour
-# over the surface (flood fill below), so cheeks continue as skin and hair continues as hair.
-head_py = iy0 + 0.40 * (iy1 - iy0)
-try:
-    import json as _json
-    _pj = _json.load(open(POSE))["joints"]
-    head_py = min(_pj["shoulderL_img"][1], _pj["shoulderR_img"][1]) - 0.02 * (iy1 - iy0)
-except Exception:
-    pass
-for i in range(n):
-    if proj_known[i]: continue
-    u = (co[i, 0] - mx0) / (mx1 - mx0); v = (co[i, 2] - mz0) / (mz1 - mz0)
-    x = int(round(ix0 + u * (ix1 - ix0))); y = int(round(iy1 - v * (iy1 - iy0)))
-    x = min(max(x, 0), W - 1); y = min(max(y, 0), H - 1)
-    if y < head_py: continue
-    sg = segs(y)
-    if not sg: continue
-    best_s = min(sg, key=lambda t: 0 if t[0] <= x <= t[1] else min(abs(x - t[0]), abs(x - t[1])))
-    width = best_s[1] - best_s[0]
-    inset = max(3, int(0.16 * width))
-    side = 1 if x >= 0.5 * (best_s[0] + best_s[1]) else -1
-    sx_ = best_s[1] - inset if side > 0 else best_s[0] + inset
-    sx_ = min(max(sx_, best_s[0]), best_s[1])
-    ya, yb = max(0, y - 10), min(H, y + 11)
-    xa = max(best_s[0], min(sx_, sx_ - side * inset // 2) - 3)
-    xb = min(best_s[1] + 1, max(sx_, sx_ - side * inset // 2) + 4)
-    patch = px[ya:yb, xa:xb]
-    pm = patch[patch[:, :, 3] > 0.5][:, :3] if patch.size else np.zeros((0, 3))
-    edge_col[i] = np.median(pm, 0) if len(pm) else px[y, sx_, :3]
-    edge_ok[i] = True
-if edge_ok.any():
-    # diffuse colours over the surface in hidden regions (visible front stays fixed), then snap to the palette
-    bm2 = bmesh.new(); bm2.from_mesh(me)
-    ev = np.array([(e.verts[0].index, e.verts[1].index) for e in bm2.edges], dtype=np.int64); bm2.free()
-    src = np.concatenate([ev[:, 0], ev[:, 1]]); dst = np.concatenate([ev[:, 1], ev[:, 0]])
-    deg = np.bincount(dst, minlength=n).astype(np.float32) + 1
-    cc = np.where(proj_known[:, None], cent[np.clip(labels, 0, K - 1)], edge_col).astype(np.float32)
-    hidden = ~proj_known & edge_ok
-    for _ in range(40):
-        acc = cc.copy()
-        np.add.at(acc, dst, cc[src])
-        smooth = acc / deg[:, None]
-        cc[hidden] = smooth[hidden]
-    d = ((cc[hidden][:, None, :] - cent[None, :, :]) ** 2).sum(-1)
-    labels[hidden] = d.argmin(1)
-    known = proj_known | edge_ok
-log("edge-sampled hidden verts:", int(edge_ok.sum()))
+    # ---- texture bake: concept art projected on the front (full detail: eyes, logos) + flat colours elsewhere ----
+    bpy.context.view_layer.objects.active = obj
+    for o in bpy.context.scene.objects: o.select_set(o == obj)
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.004)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    # give the head (face!) far more texels: scale head UV islands up, then repack everything
+    HEAD_Z = mz0 + (iy1 - head_py) / (iy1 - iy0) * (mz1 - mz0)
+    HEAD_UV_SCALE = 2.1
+    bmu = bmesh.new(); bmu.from_mesh(me); bmu.faces.ensure_lookup_table()
+    uvl = bmu.loops.layers.uv.active
+    def _uv_key(l): return (round(l[uvl].uv.x, 6), round(l[uvl].uv.y, 6))
+    face_isl = [-1] * len(bmu.faces); isls = []
+    for f in bmu.faces:
+        if face_isl[f.index] >= 0: continue
+        stack = [f]; face_isl[f.index] = len(isls); members = []
+        while stack:
+            g = stack.pop(); members.append(g)
+            for l in g.loops:
+                for lo in l.edge.link_loops:
+                    h_ = lo.face
+                    if face_isl[h_.index] >= 0 or h_ is g: continue
+                    # same island if the shared edge has matching UVs on both sides (not a seam)
+                    a0, a1 = _uv_key(l), _uv_key(l.link_loop_next)
+                    b0, b1 = _uv_key(lo), _uv_key(lo.link_loop_next)
+                    if {a0, a1} == {b0, b1}:
+                        face_isl[h_.index] = len(isls); stack.append(h_)
+        isls.append(members)
+    scaled = 0
+    for members in isls:
+        zc = sum(f.calc_center_median().z for f in members) / len(members)
+        if zc < HEAD_Z: continue
+        cu = sum((l[uvl].uv for f in members for l in f.loops), Vector((0, 0))) / sum(len(f.loops) for f in members)
+        for f in members:
+            for l in f.loops: l[uvl].uv = cu + (l[uvl].uv - cu) * HEAD_UV_SCALE
+        scaled += 1
+    bmu.to_mesh(me); bmu.free()
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.select_all(action='SELECT')
+    bpy.ops.uv.pack_islands(rotate=True, scale=True, margin=0.003)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    log("head UV islands scaled x", HEAD_UV_SCALE, ":", scaled, "of", len(isls))
 
-# flood-fill anything still unknown through mesh connectivity (geodesic nearest known colour)
-bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table()
-from collections import deque
-nbrs = [[e.other_vert(v).index for e in v.link_edges] for v in bm.verts]
-bm.free()
-q = deque(i for i in range(n) if known[i])
-while q:
-    i = q.popleft()
-    for j in nbrs[i]:
-        if not known[j]:
-            known[j] = True
-            labels[j] = labels[i]
-            q.append(j)
-# majority (mode) filter: removes speckle noise, leaves clean cartoon colour regions
-for it in range(14):
-    new = labels.copy()
-    for i in range(n):
-        if not nbrs[i] or (it >= 5 and proj_known[i]): continue
-        cnt = np.bincount(labels[nbrs[i] + [i]], minlength=K)
-        new[i] = int(cnt.argmax())
-    labels = new
-col = cent[np.clip(labels, 0, K - 1)]
-# one smoothing pass to soften the seam between projected and filled regions
-attr = me.color_attributes.new("Col", 'BYTE_COLOR', 'POINT')
-rgba = np.concatenate([col, np.ones((n, 1), dtype=np.float32)], 1)
-attr.data.foreach_set("color_srgb", rgba.ravel())
-me.color_attributes.active_color = attr
-log("vertex colours done")
+    visf = np.zeros(n, dtype=np.float32)
+    visf[proj_known] = np.clip((-nrm[proj_known, 1] - 0.22) / 0.3, 0, 1)
+    for _ in range(2):
+        visf = np.array([0.5 * visf[i] + 0.5 * (visf[nbrs[i]].mean() if nbrs[i] else visf[i]) for i in range(n)], dtype=np.float32)
+    visb = np.zeros(n, dtype=np.float32)
+    visb[back_known] = np.clip((nrm[back_known, 1] - 0.22) / 0.3, 0, 1)
+    for _ in range(2):
+        visb = np.array([0.5 * visb[i] + 0.5 * (visb[nbrs[i]].mean() if nbrs[i] else visb[i]) for i in range(n)], dtype=np.float32)
+    visb_attr = me.color_attributes.new("VisB", 'FLOAT_COLOR', 'POINT')
+    visb_attr.data.foreach_set("color", np.repeat(visb, 4).reshape(-1, 4).clip(0, 1).ravel())
+    vis_attr = me.color_attributes.new("Vis", 'FLOAT_COLOR', 'POINT')
+    vis_attr.data.foreach_set("color", np.repeat(visf, 4).reshape(-1, 4).clip(0, 1).ravel())
 
-# ---- texture bake: concept art projected on the front (full detail: eyes, logos) + flat colours elsewhere ----
-bpy.context.view_layer.objects.active = obj
-for o in bpy.context.scene.objects: o.select_set(o == obj)
-bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.004)
-bpy.ops.object.mode_set(mode='OBJECT')
-# give the head (face!) far more texels: scale head UV islands up, then repack everything
-HEAD_Z = mz0 + (iy1 - head_py) / (iy1 - iy0) * (mz1 - mz0)
-HEAD_UV_SCALE = 2.1
-bmu = bmesh.new(); bmu.from_mesh(me); bmu.faces.ensure_lookup_table()
-uvl = bmu.loops.layers.uv.active
-def _uv_key(l): return (round(l[uvl].uv.x, 6), round(l[uvl].uv.y, 6))
-face_isl = [-1] * len(bmu.faces); isls = []
-for f in bmu.faces:
-    if face_isl[f.index] >= 0: continue
-    stack = [f]; face_isl[f.index] = len(isls); members = []
-    while stack:
-        g = stack.pop(); members.append(g)
-        for l in g.loops:
-            for lo in l.edge.link_loops:
-                h_ = lo.face
-                if face_isl[h_.index] >= 0 or h_ is g: continue
-                # same island if the shared edge has matching UVs on both sides (not a seam)
-                a0, a1 = _uv_key(l), _uv_key(l.link_loop_next)
-                b0, b1 = _uv_key(lo), _uv_key(lo.link_loop_next)
-                if {a0, a1} == {b0, b1}:
-                    face_isl[h_.index] = len(isls); stack.append(h_)
-    isls.append(members)
-scaled = 0
-for members in isls:
-    zc = sum(f.calc_center_median().z for f in members) / len(members)
-    if zc < HEAD_Z: continue
-    cu = sum((l[uvl].uv for f in members for l in f.loops), Vector((0, 0))) / sum(len(f.loops) for f in members)
-    for f in members:
-        for l in f.loops: l[uvl].uv = cu + (l[uvl].uv - cu) * HEAD_UV_SCALE
-    scaled += 1
-bmu.to_mesh(me); bmu.free()
-bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-bpy.ops.uv.select_all(action='SELECT')
-bpy.ops.uv.pack_islands(rotate=True, scale=True, margin=0.003)
-bpy.ops.object.mode_set(mode='OBJECT')
-log("head UV islands scaled x", HEAD_UV_SCALE, ":", scaled, "of", len(isls))
-
-visf = np.zeros(n, dtype=np.float32)
-visf[proj_known] = np.clip((-nrm[proj_known, 1] - 0.22) / 0.3, 0, 1)
-for _ in range(2):
-    visf = np.array([0.5 * visf[i] + 0.5 * (visf[nbrs[i]].mean() if nbrs[i] else visf[i]) for i in range(n)], dtype=np.float32)
-visb = np.zeros(n, dtype=np.float32)
-visb[back_known] = np.clip((nrm[back_known, 1] - 0.22) / 0.3, 0, 1)
-for _ in range(2):
-    visb = np.array([0.5 * visb[i] + 0.5 * (visb[nbrs[i]].mean() if nbrs[i] else visb[i]) for i in range(n)], dtype=np.float32)
-visb_attr = me.color_attributes.new("VisB", 'FLOAT_COLOR', 'POINT')
-visb_attr.data.foreach_set("color", np.repeat(visb, 4).reshape(-1, 4).clip(0, 1).ravel())
-vis_attr = me.color_attributes.new("Vis", 'FLOAT_COLOR', 'POINT')
-vis_attr.data.foreach_set("color", np.repeat(visf, 4).reshape(-1, 4).clip(0, 1).ravel())
-
-TEX = 4096
-baked = bpy.data.images.new(f"{NAME}_albedo", TEX, TEX, alpha=False)
-bake_mat = bpy.data.materials.new("bake"); bake_mat.use_nodes = True
-nt = bake_mat.node_tree; N = nt.nodes; L = nt.links
-for nd in list(N): N.remove(nd)
-out_n = N.new("ShaderNodeOutputMaterial")
-emit = N.new("ShaderNodeEmission")
-geo = N.new("ShaderNodeNewGeometry")
-sep = N.new("ShaderNodeSeparateXYZ"); L.new(geo.outputs["Position"], sep.inputs[0])
-A = (ix1 - ix0) / (W * (mx1 - mx0)); B = (ix0 - mx0 * (ix1 - ix0) / (mx1 - mx0)) / W
-C = (iy1 - iy0) / ((mz1 - mz0) * H); D = 1 - iy1 / H - mz0 * C
-def madd(inp, a, b):
-    m = N.new("ShaderNodeMath"); m.operation = 'MULTIPLY_ADD'
-    L.new(inp, m.inputs[0]); m.inputs[1].default_value = a; m.inputs[2].default_value = b
-    return m.outputs[0]
-comb = N.new("ShaderNodeCombineXYZ")
-L.new(madd(sep.outputs["X"], A, B), comb.inputs["X"]); L.new(madd(sep.outputs["Z"], C, D), comb.inputs["Y"])
-art = N.new("ShaderNodeTexImage"); art.image = img; art.extension = 'CLIP'; art.interpolation = 'Cubic'
-L.new(comb.outputs[0], art.inputs["Vector"])
-vcn = N.new("ShaderNodeVertexColor"); vcn.layer_name = "Col"
-visn = N.new("ShaderNodeVertexColor"); visn.layer_name = "Vis"
-fac = N.new("ShaderNodeMath"); fac.operation = 'MULTIPLY'
-L.new(visn.outputs["Color"], fac.inputs[0]); L.new(art.outputs["Alpha"], fac.inputs[1])
-mix = N.new("ShaderNodeMix"); mix.data_type = 'RGBA'
-rgba_in = [x for x in mix.inputs if x.type == 'RGBA']
-base_col = vcn.outputs["Color"]
-if imgB is not None:
-    A2 = -(bx1 - bx0) / ((mx1 - mx0) * WB); B2 = (bx0 + mx1 * (bx1 - bx0) / (mx1 - mx0)) / WB
-    C2 = (by1 - by0) / ((mz1 - mz0) * HB); D2 = 1 - by1 / HB - mz0 * C2
-    combB = N.new("ShaderNodeCombineXYZ")
-    L.new(madd(sep.outputs["X"], A2, B2), combB.inputs["X"]); L.new(madd(sep.outputs["Z"], C2, D2), combB.inputs["Y"])
-    artB = N.new("ShaderNodeTexImage"); artB.image = imgB; artB.extension = 'CLIP'; artB.interpolation = 'Cubic'
-    L.new(combB.outputs[0], artB.inputs["Vector"])
-    visbn = N.new("ShaderNodeVertexColor"); visbn.layer_name = "VisB"
-    facB = N.new("ShaderNodeMath"); facB.operation = 'MULTIPLY'
-    L.new(visbn.outputs["Color"], facB.inputs[0]); L.new(artB.outputs["Alpha"], facB.inputs[1])
-    mixB = N.new("ShaderNodeMix"); mixB.data_type = 'RGBA'
-    rgbB = [x for x in mixB.inputs if x.type == 'RGBA']
-    L.new(facB.outputs[0], mixB.inputs["Factor"]); L.new(vcn.outputs["Color"], rgbB[0]); L.new(artB.outputs["Color"], rgbB[1])
-    base_col = [x for x in mixB.outputs if x.type == 'RGBA'][0]
-L.new(fac.outputs[0], mix.inputs["Factor"]); L.new(base_col, rgba_in[0]); L.new(art.outputs["Color"], rgba_in[1])
-L.new([x for x in mix.outputs if x.type == 'RGBA'][0], emit.inputs["Color"])
-L.new(emit.outputs[0], out_n.inputs["Surface"])
-target = N.new("ShaderNodeTexImage"); target.image = baked
-N.active = target
-me.materials.clear(); me.materials.append(bake_mat)
-scene_ = bpy.context.scene
-scene_.render.engine = 'CYCLES'
-scene_.cycles.samples = 1
-scene_.cycles.device = 'CPU'
-bpy.ops.object.bake(type='EMIT', margin=12, use_clear=True)
-os.makedirs(OUT_DIR, exist_ok=True)
-tex_path = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}_albedo.png"))
-baked.filepath_raw = tex_path; baked.file_format = 'PNG'; baked.save()
-log("baked texture", tex_path)
-
-GLOW_F = os.path.join(TOOLS, "masks", f"{NAME}_glow.png")
-GLOW_B = os.path.join(TOOLS, "masks", f"{NAME}_back_glow.png")
-if os.path.exists(GLOW_F):
-    black = N.new("ShaderNodeRGB"); black.outputs[0].default_value = (0, 0, 0, 1)
-    art.image = bpy.data.images.load(GLOW_F)
-    L.new(black.outputs[0], rgba_in[0])
-    if imgB is not None and os.path.exists(GLOW_B):
-        artB.image = bpy.data.images.load(GLOW_B)
-        L.new(black.outputs[0], rgbB[0])
-        L.new([x for x in mixB.outputs if x.type == 'RGBA'][0], rgba_in[0])
-    emis = bpy.data.images.new(f"{NAME}_emission", TEX // 2, TEX // 2, alpha=False)
-    target.image = emis
+    TEX = 4096
+    baked = bpy.data.images.new(f"{NAME}_albedo", TEX, TEX, alpha=False)
+    bake_mat = bpy.data.materials.new("bake"); bake_mat.use_nodes = True
+    nt = bake_mat.node_tree; N = nt.nodes; L = nt.links
+    for nd in list(N): N.remove(nd)
+    out_n = N.new("ShaderNodeOutputMaterial")
+    emit = N.new("ShaderNodeEmission")
+    geo = N.new("ShaderNodeNewGeometry")
+    sep = N.new("ShaderNodeSeparateXYZ"); L.new(geo.outputs["Position"], sep.inputs[0])
+    A = (ix1 - ix0) / (W * (mx1 - mx0)); B = (ix0 - mx0 * (ix1 - ix0) / (mx1 - mx0)) / W
+    C = (iy1 - iy0) / ((mz1 - mz0) * H); D = 1 - iy1 / H - mz0 * C
+    def madd(inp, a, b):
+        m = N.new("ShaderNodeMath"); m.operation = 'MULTIPLY_ADD'
+        L.new(inp, m.inputs[0]); m.inputs[1].default_value = a; m.inputs[2].default_value = b
+        return m.outputs[0]
+    comb = N.new("ShaderNodeCombineXYZ")
+    L.new(madd(sep.outputs["X"], A, B), comb.inputs["X"]); L.new(madd(sep.outputs["Z"], C, D), comb.inputs["Y"])
+    art = N.new("ShaderNodeTexImage"); art.image = img; art.extension = 'CLIP'; art.interpolation = 'Cubic'
+    L.new(comb.outputs[0], art.inputs["Vector"])
+    vcn = N.new("ShaderNodeVertexColor"); vcn.layer_name = "Col"
+    visn = N.new("ShaderNodeVertexColor"); visn.layer_name = "Vis"
+    fac = N.new("ShaderNodeMath"); fac.operation = 'MULTIPLY'
+    L.new(visn.outputs["Color"], fac.inputs[0]); L.new(art.outputs["Alpha"], fac.inputs[1])
+    mix = N.new("ShaderNodeMix"); mix.data_type = 'RGBA'
+    rgba_in = [x for x in mix.inputs if x.type == 'RGBA']
+    base_col = vcn.outputs["Color"]
+    if imgB is not None:
+        A2 = -(bx1 - bx0) / ((mx1 - mx0) * WB); B2 = (bx0 + mx1 * (bx1 - bx0) / (mx1 - mx0)) / WB
+        C2 = (by1 - by0) / ((mz1 - mz0) * HB); D2 = 1 - by1 / HB - mz0 * C2
+        combB = N.new("ShaderNodeCombineXYZ")
+        L.new(madd(sep.outputs["X"], A2, B2), combB.inputs["X"]); L.new(madd(sep.outputs["Z"], C2, D2), combB.inputs["Y"])
+        artB = N.new("ShaderNodeTexImage"); artB.image = imgB; artB.extension = 'CLIP'; artB.interpolation = 'Cubic'
+        L.new(combB.outputs[0], artB.inputs["Vector"])
+        visbn = N.new("ShaderNodeVertexColor"); visbn.layer_name = "VisB"
+        facB = N.new("ShaderNodeMath"); facB.operation = 'MULTIPLY'
+        L.new(visbn.outputs["Color"], facB.inputs[0]); L.new(artB.outputs["Alpha"], facB.inputs[1])
+        mixB = N.new("ShaderNodeMix"); mixB.data_type = 'RGBA'
+        rgbB = [x for x in mixB.inputs if x.type == 'RGBA']
+        L.new(facB.outputs[0], mixB.inputs["Factor"]); L.new(vcn.outputs["Color"], rgbB[0]); L.new(artB.outputs["Color"], rgbB[1])
+        base_col = [x for x in mixB.outputs if x.type == 'RGBA'][0]
+    L.new(fac.outputs[0], mix.inputs["Factor"]); L.new(base_col, rgba_in[0]); L.new(art.outputs["Color"], rgba_in[1])
+    L.new([x for x in mix.outputs if x.type == 'RGBA'][0], emit.inputs["Color"])
+    L.new(emit.outputs[0], out_n.inputs["Surface"])
+    target = N.new("ShaderNodeTexImage"); target.image = baked
     N.active = target
-    bpy.ops.object.bake(type='EMIT', margin=8, use_clear=True)
+    me.materials.clear(); me.materials.append(bake_mat)
+    scene_ = bpy.context.scene
+    scene_.render.engine = 'CYCLES'
+    scene_.cycles.samples = 1
+    scene_.cycles.device = 'CPU'
+    bpy.ops.object.bake(type='EMIT', margin=12, use_clear=True)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    tex_path = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}_albedo.png"))
+    baked.filepath_raw = tex_path; baked.file_format = 'PNG'; baked.save()
+    log("baked texture", tex_path)
+
+    GLOW_F = os.path.join(TOOLS, "masks", f"{NAME}_glow.png")
+    GLOW_B = os.path.join(TOOLS, "masks", f"{NAME}_back_glow.png")
+    if os.path.exists(GLOW_F):
+        black = N.new("ShaderNodeRGB"); black.outputs[0].default_value = (0, 0, 0, 1)
+        art.image = bpy.data.images.load(GLOW_F)
+        L.new(black.outputs[0], rgba_in[0])
+        if imgB is not None and os.path.exists(GLOW_B):
+            artB.image = bpy.data.images.load(GLOW_B)
+            L.new(black.outputs[0], rgbB[0])
+            L.new([x for x in mixB.outputs if x.type == 'RGBA'][0], rgba_in[0])
+        emis = bpy.data.images.new(f"{NAME}_emission", TEX // 2, TEX // 2, alpha=False)
+        target.image = emis
+        N.active = target
+        bpy.ops.object.bake(type='EMIT', margin=8, use_clear=True)
+        emis_path = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}_emission.png"))
+        emis.filepath_raw = emis_path; emis.file_format = 'PNG'; emis.save()
+        log("baked emission", emis_path)
+
+    mat = bpy.data.materials.new(f"{NAME}_mat")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = baked
+    nt.links.new(tn.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.8
+    me.materials.clear(); me.materials.append(mat)
+else:
+    # ---- keep the model's own multi-view texture; derive a soft neon glow map from its bright cyan/blue parts
+    src_img = None
+    for m_ in me.materials:
+        if not m_ or not m_.use_nodes: continue
+        for nd in m_.node_tree.nodes:
+            if nd.type == 'TEX_IMAGE' and nd.image and any(l.to_socket.name == 'Base Color' for l in nd.outputs[0].links):
+                src_img = nd.image
+    if src_img is None: raise SystemExit("textured model has no base colour texture")
+    TW, TH = src_img.size
+    tpx = np.array(src_img.pixels[:], dtype=np.float32).reshape(TH, TW, 4)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    baked = bpy.data.images.new(f"{NAME}_albedo", TW, TH, alpha=False)
+    baked.pixels = tpx.ravel()
+    tex_path = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}_albedo.png"))
+    baked.filepath_raw = tex_path; baked.file_format = 'PNG'; baked.save()
+    log("kept model texture", TW, "x", TH, "->", tex_path)
+    rgb = tpx[:, :, :3]
+    mxc = rgb.max(2); mnc = rgb.min(2)
+    sat = np.where(mxc > 1e-4, (mxc - mnc) / np.maximum(mxc, 1e-4), 0)
+    r_, g_, b_ = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    neon = (sat > 0.55) & (mxc > 0.55) & (b_ >= r_ * 1.6) & (g_ > r_)       # cyan / electric blue
+    glow = np.zeros_like(tpx); glow[:, :, 3] = 1
+    glow[:, :, :3] = rgb * neon[:, :, None] * 0.55
+    emis = bpy.data.images.new(f"{NAME}_emission", TW, TH, alpha=False)
+    emis.pixels = glow.ravel()
     emis_path = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}_emission.png"))
     emis.filepath_raw = emis_path; emis.file_format = 'PNG'; emis.save()
-    log("baked emission", emis_path)
-
-mat = bpy.data.materials.new(f"{NAME}_mat")
-mat.use_nodes = True
-nt = mat.node_tree
-bsdf = nt.nodes["Principled BSDF"]
-tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = baked
-nt.links.new(tn.outputs["Color"], bsdf.inputs["Base Color"])
-bsdf.inputs["Roughness"].default_value = 0.8
-me.materials.clear(); me.materials.append(mat)
+    log("glow map", round(float(neon.mean()) * 100, 1), "% of texels ->", emis_path)
+    head_py = iy0 + 0.40 * (iy1 - iy0)
+    try:
+        _pj = json.load(open(POSE))["joints"]
+        head_py = min(_pj["shoulderL_img"][1], _pj["shoulderR_img"][1]) - 0.02 * (iy1 - iy0)
+    except Exception:
+        pass
+    HEAD_Z = mz0 + (iy1 - head_py) / (iy1 - iy0) * (mz1 - mz0)
+    mat = bpy.data.materials.new(f"{NAME}_mat")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    tn = nt.nodes.new("ShaderNodeTexImage"); tn.image = baked
+    nt.links.new(tn.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.8
+    me.materials.clear(); me.materials.append(mat)
 
 
 # ============================================================ skeleton (heuristic humanoid)
@@ -913,6 +967,10 @@ obj.name = f"{NAME}_LOD0"; lod.name = f"{NAME}_LOD1"
 log("LOD1 faces", len(lod.data.polygons), "LOD0 faces", len(obj.data.polygons))
 
 os.makedirs(OUT_DIR, exist_ok=True)
+# marker for Unity's CharacterBuilder: textured models get more toon lighting than projected concept art
+_marker = os.path.join(OUT_DIR, f"{NAME}_textured.txt")
+if TEXTURED: open(_marker, "w").write(f"source: {os.path.basename(SRC)}\n")
+elif os.path.exists(_marker): os.remove(_marker)
 rig.animation_data.action = bpy.data.actions["idle"]
 scene.frame_set(1)
 out = os.path.abspath(os.path.join(OUT_DIR, f"{NAME}.fbx"))

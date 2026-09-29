@@ -116,11 +116,15 @@ namespace Veil.EditorTools
             mat.SetColor("_RimColor", new Color(1, 1, 1, 0.12f));
             mat.SetFloat("_Ramp", 0.35f);
             mat.SetFloat("_Gloss", 0f);
-            mat.SetFloat("_ArtKeep", 0.85f);          // the texture is painted concept art: keep it
-            mat.SetFloat("_ShadowStrength", 0.45f);   // soft self-shadows so faces stay readable
+            // finished textured models (Meshy / hand-made) carry plain albedo → let the toon lighting shade them;
+            // projected concept art already has painted lighting → keep most of it
+            bool textured = File.Exists($"{Root}/{name}/{name}_textured.txt");
+            mat.SetFloat("_ArtKeep", textured ? 0.35f : 0.85f);
+            mat.SetFloat("_ShadowStrength", textured ? 0.6f : 0.45f);   // soft self-shadows so faces stay readable
             var emis = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/{name}/{name}_emission.png");
             mat.SetTexture("_EmissionMap", emis);
-            mat.SetColor("_EmissionColor", emis != null ? new Color(2.2f, 2.2f, 2.2f) : Color.black);
+            float e = textured ? 1.6f : 2.2f;
+            mat.SetColor("_EmissionColor", emis != null ? new Color(e, e, e) : Color.black);
             mat.enableInstancing = true;
             EditorUtility.SetDirty(mat);
 

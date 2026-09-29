@@ -108,6 +108,20 @@ SKIP_SHAPE=1 ./Tools/ai3d/build_characters.sh    # keep meshes, redo texture/rig
 Add a new character: put a cutout PNG in `Tools/ai3d/masks/<name>.png` (plus `input/<name>_clean.png`), run the script
 with `<name>`, and map it in `CharacterRig.ModelNames`. If no model exists, the game falls back to the procedural rig.
 
+### Using a finished textured model (e.g. from Meshy)
+
+A ready-made textured GLB keeps its own texture and is only rigged + animated by the pipeline:
+
+```bash
+cd Tools/ai3d
+/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/render_model_front.py -- source_models/shade_meshy.glb shade
+.venvpose/bin/python pose2d.py shade_model      # or hand-mark joints/shade_model.json if detection fails (Shade: hand-marked)
+/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_character.py -- shade --src source_models/shade_meshy.glb --preview
+```
+
+The model must face -Y (front) with Z up, arms down. A glow map is derived from its bright cyan/blue texels; Unity gives
+textured models more toon lighting (`<name>_textured.txt` marker). Shade uses `Tools/ai3d/source_models/shade_meshy.glb`.
+
 ## Credits
 
 Fonts: Lilita One and Chakra Petch (SIL Open Font License, Google Fonts). Networking: LiteNetLib (MIT).

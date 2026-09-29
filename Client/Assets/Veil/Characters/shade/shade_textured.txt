@@ -1,0 +1,1 @@
+source: shade_meshy.glb
