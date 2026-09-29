@@ -1,6 +1,6 @@
-# VEIL — 15-Player Competitive Mind-Game Arena
+# VEIL — Squad Mind-Game Arena (4 × 4)
 
-> 15 players. 15 minutes. One arena. Infinite decisions.
+> 4 squads of 4. 15 minutes. One arena. Infinite decisions.
 
 A playable Unity 6.3 LTS (URP) prototype of the VEIL GDD, plus a small authoritative test server
 and REST backend in .NET 8. Everything (characters, arena, VFX, UI icons, sound, music) is generated
@@ -12,7 +12,7 @@ in code, so no paid or binary art assets are needed.
 open Builds/Mac/VEIL.app
 ```
 
-Click through the title → **PLAY** tab → **READY** → a match against 14 bots starts after a 3-second countdown.
+Click through the title → **PLAY** tab → **VS BOTS** → **READY** → your squad (you + 3 bots) plays 3 bot squads.
 Pick 5 / 10 / 15-minute matches in the lobby. In a match, **F9** skips 60 seconds (for testing phases).
 
 | Key | Action |
@@ -21,27 +21,33 @@ Pick 5 / 10 / 15-minute matches in the lobby. In a match, **F9** skips 60 second
 | LMB | blaster · Space jump · Shift sprint |
 | Q / E / R | **Dash** / **Pulse** (reveal + pop decoys) / **Decoy** (a fake you that keeps running) |
 | 1 / 2 / 3 | Market: speed boost / shield / key |
-| Tab | players · Esc pause |
+| V | push-to-talk (squad voice) · Tab players · Esc pause |
 
-**How to win:** each player gets a hidden primary (+500) and secondary (+250) objective, e.g. Control the Tower,
-Collect Cores, Unlock the Vault with 3 keys, Capture 2 locations, Finish with 70% energy, or Stop a specific player.
+**How to win:** your **squad** places by the sum of its members' scores. Each squad gets a squad objective (+400,
+visible only to that squad), and every player still has a hidden primary (+500) and secondary (+250) objective, e.g. Control the Tower,
+Collect Cores, Unlock the Vault with 3 keys, Capture 2 locations, Finish with 70% energy, or Stop a specific enemy.
+Squadmates share vision, can't damage each other and respawn near each other; zones are captured by squads.
 Score also comes from resources, territory, eliminations (diminishing returns), survival and clever ability plays.
 Nobody sees everything: vision is limited, Ruins hide you, the Reactor exposes you, gunfire pings the minimap,
 Tower control grants periodic full sight, and the arena collapses toward the center in the last minutes.
 
-## Online (test server)
+## Online (test server): parties, friends, voice
 
 ```bash
-./Server/run-server.sh                 # UDP 7777 + REST http://localhost:5080  (SQLite: Server/Veil.Server/veil.db)
-./Server/run-server.sh --match-seconds 120 --players 15 --name "LAN Test"
+./Server/run-server.sh                 # TCP 5080 (REST + Gateway /ws) · UDP 7777 (matches) · UDP 7778 (voice)
+./Server/run-server.sh --mm-wait 20    # wait up to 20 s for other parties before bots fill the match
 ```
 
-In the game: **PLAY → ONLINE → CONNECT** (default host `127.0.0.1`; use the server machine's LAN IP for other PCs),
-then **READY**. The match starts when every connected human is ready; empty slots are filled with server-side bots.
-Results, XP, level and rating are stored by the backend (**LEADERBOARD** tab).
+In the game: **PLAY → ONLINE** (phones find the server on your Wi-Fi automatically; on PCs type its LAN IP) →
+**CREATE ROOM** → share the 6-letter code or **FRIENDS → INVITE** → everyone **READY** → the leader presses **START**.
+Parties stay together as one squad; the matchmaker fills the other squads with queued parties, then bots.
+**FRIENDS**: add by ID (`Name#1234`), accept/decline requests, see who's online / in a party / in a match, invite or join.
+Leader controls: invite, kick, make leader, start / cancel. Leaving a match early → **REJOIN** (a bot plays for you meanwhile).
+Voice: push-to-talk (**V**, or hold **TALK** on phones), open mic or off; mute / volume per squadmate; only your squad hears you.
 
+Architecture and roadmap: [docs/SQUAD_PLAN.md](docs/SQUAD_PLAN.md).
 REST: `GET /api/health`, `POST /api/players/register`, `GET|PUT /api/players/{id}`, `GET /api/leaderboard`,
-`GET /api/matches/recent`, `GET /api/servers`, `POST /api/matchmaking/join`.
+`GET /api/matches/recent`, `GET /api/servers` · WebSocket Gateway: `/ws`.
 
 ## Develop
 
@@ -57,14 +63,14 @@ REST: `GET /api/health`, `POST /api/players/register`, `GET|PUT /api/players/{id
 
 | Command | What it checks |
 |---|---|
-| `cd Server/Veil.Server && ~/.dotnet/dotnet run -c Release -- --selftest 300 2` | 2 headless 15-bot matches: map validity, all systems firing, tick cost, snapshot round-trip |
-| `cd Server/Veil.LoadTest && ~/.dotnet/dotnet run -c Release -- 15` | 15 network clients complete a match (snapshot rate, bandwidth) |
+| `cd Server/Veil.Server && ~/.dotnet/dotnet run -c Release -- --selftest 300 2` | 2 headless 4×4 matches: squads full, no friendly fire, allies always visible, tick cost, snapshot round-trip |
+| `cd Server/Veil.LoadTest && ~/.dotnet/dotnet run -c Release` (server running with `--mm-wait 2`) | end-to-end: register → friends → party/invite/code/kick/promote → queue → squads → ticket join → voice relay (squad-only) → rejoin → results |
 | `VEIL.app/Contents/MacOS/VEIL -autotest -shotdir /tmp/shots` | full UI flow + autopilot match, screenshots of every screen |
 | `… -autotest-scripted` | offline match through the real input → prediction path |
-| `… -autotest-online 127.0.0.1` | REST register → UDP lobby → online match → results/XP |
+| `… -autotest-online 127.0.0.1` | Gateway → room → queue → online squad match → results/XP → back in the party |
 
-Last verified results: tick 0.08 ms for 15 players (budget 33 ms), snapshots ≤ 620 B, 15 clients at 15 Hz ≈ 8 KB/s each,
-online prediction error ≈ 6 mm average.
+Last verified results: tick ≈ 0.1 ms for 16 players in 4 squads (budget 33 ms), snapshots ≤ 720 B, squad flow test all green,
+online prediction error ≈ 1 cm average.
 
 ## Layout
 

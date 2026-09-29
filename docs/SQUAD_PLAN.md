@@ -85,12 +85,20 @@ Gateway → PartyService → Matchmaker → MatchAllocator → MatchInstance(s)
 
 | # | Milestone | Status |
 |---|---|---|
-| M1 | Foundations: git, handles, WebSocket Gateway, signed tickets, multiple match instances | ☐ |
-| M2 | Friends + presence | ☐ |
-| M3 | Party rooms: create/join code, invite, ready, leader controls, member cards + ping | ☐ |
-| M4 | Squad gameplay: 4×4, shared vision, squad objective/scoring, squad HUD/results, squad-aware bots | ☐ |
-| M5 | Party → match flow: START, matchmaker with bot fill, reconnect/REJOIN | ☐ |
-| M6 | Voice: relay, Opus, PTT/open mic, mute/deafen, indicators, mobile permissions | ☐ |
-| M7 | Hardening: load test (fake parties + voice), phone + Mac tests, drop/reconnect tests | ☐ |
+| M1 | Foundations: git, handles, WebSocket Gateway, signed tickets, multiple match instances | ☑ |
+| M2 | Friends + presence | ☑ |
+| M3 | Party rooms: create/join code, invite, ready, leader controls, member cards + ping | ☑ |
+| M4 | Squad gameplay: 4×4, shared vision, squad objective/scoring, squad HUD/results, squad-aware bots | ☑ |
+| M5 | Party → match flow: START, matchmaker with bot fill, reconnect/REJOIN | ☑ |
+| M6 | Voice: relay, Opus, PTT/open mic, mute, indicators, mobile permissions | ◐ built; relay verified by test, live mic on devices not yet verified |
+| M7 | Hardening: load test (fake parties + voice), phone + Mac tests, drop/reconnect tests | ◐ automated tests pass; real multi-device session pending |
 
 Testing: `Veil.LoadTest` drives fake parties/friends over the Gateway; server `--selftest` covers friends/party/ticket/squad sim; voice loopback mode; scripted online autotest; real session Samsung + Mac.
+
+## Status notes
+
+* Server: `SocialHub.cs` (presence/friends/party/invites/matchmaker), `Gateway.cs` (/ws), `GameHost.cs` (match instances,
+  tickets, rejoin), `VoiceRelay.cs`, `Tickets.cs`, `Database.cs` (friends, handles, squad rating).
+* Client: `Net/GatewayClient.cs`, `Voice/VoiceChat.cs`, `UI/Social.cs` (squad panel, friends drawer, toasts), squad HUD in `UI/Hud.cs`.
+* Shared: squad rules in `Sim/Match/*`, `Sim/Net/GatewayMessages.cs`, `Sim/Net/VoiceWire.cs`.
+* Not done yet: deafen button in UI (API exists), per-player volume slider UI (API exists), echo cancellation, accounts beyond device-bound guests.

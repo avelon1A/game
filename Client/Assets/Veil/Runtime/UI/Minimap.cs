@@ -146,7 +146,7 @@ namespace Veil.UI
             {
                 _zoneIcons[i].rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
                 var z = snap.Zones[i];
-                var c = z.Controller < 0 ? Palette.ZoneColor(m.Map.Zones[i].Type) : (z.Controller == m.LocalId ? Palette.Health : Palette.PlayerColor(z.Controller));
+                var c = z.Squad < 0 ? Palette.ZoneColor(m.Map.Zones[i].Type) : (z.Squad == m.LocalSquad ? Palette.Health : Palette.SquadColor(z.Squad));
                 _zoneRings[i].color = new Color(c.r, c.g, c.b, z.Contested ? 0.5f + Mathf.Sin(Time.time * 10) * 0.4f : 0.9f);
             }
 
@@ -171,10 +171,14 @@ namespace Veil.UI
                 var d = Dot();
                 bool full = a.Vis == Visibility.Full;
                 bool mine = (a.Flags & AvatarFlags.MyDecoy) != 0;
+                bool ally = (a.Flags & AvatarFlags.Ally) != 0;
+                bool decoy = a.AvatarId >= 1000;
                 d.sprite = full ? UIKit.Circle : UIKit.Ring;
                 float pulse = full ? 1f : 0.6f + Mathf.Sin(Time.time * 8f) * 0.4f;
-                d.color = mine ? new Color(0.7f, 0.6f, 1f, 0.8f) : (full ? new Color(1f, 0.35f, 0.4f, 1f) : new Color(1f, 0.6f, 0.2f, pulse));
-                d.rectTransform.sizeDelta = full ? new Vector2(12, 12) : new Vector2(18, 18);
+                d.color = mine || (ally && decoy) ? new Color(0.7f, 0.6f, 1f, 0.8f)
+                    : ally ? new Color(0.35f, 1f, 0.5f, 1f)                       // squadmates: always visible, green
+                    : (full ? new Color(1f, 0.35f, 0.4f, 1f) : new Color(1f, 0.6f, 0.2f, pulse));
+                d.rectTransform.sizeDelta = ally && !decoy ? new Vector2(15, 15) : full ? new Vector2(12, 12) : new Vector2(18, 18);
                 d.rectTransform.anchoredPosition = W(a.Pos);
                 d.rectTransform.localRotation = Quaternion.identity;
             }

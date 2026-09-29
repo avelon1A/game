@@ -23,6 +23,9 @@ namespace Veil.App
         public int GyroMode;          // 0 off, 1 while firing, 2 always
         public float GyroSensitivity;
         public bool GyroInvertX, GyroInvertY;
+        public int VoiceMode;              // 0 push-to-talk, 1 open mic, 2 off
+        public float VoiceVolume, MicSensitivity;
+        public string Handle;              // Name#1234 from the Gateway
 
         public static Profile Load()
         {
@@ -45,6 +48,10 @@ namespace Veil.App
                 GyroSensitivity = PlayerPrefs.GetFloat("gyroSens", 1.0f),
                 GyroInvertX = PlayerPrefs.GetInt("gyroInvX", 0) == 1,
                 GyroInvertY = PlayerPrefs.GetInt("gyroInvY", 0) == 1,
+                VoiceMode = PlayerPrefs.GetInt("voiceMode", 0),
+                VoiceVolume = PlayerPrefs.GetFloat("voiceVol", 1f),
+                MicSensitivity = PlayerPrefs.GetFloat("micSens", 0.35f),
+                Handle = PlayerPrefs.GetString("handle", ""),
             };
             p.Look = new Appearance
             {
@@ -76,6 +83,10 @@ namespace Veil.App
             PlayerPrefs.SetFloat("gyroSens", GyroSensitivity);
             PlayerPrefs.SetInt("gyroInvX", GyroInvertX ? 1 : 0);
             PlayerPrefs.SetInt("gyroInvY", GyroInvertY ? 1 : 0);
+            PlayerPrefs.SetInt("voiceMode", VoiceMode);
+            PlayerPrefs.SetFloat("voiceVol", VoiceVolume);
+            PlayerPrefs.SetFloat("micSens", MicSensitivity);
+            PlayerPrefs.SetString("handle", Handle ?? "");
             PlayerPrefs.SetInt("outfit", Look.Outfit);
             PlayerPrefs.SetInt("hair", Look.Hair);
             PlayerPrefs.SetInt("hairColor", Look.HairColor);

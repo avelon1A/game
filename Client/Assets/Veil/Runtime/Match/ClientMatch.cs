@@ -93,6 +93,20 @@ namespace Veil.Match
             return null;
         }
 
+        /// <summary>Your squad (0..3).</summary>
+        public int LocalSquad => Entry(LocalId)?.Squad ?? 0;
+        public int SquadOf(int id) => Entry(id)?.Squad ?? -1;
+        public bool IsAlly(int id) => id >= 0 && SquadOf(id) == LocalSquad;
+
+        /// <summary>Your squadmates (roster order), excluding you.</summary>
+        public List<RosterEntry> Squadmates()
+        {
+            var list = new List<RosterEntry>();
+            int sq = LocalSquad;
+            foreach (var r in Roster) if (r.Squad == sq && r.Id != LocalId) list.Add(r);
+            return list;
+        }
+
         /// <summary>Called every frame.</summary>
         /// <summary>Yaw the blaster fires along (from the player toward the crosshair target).</summary>
         public float AimYaw { get; private set; }

@@ -186,6 +186,15 @@ namespace Veil.View
         };
 
         /// <summary>Per-player identity colour for minimap/zone ownership.</summary>
+        /// <summary>Enemy squad colours (your own squad is always green).</summary>
+        public static Color SquadColor(int squad) => squad switch
+        {
+            0 => new Color(1f, 0.55f, 0.2f),
+            1 => new Color(1f, 0.35f, 0.7f),
+            2 => new Color(0.3f, 0.75f, 1f),
+            _ => new Color(0.75f, 0.45f, 1f),
+        };
+
         public static Color PlayerColor(int id)
         {
             float h = (id * 0.618034f) % 1f;

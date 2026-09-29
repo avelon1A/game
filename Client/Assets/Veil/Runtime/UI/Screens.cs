@@ -77,16 +77,10 @@ namespace Veil.UI
         private Text _profileChip;
 
         // play tab
-        private ChipRow _mode, _length;
-        private RectTransform _onlineRow, _listRoot;
-        private InputField _hostField;
-        private Text _status, _readyLabel, _lobbyTitle, _countdown;
-        private Button _ready;
-        private bool _online;
-        private bool _offlineCountdown;
-        private float _countT;
-        private readonly List<RectTransform> _rows = new List<RectTransform>();
-        private bool _localReady;
+        public SquadPanel Squad { get; private set; }
+        public FriendsDrawer Friends { get; private set; }
+        private RectTransform _howTo;
+        private Text _friendsLabel;
 
         // characters tab
         private InputField _nameField;
@@ -132,9 +126,15 @@ namespace Veil.UI
             BuildSettings(_tabs[3]);
             ((RectTransform)bar.transform).SetAsLastSibling();
 
-            App.Net.LobbyUpdated += _ => RefreshLobby();
-            App.Net.Disconnected += reason => { _status.text = $"<color=#ff7a8a>Disconnected: {reason}</color>"; _localReady = false; RefreshLobby(); };
-            App.Net.Welcomed += () => { _status.text = $"<color=#7dff9a>Connected to {App.Net.ServerName}</color>"; };
+            // friends button (with a badge for requests + invites)
+            var fb = UIKit.Button(bar, "FRIENDS", new Vector2(1, 0.5f), new Vector2(-514, 0), new Vector2(170, 52), UIKit.ButtonStyle.Ghost, () => { SelectTab(0); Friends.Toggle(); }, 18);
+            ((RectTransform)fb.transform).pivot = new Vector2(1, 0.5f);
+            _friendsLabel = UIKit.ButtonLabel(fb);
+            _friendsLabel.supportRichText = true;
+            Friends = new FriendsDrawer(_tabs[0], app);
+            Squad.OpenFriends = () => Friends.Show(true);
+            App.Gateway.Changed += RefreshFriendsBadge;
+            App.Gateway.Changed += RefreshProfileChip;
         }
 
         public override void Show(bool v)
@@ -142,10 +142,9 @@ namespace Veil.UI
             base.Show(v);
             if (v)
             {
-                _offlineCountdown = false;
-                _localReady = false;
-                RefreshLobby();
+                Squad.OnShow();
                 RefreshProfileChip();
+                RefreshFriendsBadge();
             }
         }
 
@@ -164,9 +163,21 @@ namespace Veil.UI
         private void RefreshProfileChip()
         {
             var op = App.OnlineProfile;
+            var g = App.Gateway;
+            string status = g.Online ? "<color=#7dff9a>●</color>" : "<color=#8a90b8>○</color>";
             _profileChip.text = op != null
-                ? $"{App.Profile.Name}  <color=#c7a6ff>LV {op.level}</color>  <color=#ffd84a>★ {op.rating}</color>"
-                : $"{App.Profile.Name}  <color=#8a90b8>offline</color>";
+                ? $"{status} {App.Profile.Name}  <color=#c7a6ff>LV {op.level}</color>  <color=#ffd84a>★ {op.rating}</color>"
+                : $"{status} {App.Profile.Name}  <color=#8a90b8>offline</color>";
+        }
+
+        private void RefreshFriendsBadge()
+        {
+            if (_friendsLabel == null) return;
+            var g = App.Gateway;
+            int n = g.Friends.incoming.Count + g.Invites.Count;
+            int online = 0;
+            foreach (var f in g.Friends.friends) if (f.status > 0) online++;
+            _friendsLabel.text = n > 0 ? $"FRIENDS <color=#ff6b7a>●{n}</color>" : online > 0 ? $"FRIENDS <color=#7dff9a>{online}</color>" : "FRIENDS";
         }
 
         // ------------------------------------------------------------------ PLAY tab
@@ -174,265 +185,34 @@ namespace Veil.UI
         private void BuildPlay(RectTransform tab)
         {
             // left: pitch + controls
-            var info = UIKit.Panel(tab, "Info", new Vector2(0, 0), new Vector2(40, 40), new Vector2(560, 330));
+            var info = UIKit.Panel(tab, "Info", new Vector2(0, 0), new Vector2(40, 40), new Vector2(560, 360));
             info.rectTransform.pivot = new Vector2(0, 0);
+            _howTo = info.rectTransform;
             var h = UIKit.LabelAt(info.transform, "HOW TO PLAY", 26, Theme.Yellow, new Vector2(0, 1), new Vector2(26, -24), new Vector2(500, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
             h.rectTransform.pivot = new Vector2(0, 1);
             var body = UIKit.LabelAt(info.transform,
-                "Complete your <color=#c7a6ff>hidden objectives</color>, grab resources and outthink 14 rivals.\n" +
-                "Information is power: nobody sees everything.\n\n" +
+                "Squads of <color=#ffd84a>4</color>, four squads per match. Each of you has a <color=#c7a6ff>secret objective</color>, " +
+                "your squad shares one more — and your vision. Outthink the other squads.\n\n" +
                 (Veil.Match.Platform.IsMobile
-                    ? "<color=#ffd84a>Left thumb</color> move (push fully to sprint)\n<color=#ffd84a>Right side</color> drag to look   <color=#ffd84a>FIRE</color> hold to blast\n<color=#ffd84a>DASH  PULSE  DECOY</color> abilities   Market buttons appear inside the Market"
+                    ? "<color=#ffd84a>Left thumb</color> move (push fully to sprint)\n<color=#ffd84a>Right side</color> drag to look   <color=#ffd84a>FIRE</color> hold to blast\n<color=#ffd84a>DASH  PULSE  DECOY</color> abilities   <color=#ffd84a>TALK</color> hold for squad voice"
                     : "<color=#ffd84a>WASD</color> move   <color=#ffd84a>Mouse</color> aim   <color=#ffd84a>LMB</color> blast   <color=#ffd84a>Space</color> jump\n" +
                       "<color=#ffd84a>Shift</color> sprint   <color=#ffd84a>Q</color> Dash   <color=#ffd84a>E</color> Pulse   <color=#ffd84a>R</color> Decoy\n" +
-                      "<color=#ffd84a>1/2/3</color> Market   <color=#ffd84a>Tab</color> players   <color=#ffd84a>Esc</color> pause"),
-                19, Theme.Text, new Vector2(0, 1), new Vector2(26, -70), new Vector2(510, 240), TextAnchor.UpperLeft, UIKit.BodyFont);
+                      "<color=#ffd84a>1/2/3</color> Market   <color=#ffd84a>V</color> push-to-talk   <color=#ffd84a>Tab</color> players   <color=#ffd84a>Esc</color> pause"),
+                19, Theme.Text, new Vector2(0, 1), new Vector2(26, -70), new Vector2(510, 270), TextAnchor.UpperLeft, UIKit.BodyFont);
             body.rectTransform.pivot = new Vector2(0, 1);
             body.supportRichText = true;
             body.lineSpacing = 1.15f;
             body.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            // right: lobby panel
-            var panel = UIKit.Panel(tab, "Lobby", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(560, 840));
-            var p = panel.transform;
-            _lobbyTitle = UIKit.LabelAt(p, "LOBBY", 34, Theme.Text, new Vector2(0, 1), new Vector2(28, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
-            _lobbyTitle.rectTransform.pivot = new Vector2(0, 1);
-
-            _mode = new ChipRow(p, new Vector2(0, 1), new Vector2(-150, -104), "", new[] { "VS BOTS", "ONLINE" }, 0, i => SetOnline(i == 1), 170);
-            _mode.Root.pivot = new Vector2(0, 0.5f);
-
-            _onlineRow = UIKit.At(p, "OnlineRow", new Vector2(0, 1), new Vector2(28, -160), new Vector2(500, 50));
-            _onlineRow.pivot = new Vector2(0, 0.5f);
-            _hostField = Widgets.InputRow(_onlineRow, new Vector2(0, 0.5f), new Vector2(-160, 0), "", App.Profile.ServerHost, v => App.Profile.ServerHost = v.Trim(), 300);
-            ((RectTransform)_hostField.transform.parent).pivot = new Vector2(0, 0.5f);
-            var connect = UIKit.Button(_onlineRow, "CONNECT", new Vector2(1, 0.5f), new Vector2(0, 0), new Vector2(170, 48), UIKit.ButtonStyle.Secondary, Connect, 20);
-            ((RectTransform)connect.transform).pivot = new Vector2(1, 0.5f);
-
-            _status = UIKit.LabelAt(p, "", 17, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -200), new Vector2(500, 26), TextAnchor.MiddleLeft, UIKit.BodyFont);
-            _status.rectTransform.pivot = new Vector2(0, 1);
-            _status.supportRichText = true;
-
-            _listRoot = UIKit.At(p, "List", new Vector2(0, 1), new Vector2(28, -236), new Vector2(504, 420));
-            _listRoot.pivot = new Vector2(0, 1);
-
-            _length = new ChipRow(p, new Vector2(0, 0), new Vector2(-150, 160), "", new[] { "5 MIN", "10 MIN", "15 MIN" }, App.Profile.MatchMinutes >= 15 ? 2 : App.Profile.MatchMinutes >= 10 ? 1 : 0,
-                i => { App.Profile.MatchMinutes = i == 0 ? 5 : i == 1 ? 10 : 15; App.Profile.Save(); }, 112);
-            _length.Root.pivot = new Vector2(0, 0.5f);
-
-            _ready = UIKit.Button(p, "READY", new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(500, 92), UIKit.ButtonStyle.Primary, OnReady, 52);
-            _readyLabel = UIKit.ButtonLabel(_ready);
-            _countdown = UIKit.LabelAt(tab, "", 120, Color.white, new Vector2(0.5f, 0.5f), new Vector2(-260, 60), new Vector2(400, 200), TextAnchor.MiddleCenter, UIKit.TitleFont);
-            UIKit.Outline(_countdown, new Color(0.4f, 0.15f, 0.9f), 5);
-
-            SetOnline(false);
-            App.Net.ServerFound += OnServerFound;
-        }
-
-        // ---- LAN discovery: find the test server on this Wi-Fi so phones don't need an IP typed in
-        private bool _discovering;
-        private string _found;
-
-        private static bool IsLoopback(string h) => string.IsNullOrWhiteSpace(h) || h == "127.0.0.1" || h == "localhost" || h == "::1";
-
-        private IEnumerator DiscoverRoutine()
-        {
-            if (_discovering) yield break;
-            _discovering = true; _found = null;
-            for (int i = 0; i < 6 && _found == null; i++)
-            {
-                App.Net.Discover(App.Profile.ServerPort);
-                float t = 0;
-                while (t < 0.5f && _found == null) { t += Time.unscaledDeltaTime; yield return null; }
-            }
-            _discovering = false;
-        }
-
-        private void OnServerFound(string ip, int port, string name, int players)
-        {
-            if (!_discovering) return;
-            _found = ip;
-            App.Profile.ServerHost = ip;
-            if (port > 0) App.Profile.ServerPort = port;
-            App.Profile.Save();
-            _hostField.SetTextWithoutNotify(ip);
-            _status.text = $"Found <color=#b9f27c>{name}</color> on your Wi-Fi ({ip}) · {players} connected";
-        }
-
-        private void SetOnline(bool online)
-        {
-            if (_online && !online && App.Net.Status == VeilNetClient.State.Connected) App.Net.Disconnect();
-            _online = online;
-            _onlineRow.gameObject.SetActive(online);
-            _status.text = online ? $"Server: {App.Profile.ServerHost}:{App.Profile.ServerPort} (UDP) · API :{App.Profile.HttpPort}" : "Practice against 14 bots. Same rules as online.";
-            if (online && App.Net.Status != VeilNetClient.State.Connected && (Veil.Match.Platform.IsMobile || IsLoopback(App.Profile.ServerHost)))
-            {
-                _status.text = "Looking for a server on your Wi-Fi…";
-                App.StartCoroutine(DiscoverRoutine());
-            }
-            _localReady = false;
-            _offlineCountdown = false;
-            RefreshLobby();
-        }
-
-        private void Connect()
-        {
-            App.Profile.Save();
-            _status.text = "Connecting…";
-            App.StartCoroutine(ConnectRoutine());
-        }
-
-        private IEnumerator ConnectRoutine()
-        {
-            // phones can't use 127.0.0.1 (that's the phone itself): find the server on the LAN first
-            if (Veil.Match.Platform.IsMobile && IsLoopback(App.Profile.ServerHost))
-            {
-                _status.text = "Looking for a server on your Wi-Fi…";
-                yield return DiscoverRoutine();
-                while (_discovering) yield return null;
-                if (IsLoopback(App.Profile.ServerHost))
-                {
-                    _status.text = "<color=#ff7a8a>No server found on this Wi-Fi. Type the server PC's IP above.</color>";
-                    yield break;
-                }
-            }
-            // 1) make sure we have a backend profile (REST)
-            string url = App.BackendUrl;
-            if (string.IsNullOrEmpty(App.Profile.BackendId))
-            {
-                yield return BackendApi.Register(url, App.Profile.Name, r =>
-                {
-                    App.Profile.BackendId = r.id;
-                    App.Profile.BackendToken = r.token;
-                    App.OnlineProfile = r.profile;
-                    App.Profile.Save();
-                }, e => _status.text = $"<color=#ffb070>Backend unreachable ({e}) — playing without stats</color>");
-            }
-            else
-            {
-                yield return BackendApi.GetProfile(url, App.Profile.BackendId, p => App.OnlineProfile = p, e => { });
-                if (App.OnlineProfile == null)
-                {
-                    App.Profile.BackendId = "";
-                    yield return BackendApi.Register(url, App.Profile.Name, r =>
-                    {
-                        App.Profile.BackendId = r.id; App.Profile.BackendToken = r.token; App.OnlineProfile = r.profile; App.Profile.Save();
-                    }, e => { });
-                }
-                else yield return BackendApi.UpdateProfile(url, App.Profile.BackendId, App.Profile.BackendToken, App.Profile.Name, App.Profile.AppearanceString, p => App.OnlineProfile = p, e => { });
-            }
-            RefreshProfileChip();
-
-            // 2) UDP game connection
-            App.Net.Connect(App.Profile.ServerHost, App.Profile.ServerPort, new HelloMsg { Name = App.Profile.Name, Look = App.Profile.Look, ProfileId = App.Profile.BackendId ?? "" });
-            float t = 0;
-            while (App.Net.Status == VeilNetClient.State.Connecting && t < 6f) { t += Time.deltaTime; yield return null; }
-            if (App.Net.Status != VeilNetClient.State.Connected) _status.text = $"<color=#ff7a8a>Could not reach game server {App.Profile.ServerHost}:{App.Profile.ServerPort}</color>";
-        }
-
-        private void OnReady()
-        {
-            if (_online)
-            {
-                if (App.Net.Status != VeilNetClient.State.Connected) { Connect(); return; }
-                _localReady = !_localReady;
-                App.Net.SendReady(_localReady, App.Profile.MatchMinutes * 60);
-                RefreshLobby();
-                return;
-            }
-            _offlineCountdown = !_offlineCountdown;
-            _countT = 3.99f;
-            _localReady = _offlineCountdown;
-            RefreshLobby();
-        }
-
-        private void ClearRows()
-        {
-            foreach (var r in _rows) Object.Destroy(r.gameObject);
-            _rows.Clear();
-        }
-
-        private void AddRow(string name, Appearance look, string tag, Color tagColor, bool highlight)
-        {
-            int i = _rows.Count;
-            if (i >= 15) return;
-            float h = 27;
-            var rt = UIKit.At(_listRoot, "Row", new Vector2(0, 1), new Vector2(0, -i * (h + 1)), new Vector2(504, h));
-            rt.pivot = new Vector2(0, 1);
-            UIKit.Image(rt, UIKit.RoundedSmall, highlight ? new Color(0.62f, 0.38f, 1f, 0.35f) : new Color(1, 1, 1, i % 2 == 0 ? 0.06f : 0.03f));
-            var face = UIKit.At(rt, "Face", new Vector2(0, 0.5f), new Vector2(4, 0), new Vector2(h - 2, h - 2));
-            face.pivot = new Vector2(0, 0.5f);
-            var raw = face.gameObject.AddComponent<RawImage>();
-            raw.texture = PortraitStudio.Get(look);
-            raw.raycastTarget = false;
-            var n = UIKit.LabelAt(rt, name, 17, Theme.Text, new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(300, h), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            n.rectTransform.pivot = new Vector2(0, 0.5f);
-            var tg = UIKit.LabelAt(rt, tag, 15, tagColor, new Vector2(1, 0.5f), new Vector2(-10, 0), new Vector2(160, h), TextAnchor.MiddleRight, UIKit.BoldFont);
-            tg.rectTransform.pivot = new Vector2(1, 0.5f);
-            _rows.Add(rt);
-        }
-
-        private void RefreshLobby()
-        {
-            if (_listRoot == null) return;
-            ClearRows();
-            if (!_online)
-            {
-                _lobbyTitle.text = "LOBBY  <size=22><color=#aab0d8>vs bots</color></size>";
-                _lobbyTitle.supportRichText = true;
-                AddRow(App.Profile.Name + " (you)", App.Profile.Look, _localReady ? "● Ready" : "Not ready", _localReady ? Theme.Green : Theme.TextDim, true);
-                string[] kinds = { "Explorer", "Collector", "Hunter", "Defender", "Opportunist" };
-                for (int i = 0; i < App.Profile.Bots; i++)
-                {
-                    var look = Appearance.Preset(i + 1);
-                    look.Color = (byte)(((i + 1) * 3) % 8);
-                    look.HairColor = (byte)(((i + 1) * 5 + 1) % 8);
-                    AddRow(MatchSim.BotNames[(i + 1) % MatchSim.BotNames.Length], look, "BOT · " + kinds[i % 5], Theme.Cyan, false);
-                }
-                _readyLabel.text = _offlineCountdown ? "CANCEL" : "READY";
-                return;
-            }
-
-            var lobby = App.Net.Lobby;
-            bool connected = App.Net.Status == VeilNetClient.State.Connected;
-            _lobbyTitle.supportRichText = true;
-            _lobbyTitle.text = connected && lobby != null ? $"LOBBY  <size=22><color=#aab0d8>{lobby.ServerName}</color></size>" : "LOBBY  <size=22><color=#aab0d8>online</color></size>";
-            if (connected && lobby != null)
-            {
-                foreach (var e in lobby.Entries)
-                {
-                    bool me = e.ClientId == App.Net.ClientId;
-                    AddRow(e.Name + (me ? " (you)" : "") + (e.IsHost ? "  ★" : ""), e.Look, e.Ready ? "● Ready" : "Not ready", e.Ready ? Theme.Green : Theme.TextDim, me);
-                }
-                int bots = Mathf.Max(0, lobby.TotalPlayers - lobby.Entries.Count);
-                if (bots > 0) AddRow($"+{bots} bots will fill the match", Appearance.Preset(2), "AUTO", Theme.Cyan, false);
-                string st = lobby.Status == LobbyStatus.Countdown ? $"Starting in {Mathf.CeilToInt(lobby.Countdown)}…" :
-                            lobby.Status == LobbyStatus.InMatch ? "Match in progress — you'll join the next one" :
-                            lobby.Status == LobbyStatus.Results ? "Previous match finishing…" : $"Waiting for players to ready up · {lobby.MatchSeconds / 60} min match";
-                _status.text = $"<color=#7dff9a>●</color> {st}   <color=#8a90b8>ping {App.Net.Ping}ms</color>";
-                _readyLabel.text = _localReady ? "CANCEL" : "READY";
-            }
-            else _readyLabel.text = "CONNECT";
+            // right: squad / party lobby
+            Squad = new SquadPanel(tab, App);
         }
 
         public override void Update(float dt)
         {
-            if (Tab == 0 && !_online && _offlineCountdown)
-            {
-                int before = Mathf.CeilToInt(_countT);
-                _countT -= dt;
-                int after = Mathf.CeilToInt(_countT);
-                if (after != before && after > 0) Sfx.Play(Sfx.Beep, 0.8f);
-                _countdown.text = after > 0 ? after.ToString() : "GO!";
-                if (_countT <= 0)
-                {
-                    _offlineCountdown = false;
-                    _countdown.text = "";
-                    App.StartOfflineMatch();
-                }
-            }
-            else if (_online && App.Net.Lobby != null && App.Net.Lobby.Status == LobbyStatus.Countdown)
-                _countdown.text = Mathf.CeilToInt(App.Net.Lobby.Countdown).ToString();
-            else _countdown.text = "";
+            Squad.Update(dt);
+            Friends.Update(dt);
+            _howTo.gameObject.SetActive(!Friends.Visible);
         }
 
         // ------------------------------------------------------------------ CHARACTERS tab
@@ -539,17 +319,21 @@ namespace Veil.UI
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -130), "MOUSE SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; Save(); }, v => (v * 10).ToString("0.0"));
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -200), "MUSIC", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -340), "BOTS (OFFLINE)", 1f, 14f, prof.Bots, v => { prof.Bots = Mathf.RoundToInt(v); Save(); RefreshLobby(); }, v => Mathf.RoundToInt(v).ToString()).wholeNumbers = true;
-            var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -420), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
-            var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -490), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
-            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-80, -560), "SERVER", prof.ServerHost, v => { prof.ServerHost = v.Trim(); prof.Save(); }, 340);
+            var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
+            var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
+            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-80, -450), "SERVER", prof.ServerHost, v => { prof.ServerHost = v.Trim(); prof.Save(); }, 340);
+            // squad voice
+            var vm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -515), "VOICE CHAT", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode,
+                i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); }, 160);
+            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -575), "VOICE VOLUME", 0f, 2f, prof.VoiceVolume, v => { prof.VoiceVolume = v; App.Voice.OutputVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
+            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -630), "OPEN MIC THRESHOLD", 0f, 1f, prof.MicSensitivity, v => { prof.MicSensitivity = v; App.Voice.Sensitivity = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             // gyroscope aiming (phones)
-            var gm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -630), "GYROSCOPE", new[] { "OFF", "WHILE FIRING", "ALWAYS" }, prof.GyroMode, i => { prof.GyroMode = i; Save(); }, 160);
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -700), "GYRO SENSITIVITY", 0.2f, 3f, prof.GyroSensitivity, v => { prof.GyroSensitivity = v; Save(); }, v => v.ToString("0.0") + "x");
+            var gm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -695), "GYROSCOPE", new[] { "OFF", "WHILE FIRING", "ALWAYS" }, prof.GyroMode, i => { prof.GyroMode = i; Save(); }, 160);
+            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -755), "GYRO SENSITIVITY", 0.2f, 3f, prof.GyroSensitivity, v => { prof.GyroSensitivity = v; Save(); }, v => v.ToString("0.0") + "x");
             int inv = (prof.GyroInvertX ? 1 : 0) + (prof.GyroInvertY ? 2 : 0);
-            var gi = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -770), "GYRO INVERT", new[] { "NONE", "HORIZONTAL", "VERTICAL", "BOTH" }, inv,
+            var gi = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -815), "GYRO INVERT", new[] { "NONE", "HORIZONTAL", "VERTICAL", "BOTH" }, inv,
                 i => { prof.GyroInvertX = (i & 1) != 0; prof.GyroInvertY = (i & 2) != 0; Save(); }, 130);
-            var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim." : "F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim. Hold TALK for squad voice." : "Hold V to talk to your squad. F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 26), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
         }
     }
 
@@ -572,7 +356,7 @@ namespace Veil.UI
             _rank.rectTransform.pivot = new Vector2(0, 1);
             _rank.fontStyle = FontStyle.Italic;
             UIKit.Outline(_rank, new Color(0.5f, 0.3f, 0, 0.9f), 4);
-            var mc = UIKit.LabelAt(p, "MATCH COMPLETE", 26, Theme.Text, new Vector2(0, 1), new Vector2(290, -48), new Vector2(320, 34), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var mc = UIKit.LabelAt(p, "SQUAD PLACEMENT", 26, Theme.Text, new Vector2(0, 1), new Vector2(290, -48), new Vector2(320, 34), TextAnchor.MiddleLeft, UIKit.BoldFont);
             mc.rectTransform.pivot = new Vector2(0, 1);
             var ys = UIKit.LabelAt(p, "YOUR SCORE", 20, Theme.TextDim, new Vector2(0, 1), new Vector2(290, -86), new Vector2(320, 26), TextAnchor.MiddleLeft, UIKit.BoldFont);
             ys.rectTransform.pivot = new Vector2(0, 1);
@@ -609,7 +393,7 @@ namespace Veil.UI
 
         private void PlayAgain()
         {
-            if (App.Net.Status == VeilNetClient.State.Connected) App.GoMenu(0);
+            if (App.Gateway.Online) { App.GoMenu(0); App.ShowSquad(); }   // back to your party — the leader starts again
             else App.StartOfflineMatch();
         }
 
@@ -622,18 +406,22 @@ namespace Veil.UI
             PlayerResult me = null;
             foreach (var r in results) if (r.PlayerId == localId) me = r;
             if (me == null && results.Count > 0) me = results[0];
-            _rank.text = "#" + me.Rank;
-            _rank.fontSize = me.Rank >= 10 ? 104 : 150;
-            _rank.color = me.Rank == 1 ? Theme.Gold : me.Rank <= 3 ? Theme.PurpleLight : Theme.Text;
+            _rank.text = "#" + me.SquadRank;
+            _rank.fontSize = 150;
+            _rank.color = me.SquadRank == 1 ? Theme.Gold : me.SquadRank == 2 ? Theme.PurpleLight : Theme.Text;
+            PlayerResult mvp = results[0];
+            foreach (var r in results) if (r.Total > mvp.Total) mvp = r;
             _targetScore = me.Total;
             _t = 0;
             string Row(string label, int v) => $"{label,-22}<color=#ffd84a>+{v}</color>\n";
             _breakdown.text =
                 Row("Primary Objective", me.Primary) + Row("Secondary Objective", me.Secondary) + Row("Resources", me.Resources) +
-                Row("Territory Control", me.Territory) + Row("Eliminations", me.Eliminations) + Row("Survival", me.Survival) + Row("Bonus", me.Bonus);
+                Row("Territory Control", me.Territory) + Row("Eliminations", me.Eliminations) + Row("Survival", me.Survival) + Row("Bonus", me.Bonus) +
+                Row("Squad Objective", me.SquadPoints);
             string pObj = $"{ObjectiveState.Title(me.PrimaryType)} {(me.PrimaryDone ? "<color=#7dff9a>✓</color>" : "<color=#ff7a8a>✗</color>")}";
             string sObj = $"{ObjectiveState.Title(me.SecondaryType)} {(me.SecondaryDone ? "<color=#7dff9a>✓</color>" : "<color=#ff7a8a>✗</color>")}";
-            _extra.text = $"{pObj}   ·   {sObj}   ·   K/D {me.Elims}/{me.Deaths}\n<color=#aab0d8>Where did you make the mistake? Outthink them next time.</color>";
+            _extra.text = $"Squad {(char)('A' + me.Squad)} total <color=#ffd84a>{me.SquadTotal:N0}</color>   ·   MVP <color=#ffd84a>{mvp.Name}</color> ({mvp.Total:N0})\n" +
+                          $"{pObj}   ·   {sObj}   ·   K/D {me.Elims}/{me.Deaths}";
             if (online) App.StartCoroutine(RefreshOnline());
 
             // cards for ranks 2..8 (top 3 stand on the podium)
@@ -648,7 +436,7 @@ namespace Veil.UI
                 var raw = face.gameObject.AddComponent<RawImage>();
                 raw.texture = PortraitStudio.Get(r.Look);
                 raw.raycastTarget = false;
-                var rk = UIKit.LabelAt(card, r.Rank.ToString(), 22, Theme.Gold, new Vector2(0, 1), new Vector2(10, -6), new Vector2(40, 30), TextAnchor.UpperLeft, UIKit.TitleFont);
+                var rk = UIKit.LabelAt(card, $"{(char)('A' + r.Squad)}", 22, r.Squad == me.Squad ? Theme.Green : Theme.Gold, new Vector2(0, 1), new Vector2(10, -6), new Vector2(40, 30), TextAnchor.UpperLeft, UIKit.TitleFont);
                 rk.rectTransform.pivot = new Vector2(0, 1);
                 UIKit.Shadow(rk);
                 UIKit.LabelAt(card, r.Name, 16, Theme.Text, new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(136, 22), TextAnchor.MiddleCenter, UIKit.BoldFont);
@@ -668,14 +456,20 @@ namespace Veil.UI
                 _spawned.Add(tag.gameObject);
             }
 
-            var sb = new System.Text.StringBuilder("<color=#aab0d8>#   NAME            TOTAL   PRIM  SEC   RES  TERR  ELIM  SURV  BONUS   K/D</color>\n\n");
+            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL   PRIM  SEC   RES  TERR  ELIM  SURV  SQUAD   K/D</color>\n");
+            int lastSquad = -1;
             foreach (var r in results)
             {
-                string line = $"{r.Rank,-3} {r.Name,-15} {r.Total,5}   {r.Primary,4}  {r.Secondary,3}  {r.Resources,4}  {r.Territory,4}  {r.Eliminations,4}  {r.Survival,4}  {r.Bonus,5}   {r.Elims}/{r.Deaths}";
+                if (r.Squad != lastSquad)
+                {
+                    lastSquad = r.Squad;
+                    sb.Append($"\n<color={(r.Squad == me.Squad ? "#7dff9a" : "#c7a6ff")}>#{r.SquadRank}  SQUAD {(char)('A' + r.Squad)}  ·  {r.SquadTotal:N0}</color>\n");
+                }
+                string line = $"    {r.Name,-15} {r.Total,5}   {r.Primary,4}  {r.Secondary,3}  {r.Resources,4}  {r.Territory,4}  {r.Eliminations,4}  {r.Survival,4}  {r.SquadPoints,5}   {r.Elims}/{r.Deaths}{(r == mvp ? "  MVP" : "")}";
                 sb.Append(r.PlayerId == localId ? $"<color=#ffd84a>{line}</color>\n" : line + "\n");
             }
             _full.text = sb.ToString();
-            Sfx.Play(me.Rank == 1 ? Sfx.Objective : Sfx.Capture, 0.9f);
+            Sfx.Play(me.SquadRank == 1 ? Sfx.Objective : Sfx.Capture, 0.9f);
         }
 
         private IEnumerator RefreshOnline()

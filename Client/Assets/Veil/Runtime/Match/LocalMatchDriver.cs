@@ -34,7 +34,7 @@ namespace Veil.Match
             Sim.FillBots();
             Sim.Start();
             foreach (var p in Sim.Players)
-                Roster.Add(new RosterEntry { Id = p.Id, Name = p.Name, Look = p.Look, IsBot = p.IsBot });
+                Roster.Add(new RosterEntry { Id = p.Id, Name = p.Name, Look = p.Look, IsBot = p.IsBot, Squad = p.Squad });
         }
 
         public void Poll()

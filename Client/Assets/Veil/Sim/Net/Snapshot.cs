@@ -68,6 +68,8 @@ namespace Veil.Sim
         public Appearance Look;
         public bool IsBot;
         public int Squad;
+        /// <summary>Backend profile id — only sent for your own squad (voice indicators, party mapping).</summary>
+        public string ProfileId = "";
     }
 
     public static class SnapshotBuilder

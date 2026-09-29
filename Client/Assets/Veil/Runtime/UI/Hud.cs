@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using Veil.App;
 using Veil.Match;
 using Veil.Sim;
 using EventType = Veil.Sim.EventType;
@@ -23,7 +24,19 @@ namespace Veil.UI
         private Bar _hp, _en, _promptBar;
         private Minimap _minimap;
         private readonly Ability[] _abilities = new Ability[4];
-        private readonly ObjectiveCard[] _objectives = new ObjectiveCard[2];
+        private readonly ObjectiveCard[] _objectives = new ObjectiveCard[3];
+        private readonly List<MateCard> _mates = new List<MateCard>();
+        private Text _squadLabel;
+
+        private sealed class MateCard
+        {
+            public RosterEntry Entry;
+            public RectTransform Root;
+            public Image Ring;
+            public RawImage Face;
+            public Bar Hp;
+            public Text Name, State;
+        }
         private readonly List<(Text t, float time)> _feed = new List<(Text, float)>();
         private RectTransform _feedRoot;
         private float _bannerT, _hitT, _damageT, _revealT, _popupT;
@@ -83,6 +96,7 @@ namespace Veil.UI
             BuildTopLeft();
             BuildTopRight();
             BuildObjectives();
+            BuildSquad();
             BuildVitals();
             BuildAbilities();
             BuildCenter();
@@ -114,6 +128,8 @@ namespace Veil.UI
             Move("Vitals", new Vector2(0.5f, 1), new Vector2(0, -20), 0.85f);
             Move("Objective0", new Vector2(0, 0.5f), new Vector2(24, 110), 0.8f);
             Move("Objective1", new Vector2(0, 0.5f), new Vector2(24, 25), 0.8f);
+            Move("Objective2", new Vector2(0, 0.5f), new Vector2(24, -60), 0.8f);
+            Move("Squad", new Vector2(0, 1), new Vector2(24, -196), 0.8f);
             for (int i = 0; i < 4; i++) { var a = Root.Find("Ability" + i); if (a) a.gameObject.SetActive(false); }
             foreach (var t in Root.GetComponentsInChildren<Text>(true))
                 if (t.text == "OBJECTIVES") { t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0, 0.5f); t.rectTransform.anchoredPosition = new Vector2(28, 165); t.alignment = TextAnchor.MiddleLeft; }
@@ -172,7 +188,7 @@ namespace Veil.UI
             var header = UIKit.LabelAt(Root, "OBJECTIVES", 18, Theme.PurpleLight, new Vector2(1, 0.5f), new Vector2(-24, -52), new Vector2(360, 26), TextAnchor.MiddleRight, UIKit.BoldFont);
             header.rectTransform.pivot = new Vector2(1, 0.5f);
             UIKit.Shadow(header);
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 3; i++)
             {
                 var c = new ObjectiveCard();
                 c.Root = UIKit.At(Root, "Objective" + i, new Vector2(1, 0.5f), new Vector2(-24, -114 - i * 102), new Vector2(380, 94));
@@ -180,24 +196,86 @@ namespace Veil.UI
                 UIKit.Image(c.Root, UIKit.Rounded, Theme.Panel);
                 var iconBack = UIKit.At(c.Root, "IconBack", new Vector2(0, 0.5f), new Vector2(12, 0), new Vector2(58, 58));
                 iconBack.pivot = new Vector2(0, 0.5f);
-                UIKit.Image(iconBack, UIKit.Circle, i == 0 ? new Color(0.62f, 0.38f, 1f, 0.35f) : new Color(1, 1, 1, 0.12f));
+                UIKit.Image(iconBack, UIKit.Circle, i == 0 ? new Color(0.62f, 0.38f, 1f, 0.35f) : i == 2 ? new Color(0.4f, 1f, 0.45f, 0.22f) : new Color(1, 1, 1, 0.12f));
                 var ic = UIKit.At(iconBack, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
                 c.Icon = UIKit.Image(ic, Icons.Tower, Color.white);
                 c.Title = UIKit.LabelAt(c.Root, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(82, -10), new Vector2(260, 24), TextAnchor.UpperLeft, UIKit.BoldFont);
                 c.Title.rectTransform.pivot = new Vector2(0, 1);
                 c.Desc = UIKit.LabelAt(c.Root, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(82, -36), new Vector2(265, 22), TextAnchor.UpperLeft);
                 c.Desc.rectTransform.pivot = new Vector2(0, 1);
-                c.Bar = new Bar(c.Root, new Vector2(0, 0), new Vector2(82, 14), new Vector2(200, 12), i == 0 ? Theme.Purple : Theme.Cyan, new Color(1, 1, 1, 0.1f));
+                c.Bar = new Bar(c.Root, new Vector2(0, 0), new Vector2(82, 14), new Vector2(200, 12), i == 0 ? Theme.Purple : i == 2 ? Theme.Green : Theme.Cyan, new Color(1, 1, 1, 0.1f));
                 c.Bar.Root.pivot = new Vector2(0, 0);
                 c.Progress = UIKit.LabelAt(c.Root, "", 15, Theme.Text, new Vector2(0, 0), new Vector2(292, 10), new Vector2(80, 20), TextAnchor.LowerLeft, UIKit.BoldFont);
                 c.Progress.rectTransform.pivot = new Vector2(0, 0);
                 var chk = UIKit.At(c.Root, "Check", new Vector2(1, 1), new Vector2(-10, -10), new Vector2(26, 26));
                 chk.pivot = new Vector2(1, 1);
                 c.Check = UIKit.Image(chk, UIKit.Circle, Theme.Green);
-                var tag = UIKit.LabelAt(c.Root, i == 0 ? "PRIMARY +500" : "SECONDARY +250", 12, i == 0 ? Theme.PurpleLight : Theme.Cyan, new Vector2(1, 1), new Vector2(-44, -14), new Vector2(140, 16), TextAnchor.UpperRight, UIKit.BoldFont);
-                tag.rectTransform.pivot = new Vector2(1, 1);
+                // tag sits under the progress bar so long titles never collide with it
+                var tag = UIKit.LabelAt(c.Root, i == 0 ? "PRIMARY +500" : i == 2 ? $"SQUAD +{GameConfig.SquadObjectivePoints}" : "SECONDARY +250", 11, i == 0 ? Theme.PurpleLight : i == 2 ? Theme.Green : Theme.Cyan, new Vector2(0, 0), new Vector2(82, 0), new Vector2(200, 14), TextAnchor.LowerLeft, UIKit.BoldFont);
+                tag.rectTransform.pivot = new Vector2(0, 0);
                 _objectives[i] = c;
             }
+        }
+
+        /// <summary>Squadmate cards under the top-left pills: portrait, name, HP, speaking ring, down state.</summary>
+        private void BuildSquad()
+        {
+            var root = UIKit.At(Root, "Squad", new Vector2(0, 1), new Vector2(24, -210), new Vector2(270, 200));
+            root.pivot = new Vector2(0, 1);
+            _squadLabel = UIKit.LabelAt(root, $"SQUAD {(char)('A' + _m.LocalSquad)}", 16, Theme.Green, new Vector2(0, 1), new Vector2(2, 0), new Vector2(260, 22), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _squadLabel.rectTransform.pivot = new Vector2(0, 1);
+            UIKit.Shadow(_squadLabel);
+            int i = 0;
+            foreach (var r in _m.Squadmates())
+            {
+                var c = new MateCard { Entry = r };
+                c.Root = UIKit.At(root, "Mate" + i, new Vector2(0, 1), new Vector2(0, -26 - i * 56), new Vector2(262, 50));
+                c.Root.pivot = new Vector2(0, 1);
+                UIKit.Image(c.Root, UIKit.RoundedSmall, new Color(0.07f, 0.08f, 0.16f, 0.72f));
+                var ringRt = UIKit.At(c.Root, "Ring", new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(46, 46));
+                ringRt.pivot = new Vector2(0, 0.5f);
+                c.Ring = UIKit.Image(ringRt, UIKit.Ring, new Color(0.4f, 1f, 0.5f, 0));
+                var face = UIKit.At(c.Root, "Face", new Vector2(0, 0.5f), new Vector2(7, 0), new Vector2(38, 38));
+                face.pivot = new Vector2(0, 0.5f);
+                UIKit.Image(face, UIKit.Circle, new Color(0.15f, 0.15f, 0.3f));
+                var fr = UIKit.Fill(face, "Img", 2);
+                c.Face = fr.gameObject.AddComponent<RawImage>();
+                c.Face.texture = PortraitStudio.Get(r.Look);
+                c.Face.raycastTarget = false;
+                c.Name = UIKit.LabelAt(c.Root, r.Name, 16, Theme.Text, new Vector2(0, 1), new Vector2(54, -4), new Vector2(150, 20), TextAnchor.UpperLeft, UIKit.BoldFont);
+                c.Name.rectTransform.pivot = new Vector2(0, 1);
+                c.State = UIKit.LabelAt(c.Root, "", 13, Theme.TextDim, new Vector2(1, 1), new Vector2(-8, -5), new Vector2(90, 18), TextAnchor.UpperRight, UIKit.BoldFont);
+                c.State.rectTransform.pivot = new Vector2(1, 1);
+                c.State.supportRichText = true;
+                c.Hp = new Bar(c.Root, new Vector2(0, 0), new Vector2(54, 10), new Vector2(196, 9), Palette.Health, new Color(1, 1, 1, 0.1f));
+                c.Hp.Root.pivot = new Vector2(0, 0);
+                _mates.Add(c);
+                i++;
+            }
+        }
+
+        private void UpdateSquad(Snapshot s, float dt)
+        {
+            var voice = GameApp.I != null ? GameApp.I.Voice : null;
+            foreach (var c in _mates)
+            {
+                AvatarSnap a = null;
+                foreach (var av in s.Avatars) if (av.AvatarId == c.Entry.Id) { a = av; break; }
+                bool alive = a != null;   // allies are always in the snapshot while alive
+                c.Hp.Set(alive ? a.Health01 : 0, dt);
+                c.Face.color = alive ? Color.white : new Color(1, 1, 1, 0.3f);
+                bool talking = voice != null && !string.IsNullOrEmpty(c.Entry.ProfileId) && voice.IsSpeaking(c.Entry.ProfileId);
+                var rc = c.Ring.color;
+                rc.a = Mathf.MoveTowards(rc.a, talking ? 1f : 0f, dt * 8f);
+                c.Ring.color = rc;
+                string st = !alive ? "<color=#ff7a8a>DOWN</color>" : c.Entry.IsBot ? "<color=#8a90b8>BOT</color>" : "";
+                if (talking) st = "<color=#7dff9a>TALKING</color>";
+                else if (voice != null && !string.IsNullOrEmpty(c.Entry.ProfileId) && voice.IsMuted(c.Entry.ProfileId)) st = "<color=#8a90b8>MUTED</color>";
+                c.State.text = st;
+            }
+            if (voice != null && voice.LocalSpeaking) _squadLabel.text = $"SQUAD {(char)('A' + _m.LocalSquad)}  <color=#7dff9a>● YOU</color>";
+            else _squadLabel.text = $"SQUAD {(char)('A' + _m.LocalSquad)}  <color=#aab0d8>{s.SquadTotal:N0} pts</color>";
+            _squadLabel.supportRichText = true;
         }
 
         private void BuildVitals()
@@ -419,6 +497,7 @@ namespace Veil.UI
                     if (e.A == _m.LocalId) Popup("VAULT UNLOCKED  +200");
                     break;
                 case EventType.ObjectiveComplete:
+                    if (e.B == 2) { Banner("SQUAD OBJECTIVE COMPLETE", $"{ObjectiveState.Title((ObjectiveType)e.Value)}   +{GameConfig.SquadObjectivePoints}", 3f); break; }
                     Banner("OBJECTIVE COMPLETE", $"{ObjectiveState.Title((ObjectiveType)e.Value)}   +{(e.B == 1 ? GameConfig.PrimaryPoints : GameConfig.SecondaryPoints)}", 3f);
                     break;
                 case EventType.AbilityPlay:
@@ -527,6 +606,8 @@ namespace Veil.UI
             // objectives
             SetObjective(_objectives[0], me.Primary, me);
             SetObjective(_objectives[1], me.Secondary, me);
+            SetObjective(_objectives[2], s.SquadObjective, me);
+            UpdateSquad(s, dt);
 
             // prompt + channel bar
             UpdatePrompt(me, s);
@@ -600,13 +681,13 @@ namespace Veil.UI
             c.Title.text = ObjectiveState.Title(o.Type);
             c.Icon.sprite = ObjectiveIcon(o.Type);
             c.Desc.text = o.Describe(id => _m.NameOf(id));
-            float frac = o.Type == ObjectiveType.VaultRaid && !o.Done ? Mathf.Min(me.Keys, GameConfig.VaultKeys) / (float)GameConfig.VaultKeys : o.Fraction;
+            float frac = o.Type == ObjectiveType.VaultRaid && !o.Done && !o.IsSquad ? Mathf.Min(me.Keys, GameConfig.VaultKeys) / (float)GameConfig.VaultKeys : o.Fraction;
             c.Bar.Set(o.Done ? 1 : frac, Time.deltaTime);
             string prog;
             switch (o.Type)
             {
                 case ObjectiveType.TowerControl: prog = $"{Mathf.FloorToInt(o.Progress)}/{o.Target:0}s"; break;
-                case ObjectiveType.VaultRaid: prog = o.Done ? "DONE" : $"{Mathf.Min(me.Keys, 3)}/3 keys"; break;
+                case ObjectiveType.VaultRaid: prog = o.Done ? "DONE" : o.IsSquad ? $"{Mathf.FloorToInt(o.Progress)}/{o.Target:0} vault" : $"{Mathf.Min(me.Keys, 3)}/3 keys"; break;
                 case ObjectiveType.HighEnergy: prog = $"{Mathf.FloorToInt(me.Energy)}%"; break;
                 default: prog = $"{Mathf.FloorToInt(o.Progress)}/{o.Target:0}"; break;
             }
@@ -644,16 +725,16 @@ namespace Veil.UI
                 }
                 else if (def.Type == ZoneType.Market)
                 {
-                    bool mine = z.Controller == _m.LocalId;
+                    bool mine = z.Squad == _m.LocalSquad;
                     float k = mine ? GameConfig.MarketDiscount : 1f;
                     text = $"MARKET  [1] Speed {GameConfig.MarketSpeedCost * k:0}   [2] Shield {GameConfig.MarketShieldCost * k:0}   [3] Key {GameConfig.MarketKeyCost * k:0}" + (mine ? "  (owner discount)" : "");
                 }
-                if (def.Capturable && z.Controller != _m.LocalId && text.Length == 0 || def.Capturable && z.Capturer == _m.LocalId && z.Progress > 0)
+                if (def.Capturable && z.Squad != _m.LocalSquad && text.Length == 0 || def.Capturable && z.CapturerSquad == _m.LocalSquad && z.Progress > 0)
                 {
                     if (z.Contested) text = $"{def.Name.ToUpper()} CONTESTED — drive them out!";
-                    else if (z.Capturer == _m.LocalId) { text = $"CAPTURING {def.Name.ToUpper()}…"; bar = z.Progress; }
+                    else if (z.CapturerSquad == _m.LocalSquad) { text = $"CAPTURING {def.Name.ToUpper()}…"; bar = z.Progress; }
                 }
-                else if (def.Capturable && z.Controller == _m.LocalId && text.Length == 0) text = $"You control the {def.Name}";
+                else if (def.Capturable && z.Squad == _m.LocalSquad && text.Length == 0) text = $"Your squad controls the {def.Name}";
             }
             _prompt.text = text;
             _promptBar.Root.gameObject.SetActive(bar >= 0);
@@ -697,8 +778,10 @@ namespace Veil.UI
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out var lp);
                 np.Root.anchoredPosition = lp;
                 string name = _m.NameOf(av.OwnerId);
-                np.Name.text = av.IsMyDecoy ? "Your Decoy" : name;
-                np.Name.color = av.IsMyDecoy ? Theme.PurpleLight : Theme.Text;
+                bool ally = _m.IsAlly(av.OwnerId);
+                bool decoy = av.AvatarId >= 1000;
+                np.Name.text = av.IsMyDecoy ? "Your Decoy" : ally && decoy ? $"{name}'s decoy" : name;
+                np.Name.color = av.IsMyDecoy || (ally && decoy) ? Theme.PurpleLight : ally ? Theme.Green : Theme.Text;
                 np.Hp.Set(av.Health01, Time.deltaTime);
                 np.Hp.SetColor(av.Health01 < 0.3f ? Theme.Red : Palette.Health);
                 bool nemesis = (me.Primary.Type == ObjectiveType.Nemesis && !me.Primary.Done && me.Primary.TargetPlayer == av.OwnerId) ||
@@ -729,7 +812,7 @@ namespace Veil.UI
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out var lp);
                 zm.Root.anchoredPosition = lp;
                 var z = s.Zones[i];
-                string owner = z.Controller < 0 ? "" : z.Controller == _m.LocalId ? " <color=#6bff6b>●</color>" : " <color=#ff6b6b>●</color>";
+                string owner = z.Squad < 0 ? "" : z.Squad == _m.LocalSquad ? " <color=#6bff6b>●</color>" : $" <color=#ff6b6b>● {(char)('A' + z.Squad)}</color>";
                 zm.Label.text = $"{def.Name.ToUpper()}{owner} <size=13><color=#aab0d8>{dist:0}m</color></size>";
                 zm.Root.localScale = Vector3.one * Mathf.Clamp(1.2f - dist / 160f, 0.65f, 1f);
             }
@@ -738,17 +821,24 @@ namespace Veil.UI
         private void FillScoreboard(Snapshot s)
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append("<color=#aab0d8>NAME                          STATUS</color>\n\n");
-            foreach (var r in _m.Roster)
+            sb.Append("<color=#aab0d8>NAME                          STATUS</color>\n");
+            for (int sq = 0; sq < GameConfig.SquadCount; sq++)
             {
-                bool me = r.Id == _m.LocalId;
-                bool seen = false;
-                foreach (var a in s.Avatars) if (a.OwnerId == r.Id && a.Vis == Visibility.Full) seen = true;
-                string status = me ? $"<color=#ffd84a>{_m.Predicted.Score.Total} pts</color>" : seen ? "<color=#ff8a8a>in sight</color>" : "<color=#6a6f90>unknown</color>";
-                string name = me ? $"<color=#ffd84a>{r.Name}</color>" : r.Name;
-                sb.Append($"{name,-30}{status}\n");
+                int squad = (sq + _m.LocalSquad) % GameConfig.SquadCount;   // your squad first
+                bool mine = squad == _m.LocalSquad;
+                sb.Append(mine ? $"\n<color=#7dff9a>SQUAD {(char)('A' + squad)} (yours) · {s.SquadTotal} pts</color>\n" : $"\n<color=#c7a6ff>SQUAD {(char)('A' + squad)}</color>\n");
+                foreach (var r in _m.Roster)
+                {
+                    if (r.Squad != squad) continue;
+                    bool me = r.Id == _m.LocalId;
+                    bool seen = false;
+                    foreach (var a in s.Avatars) if (a.OwnerId == r.Id && a.Vis == Visibility.Full) seen = true;
+                    string status = me ? $"<color=#ffd84a>{_m.Predicted.Score.Total} pts</color>" : mine ? (seen ? "<color=#7dff9a>alive</color>" : "<color=#ff7a8a>down</color>") : seen ? "<color=#ff8a8a>in sight</color>" : "<color=#6a6f90>unknown</color>";
+                    string name = me ? $"<color=#ffd84a>{r.Name}</color>" : r.Name;
+                    sb.Append($"  {name,-28}{status}\n");
+                }
             }
-            sb.Append("\n<color=#8a90b8>Other players' scores stay hidden until the match ends.</color>");
+            sb.Append("\n<color=#8a90b8>Enemy scores stay hidden until the match ends.</color>");
             _scoreboardText.text = sb.ToString();
         }
     }

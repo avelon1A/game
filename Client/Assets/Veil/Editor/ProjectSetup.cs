@@ -99,6 +99,8 @@ namespace Veil.EditorTools
         private static void Run(BuildTarget target, BuildTargetGroup group, string outPath)
         {
             ProjectSetup.Setup();
+            // squad voice chat: required on macOS / iOS before the Microphone API may be used
+            PlayerSettings.iOS.microphoneUsageDescription = "VEIL uses the microphone for squad voice chat (push-to-talk).";
             if (EditorUserBuildSettings.activeBuildTarget != target) EditorUserBuildSettings.SwitchActiveBuildTarget(group, target);
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = Scenes, locationPathName = outPath, target = target, options = BuildOptions.None });
             Debug.Log($"[VEIL] Build result: {report.summary.result}, size {report.summary.totalSize / (1024 * 1024)} MB, errors {report.summary.totalErrors} → {outPath}");
@@ -118,6 +120,7 @@ namespace Veil.EditorTools
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.useAnimatedAutorotation = true;
+            PlayerSettings.iOS.microphoneUsageDescription = "VEIL uses the microphone for squad voice chat (push-to-talk).";
         }
 
         [MenuItem("VEIL/Build Android APK")]

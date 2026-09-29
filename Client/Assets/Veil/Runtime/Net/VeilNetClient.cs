@@ -27,6 +27,8 @@ namespace Veil.Net
         public event Action<List<SimEvent>> EventsReceived;
         public event Action<List<PlayerResult>> MatchEnded;
         public event Action<string> Disconnected;
+        /// <summary>The match host refused us (bad/expired ticket, version mismatch…).</summary>
+        public event Action<string> Rejected;
         /// <summary>A server answered LAN discovery: (ip, port, name, players).</summary>
         public event Action<string, int, string, int> ServerFound;
 
@@ -137,6 +139,7 @@ namespace Veil.Net
                     break;
                 case Msg.Reject:
                     LastError = r.Str();
+                    Rejected?.Invoke(LastError);
                     break;
                 case Msg.Lobby:
                     Lobby = Protocol.ReadLobby(r);

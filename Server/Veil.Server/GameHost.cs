@@ -323,7 +323,16 @@ namespace Veil.Server
         private void SendStart(Human h)
         {
             var ms = new MatchStartMsg { Seed = _sim.Settings.Seed, MatchSeconds = _sim.Settings.MatchSeconds, YourPlayerId = h.PlayerId };
-            foreach (var p in _sim.Players) ms.Roster.Add(new RosterEntry { Id = p.Id, Name = p.Name, Look = p.Look, IsBot = p.IsBot, Squad = p.Squad });
+            int mySquad = _sim.Players[h.PlayerId].Squad;
+            foreach (var p in _sim.Players)
+            {
+                var seat = _humans.FirstOrDefault(x => x.PlayerId == p.Id);
+                ms.Roster.Add(new RosterEntry
+                {
+                    Id = p.Id, Name = p.Name, Look = p.Look, IsBot = p.IsBot, Squad = p.Squad,
+                    ProfileId = seat != null && p.Squad == mySquad ? seat.Seat.ProfileId : "",
+                });
+            }
             _w.Reset(); Protocol.WriteMatchStart(_w, ms);
             Send(h.Peer, DeliveryMethod.ReliableOrdered);
         }

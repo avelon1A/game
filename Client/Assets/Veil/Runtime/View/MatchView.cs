@@ -546,10 +546,10 @@ namespace Veil.View
         {
             _spin.localRotation = Quaternion.Euler(0, Time.time * 12f, 0);
             Color zc = Palette.ZoneColor(_def.Type);
-            Color owner = z.Controller >= 0 ? (z.Controller == m.LocalId ? Palette.Health : Palette.PlayerColor(z.Controller)) : zc;
+            Color owner = z.Squad >= 0 ? (z.Squad == m.LocalSquad ? Palette.Health : Palette.SquadColor(z.Squad)) : zc;
             float pulse = z.Contested ? 0.5f + Mathf.Sin(Time.time * 12f) * 0.4f : 0.85f;
             _ring.SetColor("_BaseColor", new Color(owner.r, owner.g, owner.b, pulse));
-            _fill.SetColor("_BaseColor", new Color(owner.r, owner.g, owner.b, z.Controller >= 0 ? 0.16f : 0.07f));
+            _fill.SetColor("_BaseColor", new Color(owner.r, owner.g, owner.b, z.Squad >= 0 ? 0.16f : 0.07f));
 
             float prog = _def.Type == ZoneType.Vault ? (m.Predicted.ZoneId == _def.Id ? m.Predicted.VaultChannel / GameConfig.VaultChannelTime : 0) : z.Progress;
             if (Mathf.Abs(prog - _shown) > 0.004f)

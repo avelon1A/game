@@ -46,6 +46,11 @@ namespace Veil.UI
             _pulse = Btn("PULSE", Icons.Pulse, new Vector2(-230, 390), 118, Theme.Purple, false, Buttons.Pulse);
             _decoy = Btn("DECOY", Icons.Decoy, new Vector2(-70, 400), 118, Theme.PurpleLight, false, Buttons.Decoy);
 
+            // squad voice: hold to talk (push-to-talk mode)
+            var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
+            talk.pivot = new Vector2(0.5f, 0.5f);
+            talk.gameObject.AddComponent<TalkButton>().Build();
+
             // market purchases (only visible inside the Market)
             _market = UIKit.At(Root, "Market", new Vector2(0.5f, 0), new Vector2(0, 250), new Vector2(620, 90));
             string[] labels = { "SPEED", "SHIELD", "KEY" };
@@ -88,6 +93,35 @@ namespace Veil.UI
             VirtualInput.Reset();
             VirtualInput.Active = false;
             UnityEngine.Object.Destroy(Root.gameObject);
+        }
+    }
+
+    /// <summary>Hold-to-talk button for squad voice.</summary>
+    public sealed class TalkButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+    {
+        private Image _back;
+        private Text _label;
+
+        public void Build()
+        {
+            var rt = (RectTransform)transform;
+            _back = UIKit.Image(rt, UIKit.Circle, new Color(0.08f, 0.08f, 0.2f, 0.55f), true);
+            var ring = UIKit.Fill(rt, "Ring");
+            UIKit.Image(ring, UIKit.Ring, new Color(0.4f, 1f, 0.5f, 0.8f));
+            _label = UIKit.Label(rt, "TALK", 20, Theme.Text, TextAnchor.MiddleCenter, UIKit.BoldFont);
+            UIKit.Outline(_label, new Color(0, 0, 0, 0.7f), 1.5f);
+        }
+
+        public void OnPointerDown(PointerEventData e) => VirtualInput.TalkHeld = true;
+        public void OnPointerUp(PointerEventData e) => VirtualInput.TalkHeld = false;
+
+        private void Update()
+        {
+            var v = Veil.App.GameApp.I != null ? Veil.App.GameApp.I.Voice : null;
+            bool on = v != null && v.LocalSpeaking;
+            _back.color = on ? new Color(0.2f, 0.7f, 0.3f, 0.75f) : new Color(0.08f, 0.08f, 0.2f, 0.55f);
+            bool usable = v != null && v.Mode == Veil.Voice.VoiceMode.PushToTalk && !string.IsNullOrEmpty(v.Channel);
+            if (_label.gameObject.activeSelf != usable) { _label.gameObject.SetActive(usable); _back.enabled = usable; transform.GetChild(0).gameObject.SetActive(usable); }
         }
     }
 

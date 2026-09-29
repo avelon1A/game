@@ -103,14 +103,14 @@ namespace Veil.Sim
         {
             w.U8((byte)Msg.MatchStart); w.I32(m.Seed); w.I32(m.MatchSeconds); w.U8((byte)m.YourPlayerId);
             w.U8((byte)m.Roster.Count);
-            foreach (var e in m.Roster) { w.U8((byte)e.Id); w.Str(e.Name); Look(w, e.Look); w.Bool(e.IsBot); w.U8((byte)e.Squad); }
+            foreach (var e in m.Roster) { w.U8((byte)e.Id); w.Str(e.Name); Look(w, e.Look); w.Bool(e.IsBot); w.U8((byte)e.Squad); w.Str(e.ProfileId ?? ""); }
         }
 
         public static MatchStartMsg ReadMatchStart(ByteReader r)
         {
             var m = new MatchStartMsg { Seed = r.I32(), MatchSeconds = r.I32(), YourPlayerId = r.U8() };
             int n = r.U8();
-            for (int i = 0; i < n; i++) m.Roster.Add(new RosterEntry { Id = r.U8(), Name = r.Str(), Look = Look(r), IsBot = r.Bool(), Squad = r.U8() });
+            for (int i = 0; i < n; i++) m.Roster.Add(new RosterEntry { Id = r.U8(), Name = r.Str(), Look = Look(r), IsBot = r.Bool(), Squad = r.U8(), ProfileId = r.Str() });
             return m;
         }
 

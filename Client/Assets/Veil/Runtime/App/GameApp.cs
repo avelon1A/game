@@ -15,6 +15,7 @@ using Veil.Net;
 using Veil.Sim;
 using Veil.UI;
 using Veil.View;
+using Veil.Voice;
 
 namespace Veil.App
 {
@@ -36,6 +37,10 @@ namespace Veil.App
         public Camera Cam { get; private set; }
         public RectTransform Canvas { get; private set; }
         public VeilNetClient Net { get; private set; }
+        /// <summary>Realtime social connection: presence, friends, party, invites, matchmaking.</summary>
+        public GatewayClient Gateway { get; private set; }
+        /// <summary>Squad / party voice chat.</summary>
+        public VoiceChat Voice { get; private set; }
         public Stage Stage { get; private set; }
         public ProfileDto OnlineProfile;
         public string BackendUrl => BackendApi.BaseUrl(Profile.ServerHost, Profile.HttpPort);
@@ -44,6 +49,8 @@ namespace Veil.App
         private MenuScreen _menu;
         private ResultsScreen _results;
         private PauseScreen _pause;
+        private Toasts _toasts;
+        private string _sentLook = "";
         private ClientMatch _match;
         private MatchView _matchView;
         private Hud _hud;
@@ -93,11 +100,17 @@ namespace Veil.App
             SetupCanvas();
             Net = new VeilNetClient();
             Net.MatchStarted += OnOnlineMatchStart;
+            Net.Rejected += reason => _toasts?.Notice($"<color=#ff9a8a>{reason}</color>");
+            Net.ServerFound += OnServerFound;
+            Gateway = new GatewayClient();
+            Gateway.MatchAssigned += OnMatchAssigned;
+            Voice = new VoiceChat { Mode = (VoiceMode)Mathf.Clamp(Profile.VoiceMode, 0, 2), OutputVolume = Profile.VoiceVolume, Sensitivity = Profile.MicSensitivity };
 
             _title = new TitleScreen(Canvas, this);
             _menu = new MenuScreen(Canvas, this);
             _results = new ResultsScreen(Canvas, this);
             _pause = new PauseScreen(Canvas, this);
+            _toasts = new Toasts(Canvas, this);
             GoTitle();
 
             var args = Environment.GetCommandLineArgs();
@@ -271,11 +284,129 @@ namespace Veil.App
             var settings = new MatchSettings
             {
                 MatchSeconds = Mathf.Clamp(Profile.MatchMinutes, 1, 15) * 60,
-                TotalPlayers = Mathf.Clamp(Profile.Bots + 1, 2, GameConfig.MaxPlayers),
+                TotalPlayers = GameConfig.MaxPlayers,   // your squad (you + 3 bots) vs 3 bot squads
                 Seed = UnityEngine.Random.Range(1, int.MaxValue),
             };
             var driver = new LocalMatchDriver(Map, settings, Profile.Name, Profile.Look, autopilot);
             BeginMatch(driver);
+        }
+
+        // ------------------------------------------------------------------ online (Gateway → party → match)
+
+        private bool _goingOnline, _discovering;
+
+        /// <summary>Makes sure we have a backend profile, then opens the Gateway. Phones find the server on the LAN.</summary>
+        public void GoOnline()
+        {
+            if (_goingOnline || Gateway.Online) return;
+            StartCoroutine(GoOnlineRoutine());
+        }
+
+        private static bool IsLoopback(string h) => string.IsNullOrWhiteSpace(h) || h == "127.0.0.1" || h == "localhost" || h == "::1";
+
+        private IEnumerator GoOnlineRoutine()
+        {
+            _goingOnline = true;
+            if (Platform.IsMobile && IsLoopback(Profile.ServerHost))
+            {
+                _menu?.Squad?.Flash("Looking for a VEIL server on your Wi-Fi…", 5);
+                _discovering = true;
+                for (int i = 0; i < 6 && IsLoopback(Profile.ServerHost); i++)
+                {
+                    Net.Discover(Profile.ServerPort);
+                    float t = 0;
+                    while (t < 0.5f && IsLoopback(Profile.ServerHost)) { t += Time.unscaledDeltaTime; yield return null; }
+                }
+                _discovering = false;
+                if (IsLoopback(Profile.ServerHost))
+                {
+                    _menu?.Squad?.Flash("<color=#ff9a8a>No server found on this Wi-Fi — type the server PC's address</color>", 8);
+                    _goingOnline = false;
+                    yield break;
+                }
+            }
+            string url = BackendUrl;
+            string error = null;
+            if (!string.IsNullOrEmpty(Profile.BackendId))
+            {
+                ProfileDto got = null;
+                yield return BackendApi.GetProfile(url, Profile.BackendId, p => got = p, e => { });
+                if (got == null) Profile.BackendId = "";
+                else OnlineProfile = got;
+            }
+            if (string.IsNullOrEmpty(Profile.BackendId))
+            {
+                yield return BackendApi.Register(url, Profile.Name, r =>
+                {
+                    Profile.BackendId = r.id; Profile.BackendToken = r.token; OnlineProfile = r.profile; Profile.Save();
+                }, e => error = e);
+            }
+            if (error != null || string.IsNullOrEmpty(Profile.BackendId))
+            {
+                _menu?.Squad?.Flash($"<color=#ff9a8a>Server not reachable at {Profile.ServerHost} ({error})</color>", 8);
+                _goingOnline = false;
+                yield break;
+            }
+            _sentLook = Profile.AppearanceString;
+            Gateway.Connect(Profile.ServerHost, Profile.HttpPort, Profile.BackendId, Profile.BackendToken, Profile.Name, _sentLook);
+            _goingOnline = false;
+        }
+
+        private void OnServerFound(string ip, int port, string name, int players)
+        {
+            if (!_discovering) return;
+            Profile.ServerHost = ip;
+            Profile.Save();
+            _menu?.Squad?.SetHostText(ip);
+            _menu?.Squad?.Flash($"Found <color=#b9f27c>{name}</color> on your Wi-Fi ({ip})", 4);
+        }
+
+        private void OnMatchAssigned(MatchAssignedMsg a)
+        {
+            if (a.rejoin)
+            {
+                _toasts?.Notice("Your squad's match is still running — tap <color=#ffd84a>REJOIN</color>");
+                if (State == AppState.Menu) ShowSquad();
+                return;
+            }
+            JoinAssignedMatch(a);
+        }
+
+        /// <summary>Connects to the match host with the signed ticket (also used to REJOIN after leaving / a crash).</summary>
+        public void JoinAssignedMatch(MatchAssignedMsg a)
+        {
+            if (a == null) return;
+            string host = string.IsNullOrEmpty(a.host) ? Gateway.Host : a.host;
+            if (Net.Status == VeilNetClient.State.Connected || Net.Status == VeilNetClient.State.Connecting) Net.Disconnect();
+            Net.Connect(host, a.port, new HelloMsg { Name = Profile.Name, Look = Profile.Look, ProfileId = Profile.BackendId ?? "", Ticket = a.ticket });
+            _toasts?.Notice($"Joining match · Squad {(char)('A' + a.squad)}");
+        }
+
+        /// <summary>Menu → PLAY tab in online squad mode.</summary>
+        public void ShowSquad()
+        {
+            if (State != AppState.Menu) return;
+            _menu.SelectTab(0);
+            _menu.Squad.SetMode(true);
+        }
+
+        private void UpdateSocial(float dt)
+        {
+            Gateway.Update(dt);
+            if (Gateway.Online && Profile.AppearanceString != _sentLook) { _sentLook = Profile.AppearanceString; Gateway.SetLook(_sentLook); }
+
+            // voice channel: squad channel during an online match, party channel in the lobby
+            string ch = null, tok = null;
+            var a = Gateway.Assignment;
+            if (State == AppState.Match && IsOnlineMatch && a != null) { ch = a.voiceChannel; tok = a.voiceToken; }
+            else if (State != AppState.Match && Gateway.Online && !Gateway.Party.Empty && Gateway.Party.members.Count > 1) { ch = Gateway.Party.voiceChannel; tok = Gateway.Party.voiceToken; }
+            if (ch != null && Voice.Mode != VoiceMode.Off) Voice.JoinChannel(Gateway.Host, Gateway.VoicePort, ch, tok, Gateway.MyId);
+            else if (!string.IsNullOrEmpty(Voice.Channel)) Voice.LeaveChannel();
+            var kb = Keyboard.current;
+            bool typing = EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>() != null;
+            Voice.PushToTalkHeld = (!typing && kb != null && kb.vKey.isPressed) || VirtualInput.TalkHeld;
+            Voice.Update(dt);
+            _toasts?.Update(dt);
         }
 
         private void OnOnlineMatchStart(MatchStartMsg start)
@@ -360,6 +491,7 @@ namespace Veil.App
         {
             float dt = Time.deltaTime;
             Net.Poll();
+            UpdateSocial(Time.unscaledDeltaTime);
             var kb = Keyboard.current;
             var mouse = Mouse.current;
 
@@ -548,6 +680,8 @@ namespace Veil.App
         private void OnApplicationQuit()
         {
             if (Net != null && Net.Status == VeilNetClient.State.Connected) Net.Disconnect();
+            Gateway?.Disconnect();
+            Voice?.Dispose();
         }
 
         // ------------------------------------------------------------------ autotest (screenshots for CI / review)
@@ -588,43 +722,53 @@ namespace Veil.App
             Application.Quit();
         }
 
-        /// <summary>Connect to a server, ready up, play one match with scripted input, quit.</summary>
+        /// <summary>Gateway → room → queue (solo squad, bots fill) → match with scripted input → results → quit.</summary>
         private IEnumerator OnlineTest()
         {
             yield return new WaitForSeconds(2f);
             Profile.ServerHost = _onlineHost;
+            Profile.MatchMinutes = 1;
             GoMenu(0);
-            yield return BackendApi.Register(BackendUrl, "AutoTester", r =>
-            {
-                Profile.BackendId = r.id; Profile.BackendToken = r.token; OnlineProfile = r.profile;
-                Debug.Log($"[VEIL] online test: registered backend profile {r.id} (level {r.profile.level}, rating {r.profile.rating})");
-            }, e => Debug.Log("[VEIL] online test: backend register failed " + e));
-            Net.Connect(_onlineHost, Profile.ServerPort, new HelloMsg { Name = "AutoTester", Look = Profile.Look, ProfileId = Profile.BackendId ?? "" });
+            _menu.Squad.SetMode(true);
             float t = 0;
-            while (Net.Status != VeilNetClient.State.Connected && t < 10) { t += Time.deltaTime; yield return null; }
-            Debug.Log($"[VEIL] online test: net status {Net.Status} {Net.LastError}");
-            if (Net.Status != VeilNetClient.State.Connected) { Application.Quit(); yield break; }
-            while (Net.Lobby == null) yield return null;
-            Net.SendReady(true, 60);
-            Debug.Log("[VEIL] online test: ready");
-            while (State != AppState.Match) yield return null;
+            while (!Gateway.Online && t < 15) { t += Time.deltaTime; yield return null; }
+            Debug.Log($"[VEIL] online test: gateway {Gateway.Status} as {Gateway.Handle} {Gateway.LastError}");
+            if (!Gateway.Online) { Application.Quit(); yield break; }
+            bool created = false;
+            Gateway.CreateRoom((ok, err) => { created = ok; Debug.Log($"[VEIL] online test: create room {ok} {err}"); });
+            t = 0; while (Gateway.Party.Empty && t < 5) { t += Time.deltaTime; yield return null; }
+            yield return new WaitForSeconds(1f);
+            yield return Shot("o0_party");
+            Friends().Show(true);
+            yield return new WaitForSeconds(0.8f);
+            yield return Shot("o0_friends");
+            Friends().Show(false);
+            Gateway.StartQueue(60, (ok, err) => Debug.Log($"[VEIL] online test: queue {ok} {err}"));
+            yield return new WaitForSeconds(0.6f);
+            yield return Shot("o0_queue");
+            t = 0; while (State != AppState.Match && t < 30) { t += Time.deltaTime; yield return null; }
+            if (State != AppState.Match) { Debug.Log("[VEIL] online test: no match"); Application.Quit(); yield break; }
             _match.ScriptedInput = new ScriptedPilot(_match).Next;
-            Debug.Log("[VEIL] online test: match started");
+            Debug.Log($"[VEIL] online test: match started, squad {(char)('A' + (Gateway.Assignment?.squad ?? 0))}");
             yield return new WaitForSeconds(10f);
             yield return Shot("o1_online");
             LogPrediction();
             yield return new WaitForSeconds(10f);
             yield return Shot("o2_online");
-            LogPrediction();
             bool logged = false;
             while (State == AppState.Match) { if (!logged && _match != null && _match.Ended) { LogPrediction(); logged = true; } yield return null; }
             yield return new WaitForSeconds(2.5f);
             yield return Shot("o3_results");
             yield return BackendApi.GetProfile(BackendUrl, Profile.BackendId, p => Debug.Log($"[VEIL] online test: after match level {p.level} xp {p.xp} rating {p.rating} matches {p.matches} best {p.bestScore}"), e => Debug.Log("[VEIL] profile fetch failed " + e));
-            Debug.Log("[VEIL] online test done");
-            Net.Disconnect();
+            GoMenu(0);
+            yield return new WaitForSeconds(1.5f);
+            yield return Shot("o4_back_in_party");
+            Debug.Log($"[VEIL] online test done (party phase {Gateway.Party.phase}, members {Gateway.Party.members.Count})");
+            Gateway.Disconnect();
             Application.Quit();
         }
+
+        private FriendsDrawer Friends() => _menu.Friends;
 
         private IEnumerator AutoTest()
         {

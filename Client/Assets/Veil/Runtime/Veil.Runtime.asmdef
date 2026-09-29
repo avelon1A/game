@@ -12,7 +12,7 @@
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
-    "precompiledReferences": ["LiteNetLib.dll"],
+    "precompiledReferences": ["LiteNetLib.dll", "Concentus.dll"],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
