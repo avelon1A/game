@@ -22,6 +22,9 @@ namespace Veil.Server
         /// <summary>Public addresses when behind a tunnel / NAT (e.g. playit.gg gives each port its own host:port).
         /// Empty host = clients reuse the Gateway host; 0 port = the local port.</summary>
         public string PublicMatchHost = "", PublicVoiceHost = "";
+        /// <summary>Google OAuth *Web* client id(s) — the audience of ID tokens from the app (comma-separated).</summary>
+        public string[] GoogleClientIds = (Environment.GetEnvironmentVariable("VEIL_GOOGLE_CLIENT_ID") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         public int PublicMatchPort, PublicVoicePort;
     }
 
@@ -57,6 +60,7 @@ namespace Veil.Server
                     case "--public-match": (opt.PublicMatchHost, opt.PublicMatchPort) = HostPort(Next()); break;
                     case "--public-voice": (opt.PublicVoiceHost, opt.PublicVoicePort) = HostPort(Next()); break;
                     case "--db": opt.DbPath = Next(); break;
+                    case "--google-client-id": opt.GoogleClientIds = Next().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); break;
                 }
             }
 

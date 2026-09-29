@@ -159,7 +159,32 @@ namespace Veil.EditorTools
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.bundleVersionCode = Veil.App.BootConfig.Build;   // bump BootConfig.Build per released APK
             EditorUserBuildSettings.buildAppBundle = false;
+            UseReleaseKeystore();
             Run(BuildTarget.Android, BuildTargetGroup.Android, Out("Android/Rilo.apk"));
+        }
+
+        /// <summary>
+        /// Signs with the Rilo release key (~/.android/rilo-release.keystore + .properties, never in git). Google sign-in is
+        /// bound to this key's SHA-1, so every APK must use it. Falls back to the debug key if the files are missing.
+        /// </summary>
+        private static void UseReleaseKeystore()
+        {
+            string home = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile);
+            string props = Path.Combine(home, ".android/rilo-release.properties");
+            if (!File.Exists(props)) { Debug.LogWarning("[VEIL] no release keystore: debug-signed (Google sign-in will not work)"); PlayerSettings.Android.useCustomKeystore = false; return; }
+            string ks = "", alias = "rilo", pw = "";
+            foreach (var line in File.ReadAllLines(props))
+            {
+                int i = line.IndexOf('=');
+                if (i <= 0) continue;
+                string k = line.Substring(0, i).Trim(), v = line.Substring(i + 1).Trim();
+                if (k == "keystore") ks = v; else if (k == "alias") alias = v; else if (k == "password") pw = v;
+            }
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystoreName = ks;
+            PlayerSettings.Android.keystorePass = pw;
+            PlayerSettings.Android.keyaliasName = alias;
+            PlayerSettings.Android.keyaliasPass = pw;
         }
 
         /// <summary>Xcode project for a real iPhone (open Builds/iOS/Unity-iPhone.xcodeproj, pick your team, Run).</summary>

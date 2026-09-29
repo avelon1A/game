@@ -102,7 +102,8 @@ namespace Veil.Server
                 s.LastSeen = DateTime.UtcNow;
                 conn.Session = s;
                 Push(s, Gw.Welcome, new GwWelcome { id = s.Id, name = s.Name, handle = s.Handle, serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    voicePort = _opt.PublicVoicePort > 0 ? _opt.PublicVoicePort : _opt.VoicePort, voiceHost = _opt.PublicVoiceHost, newToken = newToken });
+                    voicePort = _opt.PublicVoicePort > 0 ? _opt.PublicVoicePort : _opt.VoicePort, voiceHost = _opt.PublicVoiceHost, newToken = newToken,
+                    email = _db.EmailOf(hello.id) });
                 PushFriends(s);
                 if (PartyOf(s) == null) CreateParty(s); else PushParty(s);   // always in a room
                 foreach (var inv in _invites.Values.Where(i => i.To == s.Id)) PushInvite(inv);
@@ -138,6 +139,7 @@ namespace Veil.Server
         {
             var s = conn.Session;
             if (s == null) return;
+            if (env.t == Gw.AuthGoogle) { _ = AuthGoogleAsync(conn, s, env); return; }   // network verification: off the lock
             string err = null;
             object reply = null;
             try
@@ -189,6 +191,55 @@ namespace Veil.Server
             catch (Exception e) { err = "bad request"; _log.LogWarning("Gateway {Handle} {T}: {Err}", s.Handle, env.t, e.Message); }
             if (!string.IsNullOrEmpty(env.id))
                 conn.Send(new GwEnvelope { t = Gw.Reply, id = env.id, ok = err == null, err = err ?? "", d = reply != null ? JsonSerializer.Serialize(reply, reply.GetType(), Json) : "" });
+        }
+
+        // ================================================================== Google sign-in
+
+        /// <summary>
+        /// Verifies a Google ID token and links the Google account to this player (guest progress is kept).
+        /// If that Google account already belongs to another player, the client is told to switch to it.
+        /// </summary>
+        private async System.Threading.Tasks.Task AuthGoogleAsync(GatewayConnection conn, Session s, GwEnvelope env)
+        {
+            string err = null;
+            GwAuthResult res = null;
+            try
+            {
+                if (_opt.GoogleClientIds.Length == 0) err = "Google sign-in isn't set up on this server yet";
+                else
+                {
+                    var token = D<GwGoogleAuth>(env).idToken;
+                    var p = await Google.Apis.Auth.GoogleJsonWebSignature.ValidateAsync(token,
+                        new Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings { Audience = _opt.GoogleClientIds });
+                    string owner = _db.FindByGoogle(p.Subject);
+                    string mine = _db.GoogleOf(s.Id);
+                    if (owner == s.Id)
+                        res = new GwAuthResult { id = s.Id, handle = s.Handle, name = s.Name, email = p.Email };
+                    else if (owner != null)
+                    {
+                        var o = _db.Get(owner);
+                        res = new GwAuthResult { id = owner, token = _db.TokenOf(owner), handle = o.handle, name = o.name, email = p.Email, switched = true };
+                    }
+                    else if (!string.IsNullOrEmpty(mine))
+                    {
+                        // this player is already linked to a different Google account: give the new one its own player
+                        var (nid, ntok) = _db.Register(string.IsNullOrWhiteSpace(p.GivenName) ? "Player" : p.GivenName);
+                        _db.LinkGoogle(nid, p.Subject, p.Email);
+                        var o = _db.Get(nid);
+                        res = new GwAuthResult { id = nid, token = ntok, handle = o.handle, name = o.name, email = p.Email, switched = true };
+                    }
+                    else
+                    {
+                        _db.LinkGoogle(s.Id, p.Subject, p.Email);
+                        res = new GwAuthResult { id = s.Id, handle = s.Handle, name = s.Name, email = p.Email };
+                    }
+                    _log.LogInformation("Google sign-in: {Handle} -> {Email} ({Mode})", s.Handle, p.Email, res.switched ? "switch" : "linked");
+                }
+            }
+            catch (Google.Apis.Auth.InvalidJwtException e) { err = "Google sign-in failed (" + e.Message + ")"; }
+            catch (Exception e) { err = "Google sign-in failed"; _log.LogWarning("Google sign-in {Handle}: {Err}", s.Handle, e.Message); }
+            if (!string.IsNullOrEmpty(env.id))
+                conn.Send(new GwEnvelope { t = Gw.Reply, id = env.id, ok = err == null, err = err ?? "", d = res != null ? JsonSerializer.Serialize(res, Json) : "" });
         }
 
         private static T D<T>(GwEnvelope e) where T : new() => string.IsNullOrEmpty(e.d) ? new T() : JsonSerializer.Deserialize<T>(e.d, Json) ?? new T();

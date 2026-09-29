@@ -36,6 +36,7 @@ namespace Veil.App
         public int VoiceMode;              // 0 push-to-talk, 1 open mic, 2 off
         public float VoiceVolume, MicSensitivity;
         public string Handle;              // Name#1234 from the Gateway
+        public string GoogleEmail = "";    // Google account linked to this player ("" = guest)
 
         public static Profile Load()
         {
@@ -63,6 +64,7 @@ namespace Veil.App
                 VoiceVolume = PlayerPrefs.GetFloat("voiceVol", 1f),
                 MicSensitivity = PlayerPrefs.GetFloat("micSens", 0.35f),
                 Handle = PlayerPrefs.GetString("handle", ""),
+                GoogleEmail = PlayerPrefs.GetString("googleEmail", ""),
             };
             // server: what the player typed, else the remote boot config (last cached copy), else the built-in default
             var defAsset = Resources.Load<TextAsset>("server_default");
@@ -105,6 +107,7 @@ namespace Veil.App
             PlayerPrefs.SetFloat("voiceVol", VoiceVolume);
             PlayerPrefs.SetFloat("micSens", MicSensitivity);
             PlayerPrefs.SetString("handle", Handle ?? "");
+            PlayerPrefs.SetString("googleEmail", GoogleEmail ?? "");
             PlayerPrefs.SetInt("outfit", Look.Outfit);
             PlayerPrefs.SetInt("hair", Look.Hair);
             PlayerPrefs.SetInt("hairColor", Look.HairColor);

@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS friend_requests(
             AddColumn("players", "tag", "INTEGER NOT NULL DEFAULT 0");
             AddColumn("players", "last_seen", "TEXT NOT NULL DEFAULT ''");
             AddColumn("match_players", "squad", "INTEGER NOT NULL DEFAULT 0");
+            AddColumn("players", "google_sub", "TEXT NOT NULL DEFAULT ''");
+            AddColumn("players", "email", "TEXT NOT NULL DEFAULT ''");
+            Exec("CREATE UNIQUE INDEX IF NOT EXISTS players_google ON players(google_sub) WHERE google_sub <> ''");
             AddColumn("match_players", "squad_rank", "INTEGER NOT NULL DEFAULT 0");
             // older rows: give every player a discriminator so handles are unique
             lock (_lock)
@@ -166,6 +169,41 @@ CREATE TABLE IF NOT EXISTS friend_requests(
                 cmd.ExecuteNonQuery();
             }
             return (id, token);
+        }
+
+        // ---------------- Google accounts ----------------
+        /// <summary>Player id owning this Google account (subject), or null.</summary>
+        public string FindByGoogle(string sub) => Scalar("SELECT id FROM players WHERE google_sub=$v AND google_sub <> ''", sub);
+
+        /// <summary>Google subject linked to a player ("" = guest).</summary>
+        public string GoogleOf(string id) => Scalar("SELECT google_sub FROM players WHERE id=$v", id) ?? "";
+        public string EmailOf(string id) => Scalar("SELECT email FROM players WHERE id=$v", id) ?? "";
+        public string TokenOf(string id) => Scalar("SELECT token FROM players WHERE id=$v", id);
+
+        public void LinkGoogle(string id, string sub, string email)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "UPDATE players SET google_sub=$s, email=$e WHERE id=$id";
+                cmd.Parameters.AddWithValue("$s", sub);
+                cmd.Parameters.AddWithValue("$e", email ?? "");
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private string Scalar(string sql, string v)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.AddWithValue("$v", v ?? "");
+                return cmd.ExecuteScalar() as string;
+            }
         }
 
         public bool CheckToken(string id, string token)

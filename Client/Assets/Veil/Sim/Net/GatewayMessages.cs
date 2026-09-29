@@ -22,7 +22,8 @@ namespace Veil.Sim
             PartyInvite = "party.invite", InviteAccept = "party.invite.accept", InviteDecline = "party.invite.decline",
             PartyReady = "party.ready", PartyKick = "party.kick", PartyPromote = "party.promote", PartyStart = "party.start",
             PartyCancel = "party.cancel", PartyLook = "party.look", MatchRejoin = "match.rejoin",
-            ProfileGet = "profile.get", LeaderboardGet = "leaderboard.get";
+            ProfileGet = "profile.get", LeaderboardGet = "leaderboard.get",
+            AuthGoogle = "auth.google";
 
         // server → client pushes
         public const string Welcome = "welcome", Pong = "pong", Reply = "reply";
@@ -43,6 +44,19 @@ namespace Veil.Sim
         public string id = ""; public string name = ""; public string handle = ""; public long serverTime; public int voicePort; public string voiceHost = "";
         /// <summary>Set only when this hello created a new guest account (hello without id): save it.</summary>
         public string newToken = "";
+        /// <summary>Google account linked to this player ("" = guest).</summary>
+        public string email = "";
+    }
+
+    /// <summary>Sign in with Google: the ID token from the Android account picker, verified by the server.</summary>
+    [Serializable] public sealed class GwGoogleAuth { public string idToken = ""; }
+
+    [Serializable]
+    public sealed class GwAuthResult
+    {
+        public string id = "", token = "", handle = "", name = "", email = "";
+        /// <summary>True when this Google account already belonged to another player: the client switches to it (id + token).</summary>
+        public bool switched;
     }
     [Serializable] public sealed class GwPing { public long clientMs; public int rttMs; }
 

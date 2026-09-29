@@ -28,6 +28,8 @@ COPYFILE_DISABLE=1 tar -C "$OUT" -czf "$ROOT/Builds/rilo-server-$RID.tgz" .
 
 echo "==> uploading"
 scp -i "$KEY" -o StrictHostKeyChecking=accept-new "$ROOT/Builds/rilo-server-$RID.tgz" "$USER_@$IP:/tmp/rilo-server.tgz"
+# non-secret server settings (e.g. VEIL_GOOGLE_CLIENT_ID) — committed in Server/deploy/server.env
+scp -i "$KEY" -o StrictHostKeyChecking=accept-new "$ROOT/Server/deploy/server.env" "$USER_@$IP:/tmp/rilo-server.env"
 
 echo "==> installing the service + opening the firewall"
 "${SSH[@]}" 'sudo bash -s' <<'REMOTE'
@@ -47,6 +49,7 @@ chmod +x /opt/rilo/server/Veil.Server
 # match-ticket signing secret: created once, kept across updates
 [ -f /opt/rilo/secret.env ] || echo "VEIL_TICKET_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '/+=')" > /opt/rilo/secret.env
 chmod 600 /opt/rilo/secret.env
+install -m 644 /tmp/rilo-server.env /opt/rilo/server.env
 chown -R rilo:rilo /opt/rilo
 
 cat > /etc/systemd/system/rilo.service <<'UNIT'
@@ -59,6 +62,7 @@ Wants=network-online.target
 User=rilo
 WorkingDirectory=/opt/rilo/data
 EnvironmentFile=/opt/rilo/secret.env
+EnvironmentFile=-/opt/rilo/server.env
 # small VMs: workstation GC + conserve memory (ASP.NET defaults to server GC, which reserves far more RAM)
 Environment=DOTNET_gcServer=0
 Environment=DOTNET_GCConserveMemory=7

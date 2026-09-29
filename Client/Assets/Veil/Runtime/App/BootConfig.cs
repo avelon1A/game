@@ -21,6 +21,7 @@ namespace Veil.App
         public int minBuild;              // builds below this must update (online disabled)
         public int latestBuild;           // builds below this get a "new version" notice
         public string updateUrl = "";     // where the UPDATE button goes (APK / store page)
+        public string googleClientId = ""; // OAuth *Web* client id for Sign in with Google (server checks it as audience)
     }
 
     public static class BootConfig

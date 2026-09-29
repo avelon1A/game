@@ -28,6 +28,8 @@ namespace Veil.Net
         /// <summary>Voice relay host (empty in welcome = same host as the Gateway).</summary>
         public string VoiceHost { get; private set; } = "";
         public string Host { get; private set; } = "";
+        /// <summary>Google account linked to the signed-in player ("" = guest), from the welcome.</summary>
+        public string Email { get; private set; } = "";
         public string LastError { get; private set; } = "";
         public FriendsState Friends { get; private set; } = new FriendsState();
         public PartyInfo Party { get; private set; } = new PartyInfo();
@@ -204,7 +206,7 @@ namespace Veil.Net
                 case Gw.Welcome:
                 {
                     var w = JsonUtility.FromJson<GwWelcome>(env.d);
-                    Handle = w.handle; MyId = w.id; VoicePort = w.voicePort > 0 ? w.voicePort : 7778;
+                    Handle = w.handle; MyId = w.id; VoicePort = w.voicePort > 0 ? w.voicePort : 7778; Email = w.email ?? "";
                     if (!string.IsNullOrEmpty(w.newToken)) { _id = w.id; _token = w.newToken; CredentialsIssued?.Invoke(w.id, w.newToken); }
                     VoiceHost = string.IsNullOrEmpty(w.voiceHost) ? Host : w.voiceHost;
                     Status = State.Online;

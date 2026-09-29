@@ -121,7 +121,10 @@ namespace Veil.UI
             // profile card (portrait, name, online status, level)
             var card = UIKit.At(bar, "Profile", new Vector2(1, 0.5f), new Vector2(-20, 0), new Vector2(300, 70));
             card.pivot = new Vector2(1, 0.5f);
-            UIKit.Image(card, UIKit.RoundedSmall, new Color(1, 1, 1, 0.07f));
+            var cardBg = UIKit.Image(card, UIKit.RoundedSmall, new Color(1, 1, 1, 0.07f), true);
+            var cardBtn = card.gameObject.AddComponent<Button>();   // tap your profile → Settings (account / Google sign-in)
+            cardBtn.targetGraphic = cardBg;
+            cardBtn.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); OnTabButton(4); });
             var faceRt = UIKit.At(card, "Face", new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(56, 56));
             faceRt.pivot = new Vector2(0, 0.5f);
             UIKit.Image(faceRt, UIKit.RoundedSmall, new Color(0.14f, 0.13f, 0.3f));
@@ -343,6 +346,29 @@ namespace Veil.UI
             title.rectTransform.pivot = new Vector2(0, 1);
             var prof = App.Profile;
             void Save() { prof.Save(); App.ApplySettings(); }
+
+            // account: guest or Google (Android) — signing in keeps your progress and brings it to any phone
+            var acct = UIKit.LabelAt(p, "", 17, Theme.TextDim, new Vector2(0, 1), new Vector2(90, -92), new Vector2(420, 32), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            acct.rectTransform.pivot = new Vector2(0, 0.5f);
+            acct.supportRichText = true;
+            UIKit.Fit(acct);
+            var gBtn = UIKit.Button(p, "SIGN IN WITH GOOGLE", new Vector2(1, 1), new Vector2(-60, -92), new Vector2(300, 42), UIKit.ButtonStyle.Secondary,
+                () => { if (App.SignedInWithGoogle) App.SignOutGoogle(); else App.SignInWithGoogle(); }, 16);
+            ((RectTransform)gBtn.transform).pivot = new Vector2(1, 0.5f);
+            var gLabel = UIKit.ButtonLabel(gBtn);
+            void RefreshAccount()
+            {
+                var g = App.Gateway;
+                string who = !string.IsNullOrEmpty(g.Handle) ? g.Handle : prof.Name;
+                acct.text = App.SignedInWithGoogle
+                    ? $"ACCOUNT  <color=#ffffff>{who}</color>  <color=#7dff9a>● {prof.GoogleEmail}</color>"
+                    : $"ACCOUNT  <color=#ffffff>{who}</color>  <color=#8a90b8>guest</color>";
+                gBtn.gameObject.SetActive(Veil.Net.GoogleSignIn.Supported);
+                gLabel.text = App.SignedInWithGoogle ? "SIGN OUT" : "SIGN IN WITH GOOGLE";
+            }
+            RefreshAccount();
+            App.AccountChanged += RefreshAccount;
+            App.Gateway.Changed += RefreshAccount;
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -130), "MOUSE SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; Save(); }, v => (v * 10).ToString("0.0"));
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -200), "MUSIC", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");

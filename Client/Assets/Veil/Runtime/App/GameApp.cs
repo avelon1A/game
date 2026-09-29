@@ -108,6 +108,8 @@ namespace Veil.App
             Gateway.CredentialsIssued += (id, token) => { Profile.BackendId = id; Profile.BackendToken = token; Profile.Save(); };
             Gateway.Changed += () =>
             {
+                // the server is the source of truth for the linked Google account
+                if (Gateway.Online && Profile.GoogleEmail != Gateway.Email) { Profile.GoogleEmail = Gateway.Email; Profile.Save(); AccountChanged?.Invoke(); }
                 // UDP mode has no REST: load the profile over the Gateway once connected
                 if (Gateway.Online && Gateway.UsesUdp && !_profileRequested) { _profileRequested = true; FetchProfile(p => OnlineProfile = p, e => _profileRequested = false); }
                 if (!Gateway.Online) _profileRequested = false;
@@ -418,6 +420,69 @@ namespace Veil.App
             if (!string.IsNullOrEmpty(note) && note != _bootNoticeShown) { _bootNoticeShown = note; _toasts?.Notice(note, 7f); }
         }
 
+        // ------------------------------------------------------------------ Google sign-in (Android)
+
+        /// <summary>Raised when the player signs in / out (Settings refreshes its account row).</summary>
+        public event Action AccountChanged;
+        public bool SignedInWithGoogle => !string.IsNullOrEmpty(Profile.GoogleEmail);
+        private string GoogleClientId
+        {
+            get
+            {
+                var id = BootConfig.Current?.googleClientId;
+                if (!string.IsNullOrEmpty(id)) return id.Trim();
+                var res = Resources.Load<TextAsset>("google_client_id");
+                return res != null ? res.text.Trim() : "";
+            }
+        }
+
+        /// <summary>Links this player to a Google account (keeps guest progress) or switches to the account that owns it.</summary>
+        public void SignInWithGoogle()
+        {
+            if (!Gateway.Online) { _toasts?.Notice("Connecting to the server — try again in a moment"); GoOnline(); return; }
+            GoogleSignIn.SignIn(GoogleClientId, r =>
+            {
+                if (!r.Ok) { if (!r.Cancelled) _toasts?.Notice($"<color=#ff9a8a>Google sign-in failed</color> ({r.Error})", 6f); return; }
+                Gateway.RequestData(Gw.AuthGoogle, new GwGoogleAuth { idToken = r.IdToken }, (ok, err, data) =>
+                {
+                    if (!ok) { _toasts?.Notice($"<color=#ff9a8a>{err}</color>", 6f); return; }
+                    var a = JsonUtility.FromJson<GwAuthResult>(data);
+                    Profile.GoogleEmail = a.email;
+                    if (a.switched)
+                    {
+                        // this Google account already has a player (e.g. from another phone): use it
+                        Profile.BackendId = a.id; Profile.BackendToken = a.token; Profile.Save();
+                        Reconnect();
+                        _toasts?.Notice($"Signed in as {a.email} — welcome back, {a.handle}", 6f);
+                    }
+                    else
+                    {
+                        Profile.Save();
+                        _toasts?.Notice($"Signed in with Google ({a.email}) — your progress is saved", 6f);
+                    }
+                    AccountChanged?.Invoke();
+                });
+            });
+        }
+
+        /// <summary>Signs out: forgets the Google account on this device and continues as a new guest.</summary>
+        public void SignOutGoogle()
+        {
+            GoogleSignIn.SignOut();
+            Profile.GoogleEmail = ""; Profile.BackendId = ""; Profile.BackendToken = ""; Profile.Save();
+            Reconnect();
+            _toasts?.Notice("Signed out — playing as a new guest. Sign in again to get your account back.", 6f);
+            AccountChanged?.Invoke();
+        }
+
+        private void Reconnect()
+        {
+            Gateway.Disconnect();
+            OnlineProfile = null;
+            _profileRequested = false;
+            GoOnline();
+        }
+
         /// <summary>Opens the update link from the boot config (APK / store page).</summary>
         public void OpenUpdate()
         {
@@ -565,6 +630,7 @@ namespace Veil.App
         {
             float dt = Time.deltaTime;
             Net.Poll();
+            GoogleSignIn.Pump();
             UpdateSocial(Time.unscaledDeltaTime);
             var kb = Keyboard.current;
             var mouse = Mouse.current;
