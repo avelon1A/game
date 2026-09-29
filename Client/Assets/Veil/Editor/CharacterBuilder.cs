@@ -120,6 +120,7 @@ namespace Veil.EditorTools
             // projected concept art already has painted lighting → keep most of it
             bool textured = File.Exists($"{Root}/{name}/{name}_textured.txt");
             mat.SetFloat("_ArtKeep", textured ? 0.35f : 0.85f);
+            mat.SetFloat("_Cull", textured ? 0f : 2f);   // textured models are thin shells: double-sided hides seams
             mat.SetFloat("_ShadowStrength", textured ? 0.6f : 0.45f);   // soft self-shadows so faces stay readable
             var emis = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/{name}/{name}_emission.png");
             mat.SetTexture("_EmissionMap", emis);

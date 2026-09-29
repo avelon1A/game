@@ -13,6 +13,7 @@ Shader "Veil/Toon"
         _EmissionMap ("Emission Map", 2D) = "white" {}
         _ArtKeep ("Keep Painted Art", Range(0, 1)) = 0.0
         _ShadowStrength ("Shadow Strength", Range(0, 1)) = 1.0
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
 
     SubShader
@@ -42,7 +43,7 @@ Shader "Veil/Toon"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
-            Cull Back
+            Cull [_Cull]
             ZWrite On
 
             HLSLPROGRAM
@@ -87,10 +88,10 @@ Shader "Veil/Toon"
                 return o;
             }
 
-            half4 frag(Varyings i) : SV_Target
+            half4 frag(Varyings i, bool front : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
-                half3 n = normalize(i.normalWS);
+                half3 n = normalize(i.normalWS) * (front ? 1 : -1);   // back faces (double-sided) light like the inside
                 float4 shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 Light l = GetMainLight(shadowCoord);
                 half ndl = dot(n, l.direction);

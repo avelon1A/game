@@ -119,7 +119,10 @@ cd Tools/ai3d
 /Applications/Blender.app/Contents/MacOS/Blender -b -P blender/build_character.py -- shade --src source_models/shade_meshy.glb --preview
 ```
 
-The model must face -Y (front) with Z up, arms down. A glow map is derived from its bright cyan/blue texels; Unity gives
+Meshy FBX zips: `blender -b -P blender/fbx_to_glb.py -- <model.fbx> <model_texture.png> source_models/<name>_meshy.glb` first.
+Glow: `--glow cyan|pink|ring|lime|none` (Shade cyan, Pixie pink, Nova ring, Bolt lime, Vanguard none). All five heroes use Meshy models.
+Rigging repairs for welded multi-piece meshes run automatically (proxy weights, firm arm/body split, ribbon removal); textured
+characters render double-sided so removed seams read as shadow. The model must face -Y (front) with Z up, arms down. A glow map is derived from its bright cyan/blue texels; Unity gives
 textured models more toon lighting (`<name>_textured.txt` marker). Shade uses `Tools/ai3d/source_models/shade_meshy.glb`.
 
 ## Credits

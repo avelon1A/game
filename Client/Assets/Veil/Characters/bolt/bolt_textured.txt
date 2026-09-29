@@ -1,0 +1,1 @@
+source: bolt_meshy.glb

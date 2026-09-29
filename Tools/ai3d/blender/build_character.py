@@ -470,6 +470,22 @@ else:
     GLOW = argv[argv.index("--glow") + 1] if "--glow" in argv else "cyan"
     if GLOW == "pink":     # neon magenta rings / trims, strict so pink hair doesn't glow
         neon = (sat > 0.65) & (mxc > 0.8) & (r_ > g_ * 1.5) & (b_ > g_)
+    elif GLOW == "ring":   # glowing rings: bright bluish-white cores + the saturated violet halo right around them
+        core = (mxc > 0.88) & (sat < 0.35) & (b_ >= r_ * 0.98) & (b_ > g_ * 1.02)
+        near = core.copy()
+        for axis in (0, 1):                                   # separable 13-px dilation
+            acc = near.copy()
+            for k in range(1, 7): acc |= np.roll(near, k, axis) | np.roll(near, -k, axis)
+            near = acc
+        neon = core | (near & (b_ > g_ * 1.3) & (r_ > g_) & (sat > 0.45) & (mxc > 0.6))
+    elif GLOW == "lime":   # small lime lenses / rings: bright lime core + a few pixels of green halo (not the hair)
+        core = (g_ > 0.75) & (b_ < 0.35) & (r_ < g_ * 0.9)
+        near = core.copy()
+        for axis in (0, 1):
+            acc = near.copy()
+            for k in range(1, 6): acc |= np.roll(near, k, axis) | np.roll(near, -k, axis)
+            near = acc
+        neon = core | (near & (g_ > r_) & (g_ > b_ * 1.6) & (mxc > 0.55))
     elif GLOW == "none":
         neon = np.zeros(mxc.shape, dtype=bool)
     else:                  # cyan / electric blue
@@ -671,26 +687,40 @@ bpy.context.view_layer.objects.active = rig
 bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 unweighted = sum(1 for v in me.vertices if not any(g.weight > 0.01 for g in v.groups))
 log("skinned; unweighted verts:", unweighted)
-if unweighted > 0.02 * len(me.vertices):
+# textured multi-piece models always use the proxy path: its firm arm/body split deforms cleanest
+USED_PROXY = TEXTURED or unweighted > 0.02 * len(me.vertices)
+STRICT = TEXTURED and USED_PROXY   # extra weight repairs for welded multi-piece meshes (Pixie, Nova)
+if USED_PROXY:
     # Meshes built from many separate pieces (layered hair / clothes) break bone-heat. Solve heat weights on a
     # watertight voxel-remeshed proxy instead, then transfer them to the real mesh (nearest surface, interpolated).
     log("heat weights incomplete -> solving on a watertight proxy")
-    bpy.ops.object.select_all(action='DESELECT')
-    obj.select_set(True); bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.duplicate(linked=False)
-    proxy = bpy.context.view_layer.objects.active
-    proxy.parent = None
-    for md in list(proxy.modifiers): proxy.modifiers.remove(md)
-    proxy.vertex_groups.clear()
-    rm = proxy.modifiers.new("remesh", 'REMESH'); rm.mode = 'VOXEL'; rm.voxel_size = 0.018; rm.use_smooth_shade = True
-    bpy.ops.object.modifier_apply(modifier="remesh")
-    dm_ = proxy.modifiers.new("dec", 'DECIMATE'); dm_.ratio = min(1.0, 45000 / max(1, len(proxy.data.polygons)))
-    bpy.ops.object.modifier_apply(modifier="dec")
-    bpy.ops.object.select_all(action='DESELECT')
-    proxy.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    pu = sum(1 for v in proxy.data.vertices if not any(g.weight > 0.01 for g in v.groups))
-    log("proxy", len(proxy.data.polygons), "faces, unweighted", pu)
+    proxy = None
+    for vs in (0.018, 0.026, 0.013, 0.035):   # bone-heat can fail for one remesh resolution and work for another
+        if proxy is not None: bpy.data.objects.remove(proxy, do_unlink=True)
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True); bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.duplicate(linked=False)
+        proxy = bpy.context.view_layer.objects.active
+        mw = proxy.matrix_world.copy()
+        proxy.parent = None
+        proxy.matrix_world = mw
+        for md in list(proxy.modifiers): proxy.modifiers.remove(md)
+        proxy.vertex_groups.clear()
+        rm = proxy.modifiers.new("remesh", 'REMESH'); rm.mode = 'VOXEL'; rm.voxel_size = vs; rm.use_smooth_shade = True
+        bpy.ops.object.modifier_apply(modifier="remesh")
+        dm_ = proxy.modifiers.new("dec", 'DECIMATE'); dm_.ratio = min(1.0, 45000 / max(1, len(proxy.data.polygons)))
+        bpy.ops.object.modifier_apply(modifier="dec")
+        bpy.ops.object.select_all(action='DESELECT')
+        proxy.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        pu = sum(1 for v in proxy.data.vertices if not any(g.weight > 0.01 for g in v.groups))
+        log("proxy voxel", vs, ":", len(proxy.data.polygons), "faces, unweighted", pu)
+        if pu < 0.03 * len(proxy.data.vertices): break
+    if pu >= 0.03 * len(proxy.data.vertices):
+        log("proxy heat failed too -> envelope weights on the proxy")
+        bpy.ops.object.select_all(action='DESELECT')
+        proxy.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
+        bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
     for g in list(obj.vertex_groups): obj.vertex_groups.remove(g)
     for b in rig.data.bones: obj.vertex_groups.new(name=b.name)
     dt = obj.modifiers.new("wt", 'DATA_TRANSFER')
@@ -731,8 +761,13 @@ for v in me.vertices:
         dmin = min(seg_dist(p, a_, b_) for a_, b_ in chain)
         medial = p.x * sx < abs(J["upperarm" + sd].x) * 0.55
         # below the chest, geometry nearer the hips / legs than the arm (skirts, pouches beside the fists) stays with the body
-        dbody = min(seg_dist(p, a_, b_) for a_, b_ in body_chain) if p.z < J["chest"].z else 9
-        if dmin > 0.17 or (medial and p.z < J["upperarm" + sd].z - 0.05) or dbody < dmin * 1.15:
+        dbody = min(seg_dist(p, a_, b_) for a_, b_ in body_chain) if STRICT and p.z < J["chest"].z else 9
+        # fists resting against belt pouches: below the elbow, forearm/hand may not own geometry inward of the fist
+        inward = STRICT and g.group != obj.vertex_groups[f"UpperArm.{sd}"].index and p.z < J["elbow" + sd].z and \
+                 p.x * sx < abs(J["hand" + sd].x) - 0.10 and dmin > 0.06
+        # anything hugging the arm chain (glove, cuff, sleeve) always stays with the arm
+        near_body = dbody < dmin * 1.15 and dmin > 0.055
+        if dmin > 0.17 or (medial and p.z < J["upperarm" + sd].z - 0.05) or near_body or inward:
             obj.vertex_groups[g.group].remove([v.index]); removed += 1
     if not any(g.weight > 0.001 for g in v.groups):
         # give orphaned vertices to the nearest torso/leg bone by height
@@ -740,47 +775,63 @@ for v in me.vertices:
         obj.vertex_groups[gn].add([v.index], 1.0, 'REPLACE')
 # ---- rigid pieces: a small separate mesh piece (strap, pouch, glove shell) must move as ONE part — either with
 # the arm or with the body. Half-and-half pieces stretch into long ribbons when the arm moves.
-bm_i = bmesh.new(); bm_i.from_mesh(me); bm_i.verts.ensure_lookup_table()
-seen_i = [False] * len(bm_i.verts); pieces = []
-for v0 in bm_i.verts:
-    if seen_i[v0.index]: continue
-    stack = [v0]; seen_i[v0.index] = True; comp = []
-    while stack:
-        x = stack.pop(); comp.append(x.index)
-        for e in x.link_edges:
-            o_ = e.other_vert(x)
-            if not seen_i[o_.index]: seen_i[o_.index] = True; stack.append(o_)
-    pieces.append(comp)
-bm_i.free()
-arm_idx = set(arm_groups.keys())
-fixed = 0
-for comp in pieces:
-    if len(comp) > 0.06 * len(me.vertices) or len(comp) < 3: continue
-    arm_w = []
-    for vi in comp:
-        gs = me.vertices[vi].groups
-        tot = sum(g.weight for g in gs) or 1
-        arm_w.append(sum(g.weight for g in gs if g.group in arm_idx) / tot)
-    mean = sum(arm_w) / len(arm_w)
-    if max(arm_w) < 0.05: continue
-    if mean < 0.5:   # mostly body → strip the arm entirely
+if STRICT:
+    bm_i = bmesh.new(); bm_i.from_mesh(me); bm_i.verts.ensure_lookup_table()
+    seen_i = [False] * len(bm_i.verts); pieces = []
+    for v0 in bm_i.verts:
+        if seen_i[v0.index]: continue
+        stack = [v0]; seen_i[v0.index] = True; comp = []
+        while stack:
+            x = stack.pop(); comp.append(x.index)
+            for e in x.link_edges:
+                o_ = e.other_vert(x)
+                if not seen_i[o_.index]: seen_i[o_.index] = True; stack.append(o_)
+        pieces.append(comp)
+    bm_i.free()
+    arm_idx = set(arm_groups.keys())
+    bone_seg = {}
+    for sd in ("L", "R"):
+        bone_seg[f"UpperArm.{sd}"] = (J["upperarm" + sd], J["elbow" + sd])
+        bone_seg[f"LowerArm.{sd}"] = (J["elbow" + sd], J["hand" + sd])
+        bone_seg[f"Hand.{sd}"] = (J["hand" + sd], J["handtip" + sd])
+    fixed = 0
+    for comp in pieces:
+        if len(comp) > 0.06 * len(me.vertices) or len(comp) < 3: continue
+        # decide by POSITION (weights near touching fists / hips are unreliable): nearest arm bone vs nearest body segment
+        cen = sum((me.vertices[vi].co for vi in comp), Vector()) / len(comp)
+        if cen.z > J["neck"].z: continue                       # hair / head pieces are handled by the head bones
+        best_bone, best_d = None, 9.0
+        for bn, (a_, b_) in bone_seg.items():
+            d_ = seg_dist(cen, a_, b_)
+            if d_ < best_d: best_d, best_bone = d_, bn
+        d_body = min(seg_dist(cen, a_, b_) for a_, b_ in body_chain) if cen.z < J["chest"].z else seg_dist(cen, J["spine"], J["neck"])
+        to_arm = best_d < 0.09 or (best_d < 0.14 and best_d < d_body * 0.9)   # glove shells / lenses stay on the fist
+        has_arm = any(g.group in arm_idx and g.weight > 0.05 for vi in comp for g in me.vertices[vi].groups)
+        if not to_arm and not has_arm: continue
         for vi in comp:
             for g in list(me.vertices[vi].groups):
-                if g.group in arm_idx: obj.vertex_groups[g.group].remove([vi])
-            if not any(g.weight > 0.001 for g in me.vertices[vi].groups):
+                if to_arm or g.group in arm_idx: obj.vertex_groups[g.group].remove([vi])
+            if to_arm:
+                obj.vertex_groups[best_bone].add([vi], 1.0, 'REPLACE')
+            elif not any(g.weight > 0.001 for g in me.vertices[vi].groups):
                 pz = me.vertices[vi].co.z
                 obj.vertex_groups["Hips" if pz < J["spine"].z else ("Spine" if pz < J["chest"].z else "Chest")].add([vi], 1.0, 'REPLACE')
-    else:            # mostly arm → the whole piece follows its dominant arm bone
-        cnt = {}
-        for vi in comp:
-            for g in me.vertices[vi].groups:
-                if g.group in arm_idx: cnt[g.group] = cnt.get(g.group, 0) + g.weight
-        dom = max(cnt, key=cnt.get)
-        for vi in comp:
-            for g in list(me.vertices[vi].groups): obj.vertex_groups[g.group].remove([vi])
-            obj.vertex_groups[dom].add([vi], 1.0, 'REPLACE')
-    fixed += 1
-log("rigid pieces fixed:", fixed, "of", len(pieces), "pieces")
+        fixed += 1
+    # hand capsule: the fist and wrist always move with the hand, even where they touch the hips
+    glued = 0
+    for v in me.vertices:
+        p = v.co
+        for sd in ("L", "R"):
+            dh = seg_dist(p, J["hand" + sd], J["handtip" + sd])
+            dw = seg_dist(p, J["elbow" + sd].lerp(J["hand" + sd], 0.6), J["hand" + sd])
+            if min(dh, dw) < 0.065:
+                bn = f"Hand.{sd}" if dh <= dw else f"LowerArm.{sd}"
+                for g in list(v.groups): obj.vertex_groups[g.group].remove([v.index])
+                obj.vertex_groups[bn].add([v.index], 1.0, 'REPLACE')
+                glued += 1
+                break
+    log("hand capsule vertices:", glued)
+    log("rigid pieces fixed:", fixed, "of", len(pieces), "pieces")
 bpy.context.view_layer.objects.active = obj
 for o in bpy.context.scene.objects: o.select_set(o == obj)
 bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
@@ -789,6 +840,39 @@ bpy.ops.object.vertex_group_smooth(group_select_mode='ALL', factor=0.5, repeat=2
 bpy.ops.object.vertex_group_normalize_all(lock_active=False)
 bpy.ops.object.mode_set(mode='OBJECT')
 log("weight cleanup: removed", removed, "arm influences")
+
+# ---- cut fused bridges: generated meshes sometimes weld the fist to the hip / pouch it rests on. Faces spanning
+# hand-driven and body-driven vertices near the hands would stretch into ribbons — remove them (invisible at rest).
+if TEXTURED and USED_PROXY:
+    # 1) below the elbows, near the forearm/hand: binary ownership by position (no blended gradients to stretch)
+    low_z = max(J["elbowL"].z, J["elbowR"].z) + 0.03
+    body_segs = body_chain + [(J["spine"], J["chest"])]
+    owner = {}
+    for v in me.vertices:
+        p = v.co
+        if p.z > low_z: continue
+        best = None
+        for sd in ("L", "R"):
+            dl = seg_dist(p, J["elbow" + sd], J["hand" + sd]); dh = seg_dist(p, J["hand" + sd], J["handtip" + sd])
+            d_ = min(dl, dh)
+            if d_ < 0.2 and (best is None or d_ < best[0]): best = (d_, f"Hand.{sd}" if dh <= dl else f"LowerArm.{sd}")
+        if best is None: continue
+        d_body = min(seg_dist(p, a_, b_) for a_, b_ in body_segs)
+        arm_side = best[0] < 0.065 or best[0] < d_body
+        owner[v.index] = arm_side
+        for g in list(v.groups):
+            gname = obj.vertex_groups[g.group].name
+            if arm_side or gname.startswith(("UpperArm", "LowerArm", "Hand")): obj.vertex_groups[g.group].remove([v.index])
+        if arm_side:
+            obj.vertex_groups[best[1]].add([v.index], 1.0, 'REPLACE')
+        elif not any(g.weight > 0.001 for g in v.groups):
+            obj.vertex_groups["Hips" if p.z < J["spine"].z else "Spine"].add([v.index], 1.0, 'REPLACE')
+    # 2) faces joining an arm-owned vertex to a body-owned one are the fused bridge — remove them
+    bmc = bmesh.new(); bmc.from_mesh(me); bmc.faces.ensure_lookup_table()
+    cut = [f for f in bmc.faces if len({owner.get(v.index) for v in f.verts if v.index in owner}) > 1]
+    bmesh.ops.delete(bmc, geom=cut, context='FACES_ONLY')
+    bmc.to_mesh(me); bmc.free()
+    log("split arms from body below the elbow:", sum(1 for x in owner.values() if x), "arm /", sum(1 for x in owner.values() if not x), "body verts; cut", len(cut), "bridge faces")
 
 # ============================================================ animation
 scene = bpy.context.scene
@@ -954,13 +1038,38 @@ acts.append(make_action("death", 24, lambda t: {
 }, loop=False))
 acts.append(make_action("victory", cycle(1.1), lambda t: {
     "Hips": [("loc", (0, 0, abs(math.sin(t * 2 * math.pi)) * 0.3))],
-    "UpperArm.R": [(Y, 150 + math.sin(t * 4 * math.pi) * 12)], "LowerArm.R": [(X, -20)],
+    "UpperArm.R": [(Y, 125 + math.sin(t * 4 * math.pi) * 10)], "LowerArm.R": [(X, -25)],
     "UpperArm.L": [(Y, -25)], "LowerArm.L": [(X, -90)],
     "UpperLeg.L": [(X, -25 * abs(math.sin(t * 2 * math.pi)))], "LowerLeg.L": [(X, 45 * abs(math.sin(t * 2 * math.pi)))],
     "UpperLeg.R": [(X, -12 * abs(math.sin(t * 2 * math.pi)))], "LowerLeg.R": [(X, 30 * abs(math.sin(t * 2 * math.pi)))],
     "Neck": [(X, -8)],
 }))
 log("actions:", ", ".join(a.name for a in acts))
+
+# ---- remove ribbons: pose the rig in the big actions and delete faces that stretch far beyond their rest size.
+# Generated meshes weld touching parts (fists on hips, straps on sleeves); those welds become ribbons in motion.
+# Holes this leaves at rest read as shadow because textured characters render double-sided (Veil/Toon _Cull Off).
+if TEXTURED:
+    rest_co = [v.co.copy() for v in me.vertices]
+    bmr = bmesh.new(); bmr.from_mesh(me); bmr.faces.ensure_lookup_table(); bmr.verts.ensure_lookup_table()
+    face_edges = [[(e.verts[0].index, e.verts[1].index) for e in f.edges] for f in bmr.faces]
+    bad = set()
+    for an, fr in (("shoot", 1), ("victory", 8), ("run", 3), ("run", 8), ("dash", 5), ("jump", 10), ("sprint", 3)):
+        rig.animation_data.action = bpy.data.actions[an]
+        scene.frame_set(fr)
+        dg_ = bpy.context.evaluated_depsgraph_get()
+        ev_ = obj.evaluated_get(dg_).data
+        pco = [v.co.copy() for v in ev_.vertices]
+        for fi, edges in enumerate(face_edges):
+            if fi in bad: continue
+            for a_, b_ in edges:
+                r0 = (rest_co[a_] - rest_co[b_]).length
+                if r0 < 1e-5: continue
+                if (pco[a_] - pco[b_]).length > 2.2 * r0 + 0.01: bad.add(fi); break
+    bmesh.ops.delete(bmr, geom=[bmr.faces[i] for i in bad], context='FACES_ONLY')
+    bmr.to_mesh(me); bmr.free()
+    rig.animation_data.action = bpy.data.actions["idle"]; scene.frame_set(1)
+    log("removed", len(bad), "faces that stretch into ribbons")
 
 # ============================================================ preview renders / export
 def render_pose(action, frame, path):
@@ -1002,6 +1111,27 @@ if PREVIEW:
         sun.rotation_euler = (math.radians(50), 0, a + math.radians(-25))
         render_pose(bpy.data.actions[act], fr, os.path.join(RENDER_DIR, f"{NAME}_{name}.png"))
     log("previews rendered")
+    if "--weightviz" in argv:
+        # debug: arm-bone influence in red (1 = fully arm), body in blue — shows geometry glued to the wrong bone
+        gi = {g.index: g.name for g in obj.vertex_groups}
+        wc = me.color_attributes.new("ArmW", 'FLOAT_COLOR', 'POINT')
+        for v in me.vertices:
+            aw = sum(g.weight for g in v.groups if "Arm" in gi[g.group] or "Hand" in gi[g.group])
+            wc.data[v.index].color = (aw, 0.12, (1 - aw) * 0.7, 1)
+        wm = bpy.data.materials.new("wv"); wm.use_nodes = True
+        wN, wL = wm.node_tree.nodes, wm.node_tree.links
+        for nd in list(wN): wN.remove(nd)
+        wo = wN.new("ShaderNodeOutputMaterial"); we = wN.new("ShaderNodeEmission"); wa = wN.new("ShaderNodeVertexColor"); wa.layer_name = "ArmW"
+        wL.new(wa.outputs[0], we.inputs[0]); wL.new(we.outputs[0], wo.inputs[0])
+        old_m = me.materials[0]; me.materials[0] = wm
+        vt = scene.view_settings.view_transform; scene.view_settings.view_transform = 'Standard'
+        for name, ang, act, fr in (("wv_victory", 0, "victory", 8), ("wv_victory_side", 70, "victory", 8), ("wv_shoot", 30, "shoot", 1), ("wv_idle", 0, "idle", 1)):
+            a = math.radians(ang)
+            cam.location = Vector((math.sin(a) * 6, -math.cos(a) * 6, 1.05))
+            cam.rotation_euler = (Vector((0, 0, 1.05)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+            render_pose(bpy.data.actions[act], fr, os.path.join(RENDER_DIR, f"{NAME}_{name}.png"))
+        scene.view_settings.view_transform = vt
+        me.materials[0] = old_m
     # flat-lit face close-ups (texture exactly as baked, no Blender lighting) for checking face quality
     flat = bpy.data.materials.new("flat"); flat.use_nodes = True
     fN, fL = flat.node_tree.nodes, flat.node_tree.links
