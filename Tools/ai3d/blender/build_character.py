@@ -467,7 +467,13 @@ else:
     mxc = rgb.max(2); mnc = rgb.min(2)
     sat = np.where(mxc > 1e-4, (mxc - mnc) / np.maximum(mxc, 1e-4), 0)
     r_, g_, b_ = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
-    neon = (sat > 0.55) & (mxc > 0.55) & (b_ >= r_ * 1.6) & (g_ > r_)       # cyan / electric blue
+    GLOW = argv[argv.index("--glow") + 1] if "--glow" in argv else "cyan"
+    if GLOW == "pink":     # neon magenta rings / trims, strict so pink hair doesn't glow
+        neon = (sat > 0.65) & (mxc > 0.8) & (r_ > g_ * 1.5) & (b_ > g_)
+    elif GLOW == "none":
+        neon = np.zeros(mxc.shape, dtype=bool)
+    else:                  # cyan / electric blue
+        neon = (sat > 0.55) & (mxc > 0.55) & (b_ >= r_ * 1.6) & (g_ > r_)
     glow = np.zeros_like(tpx); glow[:, :, 3] = 1
     glow[:, :, :3] = rgb * neon[:, :, None] * 0.55
     emis = bpy.data.images.new(f"{NAME}_emission", TW, TH, alpha=False)
@@ -666,8 +672,41 @@ bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 unweighted = sum(1 for v in me.vertices if not any(g.weight > 0.01 for g in v.groups))
 log("skinned; unweighted verts:", unweighted)
 if unweighted > 0.02 * len(me.vertices):
-    log("heat weights incomplete -> falling back to envelope weights for missing verts")
-    bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+    # Meshes built from many separate pieces (layered hair / clothes) break bone-heat. Solve heat weights on a
+    # watertight voxel-remeshed proxy instead, then transfer them to the real mesh (nearest surface, interpolated).
+    log("heat weights incomplete -> solving on a watertight proxy")
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True); bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.duplicate(linked=False)
+    proxy = bpy.context.view_layer.objects.active
+    proxy.parent = None
+    for md in list(proxy.modifiers): proxy.modifiers.remove(md)
+    proxy.vertex_groups.clear()
+    rm = proxy.modifiers.new("remesh", 'REMESH'); rm.mode = 'VOXEL'; rm.voxel_size = 0.018; rm.use_smooth_shade = True
+    bpy.ops.object.modifier_apply(modifier="remesh")
+    dm_ = proxy.modifiers.new("dec", 'DECIMATE'); dm_.ratio = min(1.0, 45000 / max(1, len(proxy.data.polygons)))
+    bpy.ops.object.modifier_apply(modifier="dec")
+    bpy.ops.object.select_all(action='DESELECT')
+    proxy.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    pu = sum(1 for v in proxy.data.vertices if not any(g.weight > 0.01 for g in v.groups))
+    log("proxy", len(proxy.data.polygons), "faces, unweighted", pu)
+    for g in list(obj.vertex_groups): obj.vertex_groups.remove(g)
+    for b in rig.data.bones: obj.vertex_groups.new(name=b.name)
+    dt = obj.modifiers.new("wt", 'DATA_TRANSFER')
+    dt.object = proxy
+    dt.use_vert_data = True
+    dt.data_types_verts = {'VGROUP_WEIGHTS'}
+    dt.vert_mapping = 'POLYINTERP_NEAREST'
+    dt.layers_vgroup_select_src = 'ALL'
+    dt.layers_vgroup_select_dst = 'NAME'
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True); bpy.context.view_layer.objects.active = obj
+    while obj.modifiers[0].name != "wt": bpy.ops.object.modifier_move_up(modifier="wt")
+    bpy.ops.object.modifier_apply(modifier="wt")
+    bpy.data.objects.remove(proxy, do_unlink=True)
+    unweighted = sum(1 for v in me.vertices if not any(g.weight > 0.01 for g in v.groups))
+    log("weights transferred from proxy; unweighted verts:", unweighted)
 
 # ---- weight cleanup: fists rest on the hips in the concept pose, so heat weights glue hip/pouch
 # geometry to the hands. Arm bones may only influence vertices close to the arm chain and lateral to the torso.
@@ -681,6 +720,7 @@ for sd in ("L", "R"):
     for gname in (f"UpperArm.{sd}", f"LowerArm.{sd}", f"Hand.{sd}"):
         arm_groups[obj.vertex_groups[gname].index] = (sd, chain)
 removed = 0
+body_chain = [(J["hips"], J["chest"]), (J["hipL"], J["kneeL"]), (J["hipR"], J["kneeR"]), (J["hipL"], J["hipR"])]
 body_fallback = obj.vertex_groups["Hips"].index
 for v in me.vertices:
     p = v.co
@@ -690,12 +730,57 @@ for v in me.vertices:
         sx = 1 if sd == "L" else -1
         dmin = min(seg_dist(p, a_, b_) for a_, b_ in chain)
         medial = p.x * sx < abs(J["upperarm" + sd].x) * 0.55
-        if dmin > 0.17 or (medial and p.z < J["upperarm" + sd].z - 0.05):
+        # below the chest, geometry nearer the hips / legs than the arm (skirts, pouches beside the fists) stays with the body
+        dbody = min(seg_dist(p, a_, b_) for a_, b_ in body_chain) if p.z < J["chest"].z else 9
+        if dmin > 0.17 or (medial and p.z < J["upperarm" + sd].z - 0.05) or dbody < dmin * 1.15:
             obj.vertex_groups[g.group].remove([v.index]); removed += 1
     if not any(g.weight > 0.001 for g in v.groups):
         # give orphaned vertices to the nearest torso/leg bone by height
         gn = "Hips" if p.z < J["spine"].z else ("Spine" if p.z < J["chest"].z else "Chest")
         obj.vertex_groups[gn].add([v.index], 1.0, 'REPLACE')
+# ---- rigid pieces: a small separate mesh piece (strap, pouch, glove shell) must move as ONE part — either with
+# the arm or with the body. Half-and-half pieces stretch into long ribbons when the arm moves.
+bm_i = bmesh.new(); bm_i.from_mesh(me); bm_i.verts.ensure_lookup_table()
+seen_i = [False] * len(bm_i.verts); pieces = []
+for v0 in bm_i.verts:
+    if seen_i[v0.index]: continue
+    stack = [v0]; seen_i[v0.index] = True; comp = []
+    while stack:
+        x = stack.pop(); comp.append(x.index)
+        for e in x.link_edges:
+            o_ = e.other_vert(x)
+            if not seen_i[o_.index]: seen_i[o_.index] = True; stack.append(o_)
+    pieces.append(comp)
+bm_i.free()
+arm_idx = set(arm_groups.keys())
+fixed = 0
+for comp in pieces:
+    if len(comp) > 0.06 * len(me.vertices) or len(comp) < 3: continue
+    arm_w = []
+    for vi in comp:
+        gs = me.vertices[vi].groups
+        tot = sum(g.weight for g in gs) or 1
+        arm_w.append(sum(g.weight for g in gs if g.group in arm_idx) / tot)
+    mean = sum(arm_w) / len(arm_w)
+    if max(arm_w) < 0.05: continue
+    if mean < 0.5:   # mostly body → strip the arm entirely
+        for vi in comp:
+            for g in list(me.vertices[vi].groups):
+                if g.group in arm_idx: obj.vertex_groups[g.group].remove([vi])
+            if not any(g.weight > 0.001 for g in me.vertices[vi].groups):
+                pz = me.vertices[vi].co.z
+                obj.vertex_groups["Hips" if pz < J["spine"].z else ("Spine" if pz < J["chest"].z else "Chest")].add([vi], 1.0, 'REPLACE')
+    else:            # mostly arm → the whole piece follows its dominant arm bone
+        cnt = {}
+        for vi in comp:
+            for g in me.vertices[vi].groups:
+                if g.group in arm_idx: cnt[g.group] = cnt.get(g.group, 0) + g.weight
+        dom = max(cnt, key=cnt.get)
+        for vi in comp:
+            for g in list(me.vertices[vi].groups): obj.vertex_groups[g.group].remove([vi])
+            obj.vertex_groups[dom].add([vi], 1.0, 'REPLACE')
+    fixed += 1
+log("rigid pieces fixed:", fixed, "of", len(pieces), "pieces")
 bpy.context.view_layer.objects.active = obj
 for o in bpy.context.scene.objects: o.select_set(o == obj)
 bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
