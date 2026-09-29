@@ -1,4 +1,4 @@
-using System;
+using StringComparison = System.StringComparison;
 using UnityEngine;
 using Veil.Sim;
 

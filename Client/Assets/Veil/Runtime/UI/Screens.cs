@@ -351,7 +351,7 @@ namespace Veil.UI
             // empty = automatic: the server comes from the remote boot config, so moving the server needs no new app
             var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-150, -450), "SERVER", prof.ServerOverride, v => prof.SetServerAddress(v), 340, "AUTO (recommended)");
             var upd = UIKit.Button(p, "UPDATE", new Vector2(0.5f, 1), new Vector2(330, -450), new Vector2(150, 48), UIKit.ButtonStyle.Ghost, () => App.OpenUpdate(), 18);
-            var build = UIKit.LabelAt(p, $"build {BootConfig.Build}", 14, Theme.TextDim, new Vector2(0.5f, 1), new Vector2(330, -486), new Vector2(150, 20), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            var build = UIKit.LabelAt(p, $"build {BootConfig.Build}", 14, Theme.TextDim, new Vector2(0.5f, 1), new Vector2(330, -496), new Vector2(150, 20), TextAnchor.MiddleCenter, UIKit.BodyFont);
             // squad voice
             var vm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -515), "VOICE CHAT", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode,
                 i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); }, 160);

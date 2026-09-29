@@ -31,3 +31,11 @@ ssh -i <key> ubuntu@<ip> 'sudo journalctl -u rilo -f'     # live log
 ssh -i <key> ubuntu@<ip> 'sudo systemctl restart rilo'
 curl http://<ip>:5080/api/health
 ```
+
+## Moving the server (no new APK)
+Every app reads `config/boot.json` from this GitHub repo at startup (cached on the device). After deploying to a new machine:
+```bash
+./Tools/boot/boot.sh server udp://<new-ip>:7779
+```
+Other switches: `boot.sh message "…"`, `boot.sh maintenance on|off`, `boot.sh minbuild N`, `boot.sh latestbuild N`, `boot.sh updateurl <link>`, `boot.sh show`.
+Players who typed a server in Settings keep it; an empty SERVER field = AUTO (boot config).
