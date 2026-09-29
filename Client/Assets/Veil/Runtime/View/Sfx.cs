@@ -29,7 +29,13 @@ namespace Veil.Audio
                 Pool.Add(s);
             }
 
-            Step = Tone(0.07f, t => (Noise() * 0.7f + Sin(t, 120) * 0.5f) * Env(t, 0.07f, 0.001f) * 0.35f);
+            // soft, low footstep "thud": heavily low-passed noise + a falling low sine (no hissy click)
+            float lp = 0;
+            Step = Tone(0.09f, t =>
+            {
+                lp += (Noise() - lp) * 0.06f;
+                return (lp * 1.6f + Sin(t, Mathf.Lerp(85, 55, t / 0.09f)) * 0.55f) * Env(t, 0.09f, 0.006f) * 0.3f;
+            });
             Click = Tone(0.05f, t => Sq(t, 900) * Env(t, 0.05f, 0.002f) * 0.4f);
             Hover = Tone(0.03f, t => Sin(t, 1400) * Env(t, 0.03f, 0.002f) * 0.25f);
             Shoot = Tone(0.16f, t => (Saw(t, Mathf.Lerp(1300, 380, t / 0.16f)) * 0.5f + Noise() * 0.15f) * Env(t, 0.16f, 0.003f) * 0.5f);

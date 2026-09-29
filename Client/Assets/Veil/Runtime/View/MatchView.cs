@@ -110,8 +110,8 @@ namespace Veil.View
             {
                 if (av.Fade < 0.5f) return;
                 Fx.I.Dust(pos, 0.15f + sprint * 0.45f);
-                if (av.IsLocal) Sfx.Play(Sfx.Step, 0.18f + sprint * 0.12f, 1f + Random.Range(-0.1f, 0.1f));
-                else Sfx.PlayAt(Sfx.Step, pos, 0.2f);
+                if (av.IsLocal) Sfx.Play(Sfx.Step, 0.07f + sprint * 0.04f, 1f + Random.Range(-0.08f, 0.08f));
+                else Sfx.PlayAt(Sfx.Step, pos, 0.07f);
             };
             var bubble = Build.Part(rig.transform, MeshGen.Sphere, MaterialLib.Unlit(new Color(0.4f, 0.8f, 1f, 0.18f), MaterialLib.Blend.Additive), new Vector3(0, 1f, 0), Vector3.one * 2.3f, null, "Shield", false);
             av.ShieldBubble = bubble.transform;
@@ -316,7 +316,7 @@ namespace Veil.View
                     var c = Palette.AccentColors[(owner != null ? owner.Look.Color : 0) % 8];
                     go = Build.Part(Root, MeshGen.Sphere, MaterialLib.Glow(c, 4f), Vector3.zero, new Vector3(0.22f, 0.22f, 0.8f), null, "Bolt", false);
                     var tr = go.AddComponent<TrailRenderer>();
-                    tr.time = 0.12f; tr.widthMultiplier = 0.18f;
+                    tr.time = 0.07f; tr.widthMultiplier = 0.16f;   // fast bolts: short streak
                     tr.sharedMaterial = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive);
                     tr.startColor = c; tr.endColor = new Color(c.r, c.g, c.b, 0);
                     tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

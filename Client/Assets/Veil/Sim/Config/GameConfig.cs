@@ -50,10 +50,10 @@ namespace Veil.Sim
         public const float DecoyCost = 30f, DecoyCooldown = 14f, DecoyLifetime = 5f;
 
         // ---- Combat ----
-        public const float FireCooldown = 0.42f;
-        public const float ProjectileSpeed = 36f;
+        public const float FireCooldown = 0.3f;
+        public const float ProjectileSpeed = 90f;           // fast enough that a moving target is still there when it lands
         public const float ProjectileRange = 30f;
-        public const float ProjectileDamage = 14f;
+        public const float ProjectileDamage = 11f;          // quicker fire rate, similar time-to-kill
         public const float ProjectileRadius = 0.22f;
         public const float ProjectileHeight = 1.0f;
         public const float HitRadius = 0.55f;
