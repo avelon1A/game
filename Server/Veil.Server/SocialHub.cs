@@ -104,7 +104,7 @@ namespace Veil.Server
                 Push(s, Gw.Welcome, new GwWelcome { id = s.Id, name = s.Name, handle = s.Handle, serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     voicePort = _opt.PublicVoicePort > 0 ? _opt.PublicVoicePort : _opt.VoicePort, voiceHost = _opt.PublicVoiceHost, newToken = newToken });
                 PushFriends(s);
-                PushParty(s);
+                if (PartyOf(s) == null) CreateParty(s); else PushParty(s);   // always in a room
                 foreach (var inv in _invites.Values.Where(i => i.To == s.Id)) PushInvite(inv);
                 if (s.MatchId >= 0 && s.Assignment != null && DateTime.UtcNow < s.MatchEndsUtc)
                 {
@@ -320,7 +320,7 @@ namespace Veil.Server
             var cur = PartyOf(s);
             if (cur != null && cur.Phase != PartyPhase.Idle) return "Your party is busy";
             if (cur != null && cur.Members.Count == 1) { PushParty(s); return null; }   // already alone in a room
-            if (cur != null) LeaveParty(s, "left");
+            if (cur != null) LeaveParty(s, "left", moving: true);
             var p = new Party { Id = Guid.NewGuid().ToString("N").Substring(0, 10), Code = NewCode(), Leader = s.Id };
             p.Members.Add(new Member { Id = s.Id });
             _parties[p.Id] = p;
@@ -345,8 +345,9 @@ namespace Veil.Server
             if (p.Members.Count >= GameConfig.SquadSize) return "That party is full";
             var cur = PartyOf(s);
             if (cur != null && cur.Phase != PartyPhase.Idle) return "Leave your current match first";
-            if (cur != null) LeaveParty(s, "left");
+            if (cur != null) LeaveParty(s, "left", moving: true);   // straight into the new room: no "no room" state in between
             p.Members.Add(new Member { Id = s.Id });
+            _log.LogInformation("Party {Code}: {Name} joined ({N}/4)", p.Code, s.Name, p.Members.Count);
             s.PartyId = p.Id;
             foreach (var inv in _invites.Values.Where(i => i.To == s.Id && i.PartyId == p.Id).ToList()) RemoveInvite(inv);
             PushPartyAll(p);
@@ -355,12 +356,18 @@ namespace Veil.Server
             return null;
         }
 
-        private void LeaveParty(Session s, string why)
+        /// <summary>Removes a player from their party. Unless they are moving to another room, an online player
+        /// immediately gets a fresh solo room — every online player is always in a room (like other squad games).</summary>
+        private void LeaveParty(Session s, string why, bool moving = false)
         {
             var p = PartyOf(s);
             s.PartyId = null;
-            PushParty(s);
-            BroadcastPresence(s);
+            if (p != null) _log.LogInformation("Party {Code}: {Name} {Why}", p.Code, s.Name, moving ? "moved to another room" : why);
+            if (!moving)
+            {
+                if (s.Online) CreateParty(s);   // pushes the new solo room + presence
+                else { PushParty(s); BroadcastPresence(s); }
+            }
             if (p == null) return;
             p.Members.RemoveAll(m => m.Id == s.Id);
             if (p.Phase == PartyPhase.Queued) { p.Phase = PartyPhase.Idle; _queue.Remove(p); }

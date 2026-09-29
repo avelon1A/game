@@ -29,6 +29,7 @@ namespace Veil.LoadTest
         private static string _host = "127.0.0.1";
         private static int _http = 5080;
         private static int _failures;
+        private static int _voicePort = 7778;
 
         private sealed class RegisterReply { public string id { get; set; } public string token { get; set; } }
 
@@ -58,6 +59,7 @@ namespace Veil.LoadTest
         {
             if (args.Length > 0 && !args[0].StartsWith("--")) _host = args[0];
             if (args.Length > 1 && !args[1].StartsWith("--")) _http = int.Parse(args[1]);
+            if (args.Length > 2 && !args[2].StartsWith("--")) _voicePort = int.Parse(args[2]);
             Console.WriteLine($"VEIL squad flow test → http://{_host}:{_http}");
             var http = new HttpClient { BaseAddress = new Uri($"http://{_host}:{_http}") };
 
@@ -109,7 +111,7 @@ namespace Veil.LoadTest
             Check(!await Request(e, Gw.PartyJoin, new GwText { text = code }), "5th player can't join a full party");
             Check(!await Request(b, Gw.PartyKick, new GwId { id = d.Id }), "non-leader can't kick");
             Check(await Request(a, Gw.PartyKick, new GwId { id = d.Id }), "leader kicks");
-            await Until(d, () => d.Party.Empty, "kicked player has no party");
+            await Until(d, () => !d.Party.Empty && d.Party.code != code && d.Party.members.Count == 1, "kicked player gets a fresh solo room");
             Check(await Request(d, Gw.PartyJoin, new GwText { text = code }), "kicked player rejoins by code");
             Check(await Request(a, Gw.PartyPromote, new GwId { id = b.Id }), "transfer leadership");
             await Until(a, () => a.Party.leader == b.Id, "b is leader");
@@ -335,7 +337,7 @@ namespace Veil.LoadTest
 
         private static async Task VoiceTest(Client speaker, Client mate, Client enemy)
         {
-            int port = 7778;
+            int port = _voicePort;
             using var us = new UdpClient(0); using var um = new UdpClient(0); using var ue = new UdpClient(0);
             var server = new IPEndPoint(IPAddress.Parse(_host == "localhost" ? "127.0.0.1" : _host), port);
             var w = new ByteWriter(700);

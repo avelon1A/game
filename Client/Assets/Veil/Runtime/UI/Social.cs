@@ -399,7 +399,7 @@ namespace Veil.UI
         {
             var g = _app.Gateway;
             if (g.Party.Empty) return;
-            g.LeaveRoom((ok, err) => { if (ok) g.CreateRoom(); else Result(ok, err); });   // back to your own solo room
+            g.LeaveRoom(Result);   // the server puts you back in your own solo room
         }
 
         private void Result(bool ok, string err) { if (!ok && !string.IsNullOrEmpty(err)) Flash($"<color=#ff9a8a>{err}</color>"); }
@@ -521,12 +521,7 @@ namespace Veil.UI
         {
             if (_squadPanel == null) return;
             var g = _app.Gateway;
-            // online: you are always in a room (created on connect), like other squad games
-            if (_online && g.Online && g.Party.Empty && _app.State == GameApp.AppState.Menu && !_creating)
-            {
-                _creating = true;
-                g.CreateRoom((ok, err) => _creating = false);
-            }
+            // online: the server keeps every player in a room (created on connect / after leaving)
             BuildMembers();
             var party = g.Party;
             bool idle = party.Empty || party.phase == (int)PartyPhase.Idle;
