@@ -185,12 +185,20 @@ namespace Veil.UI
             return img;
         }
 
+        /// <summary>Phone screens are small: scale font sizes up there (small text the most) so everything stays readable.</summary>
+        public static int Fs(int size)
+        {
+            if (!Veil.Match.Platform.IsMobile) return size;
+            float k = size <= 18 ? 1.35f : size <= 26 ? 1.25f : size <= 40 ? 1.15f : 1.05f;
+            return Mathf.RoundToInt(size * k);
+        }
+
         public static Text Label(Transform parent, string text, int size, Color color, TextAnchor align = TextAnchor.MiddleLeft, Font font = null, string name = "Label")
         {
             var rt = Rect(parent, name, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             var t = rt.gameObject.AddComponent<Text>();
             t.font = font ?? BodyFont;
-            t.fontSize = size;
+            t.fontSize = Fs(size);
             t.color = color;
             t.alignment = align;
             t.text = text;
@@ -200,12 +208,22 @@ namespace Veil.UI
             return t;
         }
 
+        /// <summary>Shrink a one-line label to its box when the (phone-scaled) text would spill over its neighbours.</summary>
+        public static void Fit(Text t)
+        {
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Truncate;
+            t.resizeTextForBestFit = true;
+            t.resizeTextMaxSize = t.fontSize;
+            t.resizeTextMinSize = Mathf.Min(12, t.fontSize);
+        }
+
         public static Text LabelAt(Transform parent, string text, int size, Color color, Vector2 anchor, Vector2 pos, Vector2 box, TextAnchor align = TextAnchor.MiddleLeft, Font font = null)
         {
             var rt = At(parent, "Label", anchor, pos, box);
             var t = rt.gameObject.AddComponent<Text>();
             t.font = font ?? BodyFont;
-            t.fontSize = size;
+            t.fontSize = Fs(size);
             t.color = color;
             t.alignment = align;
             t.text = text;
@@ -270,6 +288,9 @@ namespace Veil.UI
     public sealed class ButtonFx : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
     {
         private float _target = 1f, _scale = 1f;
+        /// <summary>Idle "breathing" scale amount (e.g. 0.025 for the main call-to-action), only while clickable.</summary>
+        public float Breathe;
+        private Selectable _sel;
 
         public void OnPointerEnter(PointerEventData e) { _target = 1.05f; Audio.Sfx.Play(Audio.Sfx.Hover, 0.25f); }
         public void OnPointerExit(PointerEventData e) => _target = 1f;
@@ -280,7 +301,13 @@ namespace Veil.UI
         private void Update()
         {
             _scale = Mathf.Lerp(_scale, _target, 1 - Mathf.Exp(-20f * Time.unscaledDeltaTime));
-            transform.localScale = Vector3.one * _scale;
+            float b = 0;
+            if (Breathe > 0)
+            {
+                if (_sel == null) _sel = GetComponent<Selectable>();
+                if (_sel == null || _sel.interactable) b = Breathe * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 2.6f));
+            }
+            transform.localScale = Vector3.one * (_scale + b);
         }
     }
 

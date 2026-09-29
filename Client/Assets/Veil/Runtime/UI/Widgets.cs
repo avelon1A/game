@@ -17,7 +17,7 @@ namespace Veil.UI
         {
             float width = options.Length * (chipWidth + 8) + 180;
             Root = UIKit.At(parent, "Chips_" + title, anchor, pos, new Vector2(width, 48));
-            var t = UIKit.LabelAt(Root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var t = UIKit.LabelAt(Root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
             for (int i = 0; i < options.Length; i++)
             {
@@ -49,7 +49,7 @@ namespace Veil.UI
         public SwatchRow(Transform parent, Vector2 anchor, Vector2 pos, string title, Color[] colors, int selected, Action<int> onPick)
         {
             var root = UIKit.At(parent, "Swatches_" + title, anchor, pos, new Vector2(colors.Length * 56 + 180, 52));
-            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
             for (int i = 0; i < colors.Length; i++)
             {
@@ -78,7 +78,7 @@ namespace Veil.UI
         public static Slider SliderRow(Transform parent, Vector2 anchor, Vector2 pos, string title, float min, float max, float value, Action<float> onChange, Func<float, string> fmt = null)
         {
             var root = UIKit.At(parent, "Slider_" + title, anchor, pos, new Vector2(700, 48));
-            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(240, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(240, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
             var val = UIKit.LabelAt(root, "", 20, Theme.Text, new Vector2(1, 0.5f), Vector2.zero, new Vector2(90, 40), TextAnchor.MiddleRight, UIKit.BoldFont);
             val.rectTransform.pivot = new Vector2(1, 0.5f);
@@ -108,7 +108,7 @@ namespace Veil.UI
         public static InputField InputRow(Transform parent, Vector2 anchor, Vector2 pos, string title, string value, Action<string> onChange, float width = 360)
         {
             var root = UIKit.At(parent, "Input_" + title, anchor, pos, new Vector2(width + 180, 52));
-            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
             var fRt = UIKit.At(root, "Field", new Vector2(0, 0.5f), new Vector2(180, 0), new Vector2(width, 48));
             fRt.pivot = new Vector2(0, 0.5f);
@@ -116,7 +116,7 @@ namespace Veil.UI
             var textRt = UIKit.Fill(fRt, "Text", 0);
             textRt.offsetMin = new Vector2(14, 4); textRt.offsetMax = new Vector2(-14, -4);
             var text = textRt.gameObject.AddComponent<Text>();
-            text.font = UIKit.BoldFont; text.fontSize = 22; text.color = Theme.Text; text.alignment = TextAnchor.MiddleLeft;
+            text.font = UIKit.BoldFont; text.fontSize = UIKit.Fs(22); text.color = Theme.Text; text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
             var field = fRt.gameObject.AddComponent<InputField>();
             field.textComponent = text;

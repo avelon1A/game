@@ -48,7 +48,7 @@ namespace Veil.UI
             UIKit.Image(shade, UIKit.GradientH, new Color(0.05f, 0.03f, 0.18f, 0.75f));
             var logo = Logo(Root, new Vector2(0, 0.5f), new Vector2(150, 90), 250);
             logo.rectTransform.pivot = new Vector2(0, 0.5f);
-            var sub1 = UIKit.LabelAt(Root, "15 PLAYERS  ·  15 MINUTES", 40, Color.white, new Vector2(0, 0.5f), new Vector2(170, -70), new Vector2(900, 50), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var sub1 = UIKit.LabelAt(Root, "4 SQUADS  ·  4 PLAYERS EACH", 40, Color.white, new Vector2(0, 0.5f), new Vector2(170, -70), new Vector2(900, 50), TextAnchor.MiddleLeft, UIKit.BoldFont);
             sub1.rectTransform.pivot = new Vector2(0, 0.5f);
             UIKit.Shadow(sub1, 3);
             var sub2 = UIKit.LabelAt(Root, "INFINITE DECISIONS.", 40, Theme.PurpleLight, new Vector2(0, 0.5f), new Vector2(170, -118), new Vector2(900, 50), TextAnchor.MiddleLeft, UIKit.BoldFont);
@@ -76,6 +76,8 @@ namespace Veil.UI
         private readonly float[] _tabX = new float[5];
         private readonly float[] _tabW = new float[5];
         private readonly Image _tabUnderline;
+        private Vector2 _ulNow, _ulTarget;   // underline x, width
+        private int _lastBadge;
         private Text _profileName, _profileStatus, _profileLevel, _friendsBadge;
         private RawImage _profileFace;
         private Image _friendsBadgeBg;
@@ -182,8 +184,9 @@ namespace Veil.UI
         private void Underline(int button)
         {
             for (int k = 0; k < _tabLabels.Length; k++) _tabLabels[k].color = k == button ? Color.white : Theme.TextDim;
-            _tabUnderline.rectTransform.anchoredPosition = new Vector2(_tabX[button], 6);
-            _tabUnderline.rectTransform.sizeDelta = new Vector2(_tabW[button], 5);
+            _ulTarget = new Vector2(_tabX[button], _tabW[button]);   // glides there in Update
+            if (_ulNow.y <= 0) _ulNow = _ulTarget;
+            PunchFx.On(_tabLabels[button]).Kick(0.12f);
         }
 
         public void SelectTab(int i)
@@ -216,6 +219,8 @@ namespace Veil.UI
             int n = g.Friends.incoming.Count + g.Invites.Count;
             _friendsBadge.text = n > 9 ? "9+" : n.ToString();
             _friendsBadgeBg.gameObject.SetActive(n > 0);
+            if (n > _lastBadge) PunchFx.On(_friendsBadgeBg).Kick(0.4f);
+            _lastBadge = n;
         }
 
         // ------------------------------------------------------------------ PLAY tab
@@ -229,6 +234,9 @@ namespace Veil.UI
         {
             Squad.Update(dt);
             Friends.Update(dt);
+            _ulNow = Vector2.Lerp(_ulNow, _ulTarget, 1 - Mathf.Exp(-16f * Time.unscaledDeltaTime));
+            _tabUnderline.rectTransform.anchoredPosition = new Vector2(_ulNow.x, 6);
+            _tabUnderline.rectTransform.sizeDelta = new Vector2(_ulNow.y, 5);
         }
 
         // ------------------------------------------------------------------ CHARACTERS tab
@@ -236,6 +244,7 @@ namespace Veil.UI
         private void BuildCharacters(RectTransform tab)
         {
             var panel = UIKit.Panel(tab, "Customize", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
+            EnterFx.Add(panel, new Vector2(56, 0));
             var p = panel.transform;
             var title = UIKit.LabelAt(p, "CHARACTER", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
@@ -290,6 +299,7 @@ namespace Veil.UI
         private void BuildLeaderboard(RectTransform tab)
         {
             var panel = UIKit.Panel(tab, "Board", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
+            EnterFx.Add(panel, new Vector2(56, 0));
             var p = panel.transform;
             var title = UIKit.LabelAt(p, "LEADERBOARD", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
@@ -327,6 +337,7 @@ namespace Veil.UI
         private void BuildSettings(RectTransform tab)
         {
             var panel = UIKit.Panel(tab, "Settings", new Vector2(0.5f, 0.5f), new Vector2(0, -50), new Vector2(900, 900));
+            EnterFx.Add(panel, new Vector2(0, -30));
             var p = panel.transform;
             var title = UIKit.LabelAt(p, "SETTINGS", 34, Theme.Text, new Vector2(0, 1), new Vector2(40, -30), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
@@ -354,7 +365,7 @@ namespace Veil.UI
                 var quit = UIKit.Button(p, "QUIT GAME", new Vector2(1, 1), new Vector2(-40, -30), new Vector2(170, 48), UIKit.ButtonStyle.Ghost, () => Application.Quit(), 18);
                 ((RectTransform)quit.transform).pivot = new Vector2(1, 1);
             }
-            var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim. Hold TALK for squad voice." : "Hold V to talk to your squad. F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 26), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim. Hold TALK for squad voice." : "Hold V to talk to your squad. F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
         }
     }
 
@@ -428,7 +439,7 @@ namespace Veil.UI
             foreach (var r in results) if (r.PlayerId == localId) me = r;
             if (me == null && results.Count > 0) me = results[0];
             _rank.text = "#" + me.SquadRank;
-            _rank.fontSize = 150;
+            _rank.fontSize = UIKit.Fs(150);
             _rank.color = me.SquadRank == 1 ? Theme.Gold : me.SquadRank == 2 ? Theme.PurpleLight : Theme.Text;
             PlayerResult mvp = results[0];
             foreach (var r in results) if (r.Total > mvp.Total) mvp = r;

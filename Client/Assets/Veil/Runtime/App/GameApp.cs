@@ -862,7 +862,9 @@ namespace Veil.App
             yield return new WaitForSeconds(3f);
             yield return Shot("01_title");
             GoMenu(0);
-            yield return new WaitForSeconds(2.5f);
+            yield return new WaitForSeconds(0.12f);
+            yield return Shot("02a_lobby_enter");   // mid entrance animation
+            yield return new WaitForSeconds(2.4f);
             yield return Shot("02_lobby");
             // clean character lineup (no UI) to compare with the concept art
             Canvas.gameObject.SetActive(false);
@@ -1022,7 +1024,10 @@ namespace Veil.App
                 _rigs[i].gameObject.SetActive(on);
                 if (!on) continue;
                 if (!_rigs[i].Look.Equals(looks[i])) _rigs[i].Rebuild(looks[i]);
-                _rigs[i].transform.localPosition = SquadSlots[i];
+                // alone: stand in the middle of the platform; with a squad: third from the left, slightly in front
+                Vector3 slot = looks.Count == 1 ? new Vector3(-0.64f, 0, 0.3f) : SquadSlots[i];
+                _rigs[i].transform.localPosition = slot;
+                _squadStage.transform.Find("Blob" + i).localPosition = slot + new Vector3(0, 0.02f, 0);
                 SetLayer(_rigs[i].transform, LobbyLayer);
                 _rigs[i].transform.localRotation = Quaternion.Euler(0, -SquadSlots[i].x * 7f, 0);
                 _rigs[i].ResetPose();

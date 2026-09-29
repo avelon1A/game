@@ -22,12 +22,12 @@ namespace Veil.UI
             var textRt = UIKit.Fill(fRt, "Text", 0);
             textRt.offsetMin = new Vector2(14, 4); textRt.offsetMax = new Vector2(-14, -4);
             var text = textRt.gameObject.AddComponent<Text>();
-            text.font = UIKit.BoldFont; text.fontSize = 22; text.color = Theme.Text; text.alignment = TextAnchor.MiddleLeft;
+            text.font = UIKit.BoldFont; text.fontSize = UIKit.Fs(22); text.color = Theme.Text; text.alignment = TextAnchor.MiddleLeft;
             text.supportRichText = false;
             var phRt = UIKit.Fill(fRt, "Placeholder", 0);
             phRt.offsetMin = new Vector2(14, 4); phRt.offsetMax = new Vector2(-14, -4);
             var ph = phRt.gameObject.AddComponent<Text>();
-            ph.font = UIKit.BodyFont; ph.fontSize = 20; ph.color = new Color(1, 1, 1, 0.35f); ph.alignment = TextAnchor.MiddleLeft; ph.text = placeholder;
+            ph.font = UIKit.BodyFont; ph.fontSize = UIKit.Fs(20); ph.color = new Color(1, 1, 1, 0.35f); ph.alignment = TextAnchor.MiddleLeft; ph.text = placeholder;
             var field = fRt.gameObject.AddComponent<InputField>();
             field.textComponent = text;
             field.placeholder = ph;
@@ -108,6 +108,8 @@ namespace Veil.UI
             public Text Name, Level, Status;
             public RectTransform Empty;
             public SquadMember M;
+            public string LastId = "";
+            public bool LastReady;
         }
 
         private sealed class Plate
@@ -115,6 +117,7 @@ namespace Veil.UI
             public RectTransform Root;
             public Image Crown, Spk, ReadyBg, ReadyIcon;
             public Text Name, Level;
+            public bool Shown, LastReady;
         }
 
         private readonly GameApp _app;
@@ -186,7 +189,8 @@ namespace Veil.UI
             _length = new ChipRowCompact(tab, new Vector2(1, 1), new Vector2(-24, -840), new[] { "5 MIN", "10 MIN", "15 MIN" },
                 app.Profile.MatchMinutes >= 15 ? 2 : app.Profile.MatchMinutes >= 10 ? 1 : 0,
                 i => { app.Profile.MatchMinutes = i == 0 ? 5 : i == 1 ? 10 : 15; app.Profile.Save(); UpdateStatus(); });
-            _status = UIKit.LabelAt(tab, "", 16, Theme.Text, new Vector2(1, 1), new Vector2(-24, -886), new Vector2(440, 24), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            // status sits beside READY (the right column has no spare height on 20:9 phones)
+            _status = UIKit.LabelAt(tab, "", 17, Theme.Text, new Vector2(1, 0), new Vector2(-484, 68), new Vector2(620, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
             _status.rectTransform.pivot = new Vector2(1, 0.5f);
             _status.supportRichText = true;
             UIKit.Shadow(_status);
@@ -221,9 +225,23 @@ namespace Veil.UI
             _popup = UIKit.Fill(tab, "Popup");
             _popup.gameObject.SetActive(false);
 
+            // ---------------- micro animations: panels glide in each time the lobby shows
+            EnterFx.Add(_squadPanel, new Vector2(48, 0));
+            for (int i = 0; i < _rows.Length; i++) EnterFx.Add(_rows[i].Root, new Vector2(36, 0), 0.08f + i * 0.05f);
+            EnterFx.Add(_modePanel, new Vector2(48, 0), 0.1f);
+            EnterFx.Add(_length.Root, new Vector2(0, -18), 0.16f);
+            EnterFx.Add(_action, new Vector2(0, -28), 0.2f);
+            EnterFx.Add(_side, new Vector2(0, -28), 0.24f);
+            EnterFx.Add(_voicePill, new Vector2(-36, 0), 0.2f);
+            EnterFx.Add(help, new Vector2(-36, 0), 0.16f);
+            _action.GetComponent<ButtonFx>().Breathe = 0.025f;
+            ShineFx.Add(_action);
+            _modeThumbIcon.gameObject.AddComponent<BobFx>();
+            PunchFx.On(_countdown);
+
             app.Gateway.Changed += Refresh;
             app.Gateway.Notice += t => Flash(t);
-            SetOnline(false);
+            SetOnline(app.Profile.LobbyOnline);   // online squads by default; remembers your last choice
         }
 
         private Button _changeBtn;
@@ -271,6 +289,7 @@ namespace Veil.UI
             r.Empty = UIKit.Fill(r.Root, "Empty");
             var eb = UIKit.Button(r.Empty, "+  INVITE A FRIEND", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300, 46), UIKit.ButtonStyle.Ghost, () => OpenFriends?.Invoke(), 16);
             UIKit.ButtonLabel(eb).color = Theme.PurpleLight;
+            UIKit.ButtonLabel(eb).gameObject.AddComponent<BreatheFx>().Phase = i * 0.8f;
             return r;
         }
 
@@ -367,6 +386,7 @@ namespace Veil.UI
         private void SetOnline(bool online)
         {
             _online = online;
+            if (_app.Profile.LobbyOnline != online) { _app.Profile.LobbyOnline = online; _app.Profile.Save(); }
             _offlineCountdown = false;
             if (online && !_app.Gateway.Online && _app.Gateway.Status == GatewayClient.State.Offline) _app.GoOnline();
             Refresh();
@@ -526,8 +546,10 @@ namespace Veil.UI
             var party = g.Party;
             bool idle = party.Empty || party.phase == (int)PartyPhase.Idle;
             _title.text = $"SQUAD <color=#aab0d8>({_members.Count}/{GameConfig.SquadSize})</color>";
-            _leave.gameObject.SetActive(_online && g.Online && !party.Empty && party.members.Count > 1 && idle);
+            bool canLeave = _online && g.Online && !party.Empty && party.members.Count > 1 && idle;
+            _leave.gameObject.SetActive(canLeave);
             _joinCode.gameObject.SetActive(_online && g.Online && idle);
+            ((RectTransform)_joinCode.transform).anchoredPosition = new Vector2(canLeave ? -126 : -16, -38);   // right edge when there's no LEAVE
             _invite.interactable = _online && g.Online && idle && _members.Count < GameConfig.SquadSize;
             _copy.interactable = _online && g.Online;
             UIKit.ButtonLabel(_copy).text = !party.Empty && _online ? $"COPY {party.code}" : "COPY CODE";
@@ -540,8 +562,13 @@ namespace Veil.UI
                 foreach (Transform c in r.Root) c.gameObject.SetActive(has ? c.name != "Empty" : c.name == "Empty");
                 r.Bg.color = has && r.M.Me ? new Color(0.62f, 0.38f, 1f, 0.22f) : new Color(1, 1, 1, has ? 0.05f : 0.025f);
                 r.Empty.gameObject.SetActive(!has && _online && g.Online && idle);
-                if (!has) continue;
+                if (!has) { r.LastId = ""; r.LastReady = false; continue; }
                 var m = r.M;
+                string id = m.Id ?? m.Name;
+                if (id != r.LastId) { if (r.LastId != "") PunchFx.On(r.Root).Kick(0.06f); r.LastId = id; }
+                bool rdy = m.Ready || m.Bot;
+                if (rdy && !r.LastReady) PunchFx.On(r.Status).Kick(0.3f);
+                r.LastReady = rdy;
                 r.Face.texture = PortraitStudio.Get(m.Look);
                 r.Face.color = m.Online ? Color.white : new Color(1, 1, 1, 0.4f);
                 r.Crown.gameObject.SetActive(m.Leader && !m.Bot && _online);
@@ -633,6 +660,11 @@ namespace Veil.UI
                 }
             }
             if (_transientT > 0 && !string.IsNullOrEmpty(_transient)) s = _transient;
+            if (_status.text != s && !s.StartsWith("<color=#40e6ff>Finding"))
+            {
+                _status.canvasRenderer.SetAlpha(0.15f);
+                _status.CrossFadeAlpha(1f, 0.3f, true);
+            }
             _status.text = s;
             _actionLabel.text = action;
             _action.interactable = actionOn;
@@ -651,6 +683,7 @@ namespace Veil.UI
                 bool muted = r.M.Me ? v.MicMuted : v.IsMuted(r.M.Id);
                 r.Mic.sprite = r.M.Me && v.MicMuted ? Icons.MicOff : Icons.Mic;
                 r.Mic.color = talking ? Theme.Green : r.M.Me && v.MicMuted ? Theme.Red : Theme.TextDim;
+                r.Mic.transform.localScale = Vector3.one * (talking ? 1.1f + 0.12f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f)) : 1f);
                 bool spkOff = r.M.Me ? v.Deafened : muted;
                 r.Spk.sprite = spkOff ? Icons.SpeakerOff : Icons.Speaker;
                 r.Spk.color = spkOff ? Theme.Red : Theme.TextDim;
@@ -672,7 +705,8 @@ namespace Veil.UI
                 var p = _plate[i];
                 bool has = show && i < _members.Count;
                 p.Root.gameObject.SetActive(has);
-                if (!has) continue;
+                if (!has) { p.Shown = false; continue; }
+                if (!p.Shown) { p.Shown = true; PunchFx.On(p.Root).Kick(-0.35f); }
                 var m = _members[i];
                 var sp = _app.Cam.WorldToScreenPoint(_app.Stage.HeadPoint(i) + Vector3.down * 0.4f);
                 if (sp.z <= 0) { p.Root.gameObject.SetActive(false); continue; }
@@ -689,6 +723,8 @@ namespace Veil.UI
                 p.Spk.color = talking ? Theme.Green : new Color(1, 1, 1, 0.55f);
                 bool ready = m.Ready || m.Bot;
                 p.ReadyBg.color = ready ? Theme.Green : new Color(1, 1, 1, 0.12f);
+                if (ready && !p.LastReady) PunchFx.On(p.ReadyBg).Kick(0.45f);
+                p.LastReady = ready;
                 p.ReadyIcon.enabled = ready;
             }
 
@@ -698,7 +734,7 @@ namespace Veil.UI
                 int before = Mathf.CeilToInt(_countT);
                 _countT -= dt;
                 int after = Mathf.CeilToInt(_countT);
-                if (after != before && after > 0) Sfx.Play(Sfx.Beep, 0.8f);
+                if (after != before) { if (after > 0) Sfx.Play(Sfx.Beep, 0.8f); PunchFx.On(_countdown).Kick(0.5f); }
                 _countdown.text = after > 0 ? after.ToString() : "GO!";
                 if (_countT <= 0)
                 {
@@ -750,6 +786,7 @@ namespace Veil.UI
                 _chips[k].color = k == i ? Theme.Yellow : new Color(0.05f, 0.06f, 0.16f, 0.88f);
                 _labels[k].color = k == i ? new Color(0.12f, 0.08f, 0.02f) : Theme.TextDim;
             }
+            if (i >= 0 && i < _labels.Count && _chips[i].gameObject.activeInHierarchy) PunchFx.On(_labels[i]).Kick(0.18f);
         }
     }
 

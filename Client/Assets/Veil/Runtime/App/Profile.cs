@@ -13,6 +13,8 @@ namespace Veil.App
         public int HttpPort;
         /// <summary>Gateway over UDP (address written as udp://host:port) — for UDP-only tunnels such as playit.gg.</summary>
         public bool ServerUdp;
+        /// <summary>Lobby mode: online squads (default) or practice vs bots.</summary>
+        public bool LobbyOnline;
         public string BackendId, BackendToken;
 
         // settings
@@ -51,6 +53,7 @@ namespace Veil.App
                 GyroInvertX = PlayerPrefs.GetInt("gyroInvX", 0) == 1,
                 GyroInvertY = PlayerPrefs.GetInt("gyroInvY", 0) == 1,
                 VoiceMode = PlayerPrefs.GetInt("voiceMode", 0),
+                LobbyOnline = PlayerPrefs.GetInt("lobbyOnline", 1) == 1,
                 VoiceVolume = PlayerPrefs.GetFloat("voiceVol", 1f),
                 MicSensitivity = PlayerPrefs.GetFloat("micSens", 0.35f),
                 Handle = PlayerPrefs.GetString("handle", ""),
@@ -63,6 +66,7 @@ namespace Veil.App
                 saved = def != null ? def.text.Trim() : "";
             }
             if (!string.IsNullOrEmpty(saved)) p.ParseAddress(saved);
+            p.MatchMinutes = p.MatchMinutes >= 15 ? 15 : p.MatchMinutes >= 10 ? 10 : 5;   // lobby offers 5 / 10 / 15
             p.Look = new Appearance
             {
                 Outfit = (byte)PlayerPrefs.GetInt("outfit", 0),
@@ -93,6 +97,7 @@ namespace Veil.App
             PlayerPrefs.SetInt("gyroInvX", GyroInvertX ? 1 : 0);
             PlayerPrefs.SetInt("gyroInvY", GyroInvertY ? 1 : 0);
             PlayerPrefs.SetInt("voiceMode", VoiceMode);
+            PlayerPrefs.SetInt("lobbyOnline", LobbyOnline ? 1 : 0);
             PlayerPrefs.SetFloat("voiceVol", VoiceVolume);
             PlayerPrefs.SetFloat("micSens", MicSensitivity);
             PlayerPrefs.SetString("handle", Handle ?? "");
