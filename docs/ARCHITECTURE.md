@@ -100,6 +100,31 @@ and drive VFX, audio and the event feed.
 * Server loop: lobby → all humans ready → 5 s countdown → fill with bots to 15 → match →
   results persisted → back to lobby.
 
+### Squads online (Gateway, voice)
+
+* **Gateway** — one long-lived connection per player for presence, friends, parties, invites and matchmaking.
+  JSON envelopes (`Sim/Net/GatewayMessages.cs`) over **UDP** (LiteNetLib, key `VEIL-GW`, port 7779 — what the apps use)
+  or WebSocket `/ws` on 5080. The hello creates / resumes a guest account; unknown credentials → a fresh guest.
+* The matchmaker packs parties into 4 squads of 4 (bots fill the rest) and hands each player a signed **ticket** for the
+  match host (UDP 7777). Disconnected players are piloted by bots and can rejoin.
+* **Voice relay** (UDP 7778): Opus frames forwarded only to the sender's squad / party channel (token checked).
+
+### Server discovery: remote boot config
+
+Apps never hard-code where the server lives. At startup `BootConfig` (`Runtime/App/BootConfig.cs`) downloads
+`config/boot.json` from the public repo (raw.githubusercontent.com, jsDelivr mirror as fallback), caches it in PlayerPrefs
+and applies it:
+
+| Field | Effect |
+|---|---|
+| `server` | automatic server (`udp://host:port`); a change reconnects live (after the current match) |
+| `message` | lobby announcement toast |
+| `maintenance` | online play paused (practice still works) |
+| `minBuild` / `latestBuild` / `updateUrl` | update required / available (compared with `BootConfig.Build`), Settings → UPDATE |
+
+Server priority: address typed in Settings (override) → boot config (fresh, else cached) → `Resources/server_default.txt`.
+Edit with `Tools/boot/boot.sh`; test with the `-bootconfig file://…` launch argument.
+
 ## 6. Backend REST API (port 5080)
 
 | Method | Route | Purpose |

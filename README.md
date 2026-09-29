@@ -1,19 +1,22 @@
-# VEIL — Squad Mind-Game Arena (4 × 4)
+# Rilo — Squad Mind-Game Arena (4 × 4)
 
-> 4 squads of 4. 15 minutes. One arena. Infinite decisions.
+> 4 squads of 4. 5–15 minutes. One arena. Infinite decisions.
 
-A playable Unity 6.3 LTS (URP) prototype of the VEIL GDD, plus a small authoritative test server
-and REST backend in .NET 8. Everything (characters, arena, VFX, UI icons, sound, music) is generated
-in code, so no paid or binary art assets are needed.
+**Rilo** (codename *VEIL* in code, namespaces and folders) is a Unity 6.3 LTS (URP) squad game for Android and macOS,
+with an authoritative .NET 8 server (matches, Gateway, friends/parties, voice relay, REST + SQLite) running on Oracle Cloud.
+The arena, VFX, UI icons, sound and music are generated in code; the five heroes are Meshy models rigged by the Blender pipeline below.
 
 ## Play it now
 
 ```bash
-open Builds/Mac/VEIL.app
+open Builds/Mac/Rilo.app            # macOS
+adb install -r Builds/Android/Rilo.apk   # Android (or send the APK to the phone)
 ```
 
-Click through the title → **PLAY** tab → **VS BOTS** → **READY** → your squad (you + 3 bots) plays 3 bot squads.
-Pick 5 / 10 / 15-minute matches in the lobby. In a match, **F9** skips 60 seconds (for testing phases).
+The lobby opens in **ONLINE SQUADS** and connects to the cloud server automatically (see *Online* below).
+**READY** queues your party; empty seats are filled with bots. **CHANGE MODE** → *Squad vs Bots* is offline practice
+(lasts until the app is closed). Pick 5 / 10 / 15-minute matches in the lobby. In a match, **F9** skips 60 seconds (testing).
+On phones: left thumb moves, right side looks, **FIRE** hold, **DASH / PULSE / DECOY**, hold **TALK** for voice; gyro aim in Settings.
 
 | Key | Action |
 |---|---|
@@ -31,32 +34,73 @@ Score also comes from resources, territory, eliminations (diminishing returns), 
 Nobody sees everything: vision is limited, Ruins hide you, the Reactor exposes you, gunfire pings the minimap,
 Tower control grants periodic full sight, and the arena collapses toward the center in the last minutes.
 
-## Online (test server): parties, friends, voice
+## Online: parties, friends, voice
+
+**Production server:** Oracle Cloud (Hyderabad) `144.24.139.103` — UDP 7779 Gateway · UDP 7777 matches · UDP 7778 voice ·
+TCP 5080 REST (`http://144.24.139.103:5080/api/health`). Runs as the systemd service `rilo`.
+
+**Which server the apps use** comes from the remote **boot config** — no new APK when the server moves:
+<https://github.com/avelon1A/game/blob/main/config/boot.json> (read by every app at startup, cached on the device).
 
 ```bash
-./Server/run-server.sh                 # TCP 5080 (REST + Gateway /ws) · UDP 7777 (matches) · UDP 7778 (voice)
+./Tools/boot/boot.sh show
+./Tools/boot/boot.sh server udp://NEW-IP:7779      # move every installed app to a new server
+./Tools/boot/boot.sh message "Tournament tonight"   # lobby announcement ("" clears)
+./Tools/boot/boot.sh maintenance on|off             # pause / resume online play
+./Tools/boot/boot.sh latestbuild 3 | minbuild 3     # "update available" / "update required" (below build 3)
+./Tools/boot/boot.sh updateurl https://…            # target of Settings → UPDATE
+```
+
+Settings → **SERVER** empty = *AUTO* (boot config); typing an address pins that device to it. Bump `BootConfig.Build`
+(`Client/Assets/Veil/Runtime/App/BootConfig.cs`, also the Android versionCode) for every APK you release.
+
+**Local / LAN test server** (optional):
+
+```bash
+./Server/run-server.sh                 # TCP 5080 (REST + Gateway /ws) · UDP 7777 matches · UDP 7778 voice · UDP 7779 Gateway
 ./Server/run-server.sh --mm-wait 20    # wait up to 20 s for other parties before bots fill the match
 ```
 
-In the game: **PLAY → ONLINE** (phones find the server on your Wi-Fi automatically; on PCs type its LAN IP) →
-**CREATE ROOM** → share the 6-letter code or **FRIENDS → INVITE** → everyone **READY** → the leader presses **START**.
+Point a device at it in Settings → SERVER (e.g. `192.168.1.6` or `udp://192.168.1.6:7779`); clear the field to go back to AUTO.
+
+In the game: the lobby puts you in your own room → **COPY CODE** (friends use **JOIN CODE**) or **INVITE FRIEND** →
+everyone **READY** → the leader presses **START**.
 Parties stay together as one squad; the matchmaker fills the other squads with queued parties, then bots.
 **FRIENDS**: add by ID (`Name#1234`), accept/decline requests, see who's online / in a party / in a match, invite or join.
 Leader controls: invite, kick, make leader, start / cancel. Leaving a match early → **REJOIN** (a bot plays for you meanwhile).
 Voice: push-to-talk (**V**, or hold **TALK** on phones), open mic or off; mute / volume per squadmate; only your squad hears you.
 
-Architecture and roadmap: [docs/SQUAD_PLAN.md](docs/SQUAD_PLAN.md).
+Architecture and roadmap: [docs/SQUAD_PLAN.md](docs/SQUAD_PLAN.md) · networking & boot config: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Deploy / operate the server
+
+Full steps (creating the Oracle VM, ports, keys): [Server/deploy/ORACLE.md](Server/deploy/ORACLE.md).
+
+```bash
+./Server/deploy/deploy-oracle.sh 144.24.139.103 ~/.ssh/rilo_server.key opc   # build + upload + (re)start; keeps the DB
+ssh -i ~/.ssh/rilo_server.key opc@144.24.139.103 'sudo journalctl -u rilo -f'   # live log
+```
+
+New machine → run `deploy-oracle.sh NEW-IP …`, then `./Tools/boot/boot.sh server udp://NEW-IP:7779`.
+The script detects x64 / ARM, installs `/opt/rilo`, opens the VM firewall, adds swap on small VMs and prints a health check.
+The Oracle **security list** must allow UDP 7777-7779 and TCP 5080 (already set on `vcn-20260929-2318`).
+Current VM runs on the free-trial credit (VM.Standard3.Flex): before the trial ends (~29 Oct 2026) either upgrade to
+Pay As You Go or move to an Always Free Ampere A1 VM (deploy + `boot.sh server`).
 REST: `GET /api/health`, `POST /api/players/register`, `GET|PUT /api/players/{id}`, `GET /api/leaderboard`,
 `GET /api/matches/recent`, `GET /api/servers` · WebSocket Gateway: `/ws`.
 
 ## Develop
 
 * **Unity:** Unity Hub → *Add project from disk* → `Client/` (Unity 6000.3.25f1). Open `Assets/Veil/Scenes/Main.unity`, press Play.
-  The menu **VEIL → Setup Project** regenerates materials/scene/settings; **VEIL → Build macOS Player** builds to `Builds/Mac`.
-* **Batch build:**
+  The menu **VEIL → Setup Project** regenerates materials/scene/settings; **VEIL → Build macOS Player / Build Android APK** build to `Builds/`.
+  App name, icon (`Assets/Veil/Icons/`, adaptive on Android) and version come from `ProjectSetup.cs`.
+* **Batch builds:**
   ```bash
-  /Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath Client -executeMethod Veil.EditorTools.BuildScript.BuildMac -logFile -
+  /Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath Client -buildTarget StandaloneOSX -executeMethod Veil.EditorTools.BuildScript.BuildMac -logFile -
+  /Applications/Unity/Hub/Editor/6000.3.25f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath Client -buildTarget Android -executeMethod Veil.EditorTools.BuildScript.BuildAndroid -logFile -
   ```
+* **Phone UI:** text is scaled up on phones (`UIKit.Fs`); run the Mac build with `-mobile-ui` to preview the phone layout.
+  Lobby micro animations live in `Runtime/UI/MicroFx.cs`.
 * **Server:** `cd Server && ~/.dotnet/dotnet build` (the server compiles the *same* simulation source files as the client).
 
 ### Tests
@@ -65,9 +109,10 @@ REST: `GET /api/health`, `POST /api/players/register`, `GET|PUT /api/players/{id
 |---|---|
 | `cd Server/Veil.Server && ~/.dotnet/dotnet run -c Release -- --selftest 300 2` | 2 headless 4×4 matches: squads full, no friendly fire, allies always visible, tick cost, snapshot round-trip |
 | `cd Server/Veil.LoadTest && ~/.dotnet/dotnet run -c Release` (server running with `--mm-wait 2`) | end-to-end: register → friends → party/invite/code/kick/promote → queue → squads → ticket join → voice relay (squad-only) → rejoin → results |
-| `VEIL.app/Contents/MacOS/VEIL -autotest -shotdir /tmp/shots` | full UI flow + autopilot match, screenshots of every screen |
+| `Rilo.app/Contents/MacOS/Rilo -autotest -shotdir /tmp/shots` (add `-mobile-ui` for the phone layout) | full UI flow + autopilot match, screenshots of every screen |
 | `… -autotest-scripted` | offline match through the real input → prediction path |
 | `… -autotest-online 127.0.0.1` | Gateway → room → queue → online squad match → results/XP → back in the party |
+| `… -bootconfig file:///path/boot.json` | test a boot config (server switch, message, maintenance, update prompts) without publishing it |
 
 Last verified results: tick ≈ 0.1 ms for 16 players in 4 squads (budget 33 ms), snapshots ≤ 720 B, squad flow test all green,
 online prediction error ≈ 1 cm average.
@@ -75,10 +120,12 @@ online prediction error ≈ 1 cm average.
 ## Layout
 
 ```text
-docs/        PLAN.md (milestones) · ARCHITECTURE.md (systems, networking, API)
-Client/      Unity project — Assets/Veil/{Sim, Runtime, Editor, Shaders, Resources}
-Server/      Veil.Server (game server + REST + SQLite) · Veil.LoadTest · run-server.sh
-Builds/      macOS player (generated)
+docs/        PLAN.md (milestones) · ARCHITECTURE.md (systems, networking, API) · SQUAD_PLAN.md (squads, friends, voice)
+config/      boot.json — live remote config read by every installed app (server, message, maintenance, builds)
+Client/      Unity project — Assets/Veil/{Sim, Runtime, Editor, Shaders, Resources, Icons, Characters}
+Server/      Veil.Server (game server + Gateway + voice + REST + SQLite) · Veil.LoadTest · run-server.sh · deploy/ (Oracle)
+Tools/       ai3d/ (character pipeline) · boot/boot.sh (edit the boot config)
+Builds/      Mac / Android players, server publishes (generated, not in git)
 ```
 
 `Client/Assets/Veil/Sim` is pure C# with no Unity references. It is **the game rules**, shared by the offline client,
