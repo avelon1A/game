@@ -172,10 +172,11 @@ namespace Veil.UI
             _modeThumbIcon = UIKit.Image(ic, Icons.Players, Color.white);
             _modeTitle = UIKit.LabelAt(_modePanel, "", 24, Theme.Text, new Vector2(0, 1), new Vector2(160, -16), new Vector2(270, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
             _modeTitle.rectTransform.pivot = new Vector2(0, 1);
-            _modeSub = UIKit.LabelAt(_modePanel, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(160, -50), new Vector2(270, 44), TextAnchor.UpperLeft, UIKit.BodyFont);
+            _modeSub = UIKit.LabelAt(_modePanel, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(160, -50), new Vector2(270, 60), TextAnchor.UpperLeft, UIKit.BodyFont);
             _modeSub.rectTransform.pivot = new Vector2(0, 1);
             _modeSub.horizontalOverflow = HorizontalWrapMode.Wrap;
             _modeSub.supportRichText = true;
+            UIKit.Fit(_modeSub);   // shrinks instead of running into CHANGE MODE
             _connectRow = UIKit.At(_modePanel, "Connect", new Vector2(0, 0), new Vector2(160, 16), new Vector2(264, 48));
             _connectRow.pivot = new Vector2(0, 0);
             _hostField = SocialUi.Field(_connectRow, new Vector2(0, 0.5f), Vector2.zero, 150, "server", 40);
@@ -241,7 +242,7 @@ namespace Veil.UI
 
             app.Gateway.Changed += Refresh;
             app.Gateway.Notice += t => Flash(t);
-            SetOnline(app.Profile.LobbyOnline);   // online squads by default; remembers your last choice
+            SetOnline(true);   // always opens in online squads; CHANGE MODE (practice) lasts for this session only
         }
 
         private Button _changeBtn;
@@ -267,7 +268,8 @@ namespace Veil.UI
             var crownRt = UIKit.At(r.Root, "Crown", new Vector2(0, 1), new Vector2(86, -16), new Vector2(22, 22));
             crownRt.pivot = new Vector2(0, 1);
             r.Crown = UIKit.Image(crownRt, Icons.Crown, Theme.Gold);
-            r.Name = UIKit.LabelAt(r.Root, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(86, -12), new Vector2(200, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            r.Name = UIKit.LabelAt(r.Root, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(86, -12), new Vector2(112, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            UIKit.Fit(r.Name);   // stays clear of the mic / speaker icons
             r.Name.rectTransform.pivot = new Vector2(0, 1);
             r.Name.supportRichText = true;
             r.Level = UIKit.LabelAt(r.Root, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(86, -46), new Vector2(200, 22), TextAnchor.MiddleLeft, UIKit.BodyFont);
@@ -286,6 +288,7 @@ namespace Veil.UI
             r.Status = UIKit.LabelAt(r.Root, "", 17, Theme.Green, new Vector2(1, 0.5f), new Vector2(-14, 0), new Vector2(96, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
             r.Status.rectTransform.pivot = new Vector2(1, 0.5f);
             r.Status.supportRichText = true;
+            UIKit.Fit(r.Status);   // "NOT READY" at phone font size must not run into the mic icon
             r.Empty = UIKit.Fill(r.Root, "Empty");
             var eb = UIKit.Button(r.Empty, "+  INVITE A FRIEND", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300, 46), UIKit.ButtonStyle.Ghost, () => OpenFriends?.Invoke(), 16);
             UIKit.ButtonLabel(eb).color = Theme.PurpleLight;
@@ -386,7 +389,6 @@ namespace Veil.UI
         private void SetOnline(bool online)
         {
             _online = online;
-            if (_app.Profile.LobbyOnline != online) { _app.Profile.LobbyOnline = online; _app.Profile.Save(); }
             _offlineCountdown = false;
             if (online && !_app.Gateway.Online && _app.Gateway.Status == GatewayClient.State.Offline) _app.GoOnline();
             Refresh();
