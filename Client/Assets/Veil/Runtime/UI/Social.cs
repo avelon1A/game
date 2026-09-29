@@ -176,8 +176,8 @@ namespace Veil.UI
             _connectRow = UIKit.At(_modePanel, "Connect", new Vector2(0, 0), new Vector2(160, 16), new Vector2(264, 48));
             _connectRow.pivot = new Vector2(0, 0);
             _hostField = SocialUi.Field(_connectRow, new Vector2(0, 0.5f), Vector2.zero, 150, "server", 40);
-            _hostField.text = app.Profile.ServerHost;
-            _hostField.onEndEdit.AddListener(v => { app.Profile.ServerHost = v.Trim(); app.Profile.Save(); });
+            _hostField.text = app.Profile.ServerAddress;
+            _hostField.onEndEdit.AddListener(v => app.Profile.SetServerAddress(v));
             SocialUi.SmallButton(_connectRow, "CONNECT", new Vector2(1, 0.5f), Vector2.zero, 106, UIKit.ButtonStyle.Secondary, () => app.GoOnline(), 14);
             var change = SocialUi.SmallButton(_modePanel, "CHANGE MODE", new Vector2(1, 0), new Vector2(-16, 38), 150, UIKit.ButtonStyle.Ghost, () => SetMode(!_online), 14);
             _changeBtn = change;

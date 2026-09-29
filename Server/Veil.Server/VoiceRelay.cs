@@ -41,8 +41,15 @@ namespace Veil.Server
 
         protected override async Task ExecuteAsync(CancellationToken stop)
         {
-            try { _udp = new UdpClient(new IPEndPoint(IPAddress.Any, _opt.VoicePort)); }
-            catch (Exception e) { _log.LogError("Voice relay could not bind UDP {Port}: {Err}", _opt.VoicePort, e.Message); return; }
+            for (int i = 0; _udp == null; i++)
+            {
+                try { _udp = new UdpClient(new IPEndPoint(IPAddress.Any, _opt.VoicePort)); }
+                catch (Exception e)
+                {
+                    if (i >= 20 || stop.IsCancellationRequested) { _log.LogError("Voice relay could not bind UDP {Port}: {Err}", _opt.VoicePort, e.Message); return; }
+                    await Task.Delay(500, stop).ContinueWith(_ => { });
+                }
+            }
             _log.LogInformation("Voice relay listening on UDP {Port}", _opt.VoicePort);
             var sweep = DateTime.UtcNow;
             while (!stop.IsCancellationRequested)

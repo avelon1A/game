@@ -101,7 +101,9 @@ namespace Veil.Server
                 catch (Exception e) { _log.LogWarning("Bad packet from {Id}: {Err}", peer.Id, e.Message); }
             };
 
-            if (!_net.Start(_opt.UdpPort)) { _log.LogError("Could not bind UDP port {Port}", _opt.UdpPort); return; }
+            bool bound = false;
+            for (int i = 0; i < 20 && !bound && !stop.IsCancellationRequested; i++) { bound = _net.Start(_opt.UdpPort); if (!bound) Thread.Sleep(500); }
+            if (!bound) { _log.LogError("Could not bind UDP port {Port}", _opt.UdpPort); return; }
             _log.LogInformation("Match host listening on UDP {Port}", _opt.UdpPort);
 
             double acc = 0, last = sw.Elapsed.TotalSeconds;

@@ -309,7 +309,7 @@ namespace Veil.UI
                 : $"<color=#ffd84a>{op.name}</color>   LEVEL {op.level}  ({op.xp}/{op.xpToNext} XP)   RATING {op.rating}\n" +
                   $"Matches {op.matches}   Wins {op.wins}   Top-3 {op.top3}   Best {op.bestScore}   Avg {op.avgScore}\n" +
                   $"Eliminations {op.eliminations}   Objectives {op.objectives}";
-            App.StartCoroutine(BackendApi.Leaderboard(App.BackendUrl, lb =>
+            App.FetchLeaderboard(lb =>
             {
                 var sb = new System.Text.StringBuilder("<color=#aab0d8>#    PLAYER                 RATING   LV   WINS   BEST</color>\n\n");
                 int i = 1;
@@ -318,7 +318,7 @@ namespace Veil.UI
                         sb.Append($"{i++,-4} {pl.name,-22} {pl.rating,6}   {pl.level,3}   {pl.wins,4}   {pl.bestScore,5}\n");
                 if (i == 1) sb.Append("<color=#8a90b8>No ranked matches yet — play an online match!</color>");
                 _board.text = sb.ToString();
-            }, e => _board.text = $"<color=#ff9a8a>Backend not reachable at {App.BackendUrl}</color>\n<color=#8a90b8>Start the test server: Server/run-server.sh</color>"));
+            }, e => _board.text = $"<color=#ff9a8a>Server not reachable at {App.Profile.ServerAddress}</color>\n<color=#8a90b8>PLAY → ONLINE connects you; start the server with Server/run-server.sh</color>");
         }
 
         // ------------------------------------------------------------------ SETTINGS tab
@@ -336,7 +336,7 @@ namespace Veil.UI
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
             var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
-            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-80, -450), "SERVER", prof.ServerHost, v => { prof.ServerHost = v.Trim(); prof.Save(); }, 340);
+            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-80, -450), "SERVER", prof.ServerAddress, v => prof.SetServerAddress(v), 340);
             // squad voice
             var vm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -515), "VOICE CHAT", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode,
                 i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); }, 160);
@@ -498,7 +498,7 @@ namespace Veil.UI
             var id = App.Profile.BackendId;
             if (string.IsNullOrEmpty(id)) yield break;
             int oldRating = App.OnlineProfile != null ? App.OnlineProfile.rating : 0;
-            yield return BackendApi.GetProfile(App.BackendUrl, id, p =>
+            App.FetchProfile(p =>
             {
                 App.OnlineProfile = p;
                 int d = p.rating - oldRating;

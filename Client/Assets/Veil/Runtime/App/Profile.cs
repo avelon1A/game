@@ -11,6 +11,8 @@ namespace Veil.App
         public string ServerHost;
         public int ServerPort;
         public int HttpPort;
+        /// <summary>Gateway over UDP (address written as udp://host:port) — for UDP-only tunnels such as playit.gg.</summary>
+        public bool ServerUdp;
         public string BackendId, BackendToken;
 
         // settings
@@ -32,9 +34,9 @@ namespace Veil.App
             var p = new Profile
             {
                 Name = PlayerPrefs.GetString("name", "Player" + Random.Range(100, 999)),
-                ServerHost = PlayerPrefs.GetString("host", "127.0.0.1"),
+                ServerHost = "127.0.0.1",
                 ServerPort = PlayerPrefs.GetInt("port", 7777),
-                HttpPort = PlayerPrefs.GetInt("http", 5080),
+                HttpPort = 5080,
                 BackendId = PlayerPrefs.GetString("bid", ""),
                 BackendToken = PlayerPrefs.GetString("btok", ""),
                 Sensitivity = PlayerPrefs.GetFloat("sens", 0.12f),
@@ -53,6 +55,14 @@ namespace Veil.App
                 MicSensitivity = PlayerPrefs.GetFloat("micSens", 0.35f),
                 Handle = PlayerPrefs.GetString("handle", ""),
             };
+            // server address: saved choice, else the default baked into the build (Resources/server_default.txt)
+            string saved = PlayerPrefs.GetString("server", "");
+            if (string.IsNullOrEmpty(saved))
+            {
+                var def = Resources.Load<TextAsset>("server_default");
+                saved = def != null ? def.text.Trim() : "";
+            }
+            if (!string.IsNullOrEmpty(saved)) p.ParseAddress(saved);
             p.Look = new Appearance
             {
                 Outfit = (byte)PlayerPrefs.GetInt("outfit", 0),
@@ -67,9 +77,8 @@ namespace Veil.App
         public void Save()
         {
             PlayerPrefs.SetString("name", Name);
-            PlayerPrefs.SetString("host", ServerHost);
+            PlayerPrefs.SetString("server", ServerAddress);
             PlayerPrefs.SetInt("port", ServerPort);
-            PlayerPrefs.SetInt("http", HttpPort);
             PlayerPrefs.SetString("bid", BackendId ?? "");
             PlayerPrefs.SetString("btok", BackendToken ?? "");
             PlayerPrefs.SetFloat("sens", Sensitivity);
@@ -94,6 +103,26 @@ namespace Veil.App
             PlayerPrefs.SetInt("color", Look.Color);
             PlayerPrefs.Save();
         }
+
+        /// <summary>"host" or "host:port" (port = the web/Gateway port, e.g. a playit.gg TCP tunnel).</summary>
+        public void SetServerAddress(string s) { ParseAddress(s); Save(); }
+
+        /// <summary>"host", "host:port" (web/Gateway port) or "udp://host:port" (Gateway over UDP).</summary>
+        public void ParseAddress(string s)
+        {
+            s = (s ?? "").Trim();
+            ServerUdp = s.StartsWith("udp://");
+            if (ServerUdp) s = s.Substring(6);
+            if (s.StartsWith("http://")) s = s.Substring(7);
+            if (s.StartsWith("https://")) s = s.Substring(8);
+            s = s.TrimEnd('/');
+            int i = s.LastIndexOf(':');
+            if (i > 0 && s.IndexOf(':') == i && int.TryParse(s.Substring(i + 1), out int port)) { ServerHost = s.Substring(0, i); HttpPort = port; }
+            else { ServerHost = s; HttpPort = ServerUdp ? Veil.Sim.Gw.UdpPort : 5080; }
+            if (string.IsNullOrEmpty(ServerHost)) { ServerHost = "127.0.0.1"; ServerUdp = false; HttpPort = 5080; }
+        }
+
+        public string ServerAddress => ServerUdp ? $"udp://{ServerHost}:{HttpPort}" : HttpPort == 5080 ? ServerHost : $"{ServerHost}:{HttpPort}";
 
         public string AppearanceString => $"{Look.Outfit},{Look.Hair},{Look.HairColor},{Look.Accessory},{Look.Color}";
     }

@@ -12,21 +12,28 @@ using Veil.Sim;
 
 namespace Veil.Server
 {
+    /// <summary>A realtime client connection to the social hub (WebSocket or UDP). Sends never block.</summary>
+    public abstract class GatewayConnection
+    {
+        public SocialHub.Session Session;
+        public string CloseReason = "";
+        public abstract void Send(GwEnvelope env);
+        public abstract void Close(string reason);
+    }
+
     /// <summary>One client WebSocket: a bounded outbound queue with a single writer, so hub pushes never block.</summary>
-    public sealed class GatewayConnection
+    public sealed class WsGatewayConnection : GatewayConnection
     {
         private static readonly JsonSerializerOptions Json = new JsonSerializerOptions { IncludeFields = true };
         private readonly WebSocket _ws;
         private readonly Channel<string> _out = Channel.CreateBounded<string>(new BoundedChannelOptions(256) { FullMode = BoundedChannelFullMode.DropOldest });
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-        public SocialHub.Session Session;
-        public string CloseReason = "";
 
-        public GatewayConnection(WebSocket ws) { _ws = ws; }
+        public WsGatewayConnection(WebSocket ws) { _ws = ws; }
 
-        public void Send(GwEnvelope env) => _out.Writer.TryWrite(JsonSerializer.Serialize(env, Json));
+        public override void Send(GwEnvelope env) => _out.Writer.TryWrite(JsonSerializer.Serialize(env, Json));
 
-        public void Close(string reason)
+        public override void Close(string reason)
         {
             CloseReason = reason;
             Send(new GwEnvelope { t = Gw.Kicked, d = JsonSerializer.Serialize(new GwText { text = reason }, Json) });
@@ -65,7 +72,7 @@ namespace Veil.Server
             {
                 if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; await ctx.Response.WriteAsync("WebSocket only"); return; }
                 using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-                var conn = new GatewayConnection(ws);
+                var conn = new WsGatewayConnection(ws);
                 var writer = Task.Run(conn.WriterLoop);
                 var buf = new byte[16 * 1024];
                 var sb = new StringBuilder();

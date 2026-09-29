@@ -29,3 +29,4 @@ Tools/ai3d/:memory:*
 *.log
 Client/.utmp/
 Client/[Bb]uild/
+Tools/playit/

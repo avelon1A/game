@@ -78,6 +78,13 @@ namespace Veil.Server
         public Session Connect(GatewayConnection conn, GwHello hello, out string error)
         {
             error = "";
+            string newToken = "";
+            if (hello != null && string.IsNullOrEmpty(hello.id))
+            {
+                // UDP clients have no REST: the first hello creates the guest account
+                var (nid, ntok) = _db.Register(string.IsNullOrWhiteSpace(hello.name) ? "Player" : hello.name);
+                hello.id = nid; hello.token = ntok; newToken = ntok;
+            }
             if (hello == null || !_db.CheckToken(hello.id, hello.token)) { error = "bad credentials"; return null; }
             if (!string.IsNullOrWhiteSpace(hello.name) || !string.IsNullOrEmpty(hello.look)) _db.UpdateProfile(hello.id, string.IsNullOrWhiteSpace(hello.name) ? null : hello.name, string.IsNullOrEmpty(hello.look) ? null : hello.look);
             var prof = _db.Get(hello.id);
@@ -94,7 +101,8 @@ namespace Veil.Server
                 s.Friends = friends;
                 s.LastSeen = DateTime.UtcNow;
                 conn.Session = s;
-                Push(s, Gw.Welcome, new GwWelcome { id = s.Id, name = s.Name, handle = s.Handle, serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), voicePort = _opt.VoicePort });
+                Push(s, Gw.Welcome, new GwWelcome { id = s.Id, name = s.Name, handle = s.Handle, serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    voicePort = _opt.PublicVoicePort > 0 ? _opt.PublicVoicePort : _opt.VoicePort, voiceHost = _opt.PublicVoiceHost, newToken = newToken });
                 PushFriends(s);
                 PushParty(s);
                 foreach (var inv in _invites.Values.Where(i => i.To == s.Id)) PushInvite(inv);
@@ -168,6 +176,8 @@ namespace Veil.Server
                         case Gw.PartyStart: err = StartQueue(s, D<GwStart>(env).seconds); break;
                         case Gw.PartyCancel: err = CancelQueue(s); break;
                         case Gw.PartyLook: err = SetLook(s, D<GwText>(env).text); break;
+                        case Gw.ProfileGet: reply = _db.Get(s.Id); break;
+                        case Gw.LeaderboardGet: reply = new { players = _db.Leaderboard(20) }; break;
                         case Gw.MatchRejoin:
                             if (s.Assignment == null || DateTime.UtcNow >= s.MatchEndsUtc) err = "no match to rejoin";
                             else { var a = Clone(s.Assignment); a.rejoin = true; reply = a; }
@@ -537,7 +547,8 @@ namespace Veil.Server
                     string channel = $"match:{req.MatchId}:{sq}";
                     s.Assignment = new MatchAssignedMsg
                     {
-                        matchId = req.MatchId, host = "", port = _opt.UdpPort, squad = sq, seconds = req.Seconds,
+                        matchId = req.MatchId, host = _opt.PublicMatchHost, port = _opt.PublicMatchPort > 0 ? _opt.PublicMatchPort : _opt.UdpPort,
+                        squad = sq, seconds = req.Seconds,
                         ticket = _tickets.Issue(new TicketData { ProfileId = s.Id, Name = s.Name, MatchId = req.MatchId, Squad = sq, ExpiresUnix = exp }),
                         voiceChannel = channel, voiceToken = VoiceToken(s.Id, channel),
                     };

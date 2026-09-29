@@ -104,6 +104,13 @@ namespace Veil.App
             Net.ServerFound += OnServerFound;
             Gateway = new GatewayClient();
             Gateway.MatchAssigned += OnMatchAssigned;
+            Gateway.CredentialsIssued += (id, token) => { Profile.BackendId = id; Profile.BackendToken = token; Profile.Save(); };
+            Gateway.Changed += () =>
+            {
+                // UDP mode has no REST: load the profile over the Gateway once connected
+                if (Gateway.Online && Gateway.UsesUdp && !_profileRequested) { _profileRequested = true; FetchProfile(p => OnlineProfile = p, e => _profileRequested = false); }
+                if (!Gateway.Online) _profileRequested = false;
+            };
             Voice = new VoiceChat { Mode = (VoiceMode)Mathf.Clamp(Profile.VoiceMode, 0, 2), OutputVolume = Profile.VoiceVolume, Sensitivity = Profile.MicSensitivity };
 
             _title = new TitleScreen(Canvas, this);
@@ -293,7 +300,29 @@ namespace Veil.App
 
         // ------------------------------------------------------------------ online (Gateway → party → match)
 
-        private bool _goingOnline, _discovering;
+        private bool _goingOnline, _discovering, _profileRequested;
+
+        /// <summary>Profile over REST, or over the Gateway when the server is reached through UDP only.</summary>
+        public void FetchProfile(Action<ProfileDto> ok, Action<string> fail)
+        {
+            if (Profile.ServerUdp)
+            {
+                Gateway.RequestData(Gw.ProfileGet, null, (o, e, d) => { if (o && !string.IsNullOrEmpty(d)) ok(JsonUtility.FromJson<ProfileDto>(d)); else fail(e); });
+                return;
+            }
+            if (string.IsNullOrEmpty(Profile.BackendId)) { fail("no profile"); return; }
+            StartCoroutine(BackendApi.GetProfile(BackendUrl, Profile.BackendId, ok, fail));
+        }
+
+        public void FetchLeaderboard(Action<LeaderboardDto> ok, Action<string> fail)
+        {
+            if (Profile.ServerUdp)
+            {
+                Gateway.RequestData(Gw.LeaderboardGet, null, (o, e, d) => { if (o && !string.IsNullOrEmpty(d)) ok(JsonUtility.FromJson<LeaderboardDto>(d)); else fail(e); });
+                return;
+            }
+            StartCoroutine(BackendApi.Leaderboard(BackendUrl, ok, fail));
+        }
 
         /// <summary>Makes sure we have a backend profile, then opens the Gateway. Phones find the server on the LAN.</summary>
         public void GoOnline()
@@ -307,6 +336,14 @@ namespace Veil.App
         private IEnumerator GoOnlineRoutine()
         {
             _goingOnline = true;
+            if (Profile.ServerUdp)
+            {
+                // internet mode through UDP-only tunnels: no REST, the Gateway hello creates / resumes the guest account
+                _sentLook = Profile.AppearanceString;
+                Gateway.Connect(Profile.ServerHost, Profile.HttpPort, Profile.BackendId ?? "", Profile.BackendToken ?? "", Profile.Name, _sentLook, udp: true);
+                _goingOnline = false;
+                yield break;
+            }
             if (Platform.IsMobile && IsLoopback(Profile.ServerHost))
             {
                 _menu?.Squad?.Flash("Looking for a VEIL server on your Wi-Fi…", 5);
@@ -349,6 +386,7 @@ namespace Veil.App
             }
             _sentLook = Profile.AppearanceString;
             Gateway.Connect(Profile.ServerHost, Profile.HttpPort, Profile.BackendId, Profile.BackendToken, Profile.Name, _sentLook);
+            if (OnlineProfile == null) FetchProfile(p => OnlineProfile = p, e => { });
             _goingOnline = false;
         }
 
@@ -400,7 +438,7 @@ namespace Veil.App
             var a = Gateway.Assignment;
             if (State == AppState.Match && IsOnlineMatch && a != null) { ch = a.voiceChannel; tok = a.voiceToken; }
             else if (State != AppState.Match && Gateway.Online && !Gateway.Party.Empty && Gateway.Party.members.Count > 1) { ch = Gateway.Party.voiceChannel; tok = Gateway.Party.voiceToken; }
-            if (ch != null && Voice.Mode != VoiceMode.Off) Voice.JoinChannel(Gateway.Host, Gateway.VoicePort, ch, tok, Gateway.MyId);
+            if (ch != null && Voice.Mode != VoiceMode.Off) Voice.JoinChannel(Gateway.VoiceHost, Gateway.VoicePort, ch, tok, Gateway.MyId);
             else if (!string.IsNullOrEmpty(Voice.Channel)) Voice.LeaveChannel();
             var kb = Keyboard.current;
             bool typing = EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>() != null;
@@ -771,7 +809,7 @@ namespace Veil.App
         private IEnumerator OnlineTest()
         {
             yield return new WaitForSeconds(2f);
-            Profile.ServerHost = _onlineHost;
+            Profile.SetServerAddress(_onlineHost);   // "127.0.0.1", "host:port" or "udp://host:port"
             Profile.MatchMinutes = 1;
             GoMenu(0);
             _menu.Squad.SetMode(true);
@@ -804,7 +842,8 @@ namespace Veil.App
             while (State == AppState.Match) { if (!logged && _match != null && _match.Ended) { LogPrediction(); logged = true; } yield return null; }
             yield return new WaitForSeconds(2.5f);
             yield return Shot("o3_results");
-            yield return BackendApi.GetProfile(BackendUrl, Profile.BackendId, p => Debug.Log($"[VEIL] online test: after match level {p.level} xp {p.xp} rating {p.rating} matches {p.matches} best {p.bestScore}"), e => Debug.Log("[VEIL] profile fetch failed " + e));
+            FetchProfile(p => Debug.Log($"[VEIL] online test: after match level {p.level} xp {p.xp} rating {p.rating} matches {p.matches} best {p.bestScore}"), e => Debug.Log("[VEIL] profile fetch failed " + e));
+            yield return new WaitForSeconds(1f);
             GoMenu(0);
             yield return new WaitForSeconds(1.5f);
             yield return Shot("o4_back_in_party");

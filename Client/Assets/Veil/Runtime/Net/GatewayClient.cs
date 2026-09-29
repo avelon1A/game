@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteNetLib;
 using UnityEngine;
 using Veil.Sim;
 
@@ -24,6 +25,8 @@ namespace Veil.Net
         public string MyId { get; private set; } = "";
         public int PingMs { get; private set; }
         public int VoicePort { get; private set; } = 7778;
+        /// <summary>Voice relay host (empty in welcome = same host as the Gateway).</summary>
+        public string VoiceHost { get; private set; } = "";
         public string Host { get; private set; } = "";
         public string LastError { get; private set; } = "";
         public FriendsState Friends { get; private set; } = new FriendsState();
@@ -37,6 +40,14 @@ namespace Veil.Net
         public event Action<MatchAssignedMsg> MatchAssigned;
         public event Action MatchFinished;
         public event Action<string> Notice;
+        /// <summary>The server created a guest account for us (UDP mode has no REST registration): save id + token.</summary>
+        public event Action<string, string> CredentialsIssued;
+
+        // UDP transport (LiteNetLib) for UDP-only tunnels, e.g. playit.gg free
+        private bool _udp;
+        private NetManager _net;
+        private NetPeer _peer;
+        public bool UsesUdp => _udp;
 
         private ClientWebSocket _ws;
         private CancellationTokenSource _cts;
@@ -51,9 +62,11 @@ namespace Veil.Net
 
         public bool Online => Status == State.Online;
 
-        public void Connect(string host, int httpPort, string id, string token, string name, string look)
+        public void Connect(string host, int httpPort, string id, string token, string name, string look, bool udp = false)
         {
             Host = host;
+            _udp = udp;
+            _udpPort = httpPort;
             _url = $"ws://{host}:{httpPort}/ws";
             _id = id; _token = token; _name = name; _look = look;
             _wanted = true;
@@ -69,11 +82,37 @@ namespace Veil.Net
             Changed?.Invoke();
         }
 
+        private int _udpPort;
+
+        private void OpenUdp()
+        {
+            var l = new EventBasedNetListener();
+            var net = new NetManager(l) { AutoRecycle = true, ChannelsCount = 1, DisconnectTimeout = 15000, UpdateTime = 15 };
+            _net = net;
+            l.PeerConnectedEvent += p =>
+            {
+                if (_net != net) return;
+                _peer = p;
+                var hello = new GwHello { id = _id, token = _token, name = _name, look = _look };
+                SendEnvelope(new GwEnvelope { t = Gw.Hello, d = JsonUtility.ToJson(hello) });
+            };
+            l.NetworkReceiveEvent += (p, r, ch, m) => { if (_net == net) _inbox.Enqueue(Encoding.UTF8.GetString(r.GetRemainingBytes())); };
+            l.PeerDisconnectedEvent += (p, info) =>
+            {
+                if (_net != net) return;
+                if (string.IsNullOrEmpty(LastError) && info.Reason != DisconnectReason.DisconnectPeerCalled) LastError = info.Reason.ToString();
+                _mainThread.Enqueue(OnClosed);
+            };
+            net.Start();
+            net.Connect(Host, _udpPort, Gw.UdpKey);
+        }
+
         private void Open()
         {
             Close();
             Status = State.Connecting;
             Changed?.Invoke();
+            if (_udp) { OpenUdp(); return; }
             var ws = new ClientWebSocket();
             var cts = new CancellationTokenSource();
             _ws = ws; _cts = cts;
@@ -111,6 +150,7 @@ namespace Veil.Net
 
         private void Close()
         {
+            if (_net != null) { var n = _net; _net = null; _peer = null; try { n.Stop(); } catch { } }
             try { _cts?.Cancel(); } catch { }
             try { _ws?.Abort(); _ws?.Dispose(); } catch { }
             _ws = null;
@@ -129,6 +169,7 @@ namespace Veil.Net
         /// <summary>Call every frame (main thread).</summary>
         public void Update(float dt)
         {
+            _net?.PollEvents();
             while (_mainThread.TryDequeue(out var a)) a();
             while (_inbox.TryDequeue(out var msg)) Dispatch(msg);
             if (Status == State.Offline && _wanted && _url != null)
@@ -164,6 +205,8 @@ namespace Veil.Net
                 {
                     var w = JsonUtility.FromJson<GwWelcome>(env.d);
                     Handle = w.handle; MyId = w.id; VoicePort = w.voicePort > 0 ? w.voicePort : 7778;
+                    if (!string.IsNullOrEmpty(w.newToken)) { _id = w.id; _token = w.newToken; CredentialsIssued?.Invoke(w.id, w.newToken); }
+                    VoiceHost = string.IsNullOrEmpty(w.voiceHost) ? Host : w.voiceHost;
                     Status = State.Online;
                     _retryDelay = 1f;
                     LastError = "";
@@ -219,6 +262,7 @@ namespace Veil.Net
                 {
                     var t = JsonUtility.FromJson<GwText>(env.d).text;
                     Notice?.Invoke(t);
+                    if (_udp && t.Contains("credentials")) { _id = ""; _token = ""; _retryT = 0.2f; break; }   // unknown here: become a new guest
                     if (t.Contains("another device") || t.Contains("Update the game") || t.Contains("credentials")) { _wanted = false; LastError = t; }
                     break;
                 }
@@ -226,6 +270,15 @@ namespace Veil.Net
         }
 
         // ------------------------------------------------------------------ requests
+
+        /// <summary>Sends a request whose reply carries data (JSON in <c>d</c>).</summary>
+        public void RequestData(string type, object payload, Action<bool, string, string> done)
+        {
+            if (!Online) { done?.Invoke(false, "Not connected", ""); return; }
+            string id = "c" + (++_req);
+            _pending[id] = env => done(env.ok, env.err, env.d);
+            Send(type, payload, id);
+        }
 
         /// <summary>Sends a request; <paramref name="done"/> gets (ok, error) on the main thread.</summary>
         public void Request(string type, object payload, Action<bool, string> done = null)
@@ -236,8 +289,14 @@ namespace Veil.Net
             Send(type, payload, id);
         }
 
+        private void SendEnvelope(GwEnvelope env)
+        {
+            _peer?.Send(Encoding.UTF8.GetBytes(JsonUtility.ToJson(env)), DeliveryMethod.ReliableOrdered);
+        }
+
         private void Send(string type, object payload, string id = "")
         {
+            if (_udp) { SendEnvelope(new GwEnvelope { t = type, id = id, d = payload == null ? "" : JsonUtility.ToJson(payload) }); return; }
             var ws = _ws;
             if (ws == null || ws.State != WebSocketState.Open) return;
             var env = new GwEnvelope { t = type, id = id, d = payload == null ? "" : JsonUtility.ToJson(payload) };

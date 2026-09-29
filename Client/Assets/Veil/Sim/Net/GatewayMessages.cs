@@ -10,6 +10,9 @@ namespace Veil.Sim
     public static class Gw
     {
         public const int Version = 1;
+        /// <summary>LiteNetLib connection key of the UDP Gateway (same protocol as the WebSocket, for UDP-only tunnels).</summary>
+        public const string UdpKey = "VEIL-GW";
+        public const int UdpPort = 7779;
 
         // client → server requests
         public const string Hello = "hello", Ping = "ping";
@@ -18,7 +21,8 @@ namespace Veil.Sim
         public const string PartyCreate = "party.create", PartyJoin = "party.join", PartyLeave = "party.leave",
             PartyInvite = "party.invite", InviteAccept = "party.invite.accept", InviteDecline = "party.invite.decline",
             PartyReady = "party.ready", PartyKick = "party.kick", PartyPromote = "party.promote", PartyStart = "party.start",
-            PartyCancel = "party.cancel", PartyLook = "party.look", MatchRejoin = "match.rejoin";
+            PartyCancel = "party.cancel", PartyLook = "party.look", MatchRejoin = "match.rejoin",
+            ProfileGet = "profile.get", LeaderboardGet = "leaderboard.get";
 
         // server → client pushes
         public const string Welcome = "welcome", Pong = "pong", Reply = "reply";
@@ -34,7 +38,12 @@ namespace Veil.Sim
     [Serializable] public sealed class GwEnvelope { public string t = ""; public string id = ""; public bool ok = true; public string err = ""; public string d = ""; }
 
     [Serializable] public sealed class GwHello { public string id = ""; public string token = ""; public string name = ""; public string look = ""; public int version = Gw.Version; }
-    [Serializable] public sealed class GwWelcome { public string id = ""; public string name = ""; public string handle = ""; public long serverTime; public int voicePort; }
+    [Serializable] public sealed class GwWelcome
+    {
+        public string id = ""; public string name = ""; public string handle = ""; public long serverTime; public int voicePort; public string voiceHost = "";
+        /// <summary>Set only when this hello created a new guest account (hello without id): save it.</summary>
+        public string newToken = "";
+    }
     [Serializable] public sealed class GwPing { public long clientMs; public int rttMs; }
 
     [Serializable] public sealed class GwText { public string text = ""; }

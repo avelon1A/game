@@ -12,16 +12,27 @@ namespace Veil.Server
         public int UdpPort = 7777;
         public int HttpPort = 5080;
         public int VoicePort = 7778;
+        public int GatewayUdpPort = Veil.Sim.Gw.UdpPort;   // Gateway over UDP (for UDP-only tunnels)
         public string Name = "VEIL Test Server";
         public string DbPath = "veil.db";
         /// <summary>Seconds the oldest queued party waits for more players before bots fill the match.</summary>
         public double MatchmakingWait = 6;
         /// <summary>Shared by the Gateway (issues tickets) and match hosts (validate them). Env VEIL_TICKET_SECRET.</summary>
         public string TicketSecret = Environment.GetEnvironmentVariable("VEIL_TICKET_SECRET") ?? "";
+        /// <summary>Public addresses when behind a tunnel / NAT (e.g. playit.gg gives each port its own host:port).
+        /// Empty host = clients reuse the Gateway host; 0 port = the local port.</summary>
+        public string PublicMatchHost = "", PublicVoiceHost = "";
+        public int PublicMatchPort, PublicVoicePort;
     }
 
     public static class Program
     {
+        private static (string, int) HostPort(string s)
+        {
+            int i = s.LastIndexOf(':');
+            return i > 0 ? (s.Substring(0, i), int.Parse(s.Substring(i + 1))) : (s, 0);
+        }
+
         public static int Main(string[] args)
         {
             var opt = new ServerOptions();
@@ -40,8 +51,11 @@ namespace Veil.Server
                     case "--udp": opt.UdpPort = int.Parse(Next()); break;
                     case "--http": opt.HttpPort = int.Parse(Next()); break;
                     case "--voice": opt.VoicePort = int.Parse(Next()); break;
+                    case "--gateway-udp": opt.GatewayUdpPort = int.Parse(Next()); break;
                     case "--mm-wait": opt.MatchmakingWait = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture); break;
                     case "--name": opt.Name = Next(); break;
+                    case "--public-match": (opt.PublicMatchHost, opt.PublicMatchPort) = HostPort(Next()); break;
+                    case "--public-voice": (opt.PublicVoiceHost, opt.PublicVoicePort) = HostPort(Next()); break;
                     case "--db": opt.DbPath = Next(); break;
                 }
             }
@@ -61,16 +75,18 @@ namespace Veil.Server
             builder.Services.AddSingleton<GameHost>();
             builder.Services.AddSingleton<SocialHub>();
             builder.Services.AddSingleton<VoiceRelay>();
+            builder.Services.AddSingleton<UdpGateway>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<GameHost>());
             builder.Services.AddHostedService(sp => sp.GetRequiredService<SocialHub>());
             builder.Services.AddHostedService(sp => sp.GetRequiredService<VoiceRelay>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<UdpGateway>());
 
             var app = builder.Build();
             Gateway.Map(app);
             Api.Map(app);
 
             Console.WriteLine($"VEIL server  |  REST http://localhost:{opt.HttpPort}/api/health  |  Gateway ws://localhost:{opt.HttpPort}/ws  |  " +
-                              $"UDP match {opt.UdpPort}  |  UDP voice {opt.VoicePort}  |  db {db.Path}");
+                              $"UDP gateway {opt.GatewayUdpPort}  |  UDP match {opt.UdpPort}  |  UDP voice {opt.VoicePort}  |  db {db.Path}");
             app.Run();
             return 0;
         }
