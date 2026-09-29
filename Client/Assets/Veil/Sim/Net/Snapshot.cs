@@ -1,0 +1,194 @@
+using System.Collections.Generic;
+
+namespace Veil.Sim
+{
+    [System.Flags]
+    public enum AvatarFlags : byte
+    {
+        None = 0,
+        Sprinting = 1,
+        Dashing = 2,
+        Grounded = 4,
+        MyDecoy = 8,
+        Shield = 16,
+        SpawnProtected = 32,
+        Stealthed = 64,
+    }
+
+    /// <summary>A visible character. Decoys are sent exactly like players (OwnerId = the player they imitate).</summary>
+    public sealed class AvatarSnap
+    {
+        public int AvatarId;
+        public int OwnerId;
+        public byte Vis;
+        public Vec2 Pos, Vel;
+        public float H, Yaw, Health01;
+        public AvatarFlags Flags;
+        public byte FireSeq, CastSeq, HitSeq, JumpSeq;
+
+        public AvatarSnap Clone() => (AvatarSnap)MemberwiseClone();
+    }
+
+    public sealed class ProjectileSnap
+    {
+        public int Id, Owner;
+        public Vec2 Pos, Vel;
+    }
+
+    public sealed class ZoneSnap
+    {
+        public int Controller = -1, Capturer = -1;
+        public float Progress;
+        public bool Contested, Locked;
+        public int Occupants;
+        public float Cooldown;
+    }
+
+    /// <summary>Everything one viewer is allowed to know at one tick.</summary>
+    public sealed class Snapshot
+    {
+        public int Tick;
+        public float Time, Duration;
+        public MatchPhase Phase;
+        public float Circle;
+        public int AliveCount, PlayerCount;
+        public readonly PlayerState Self = new PlayerState();
+        public readonly List<AvatarSnap> Avatars = new List<AvatarSnap>();
+        public readonly List<ProjectileSnap> Projectiles = new List<ProjectileSnap>();
+        public ZoneSnap[] Zones = new ZoneSnap[0];
+    }
+
+    public sealed class RosterEntry
+    {
+        public int Id;
+        public string Name;
+        public Appearance Look;
+        public bool IsBot;
+    }
+
+    public static class SnapshotBuilder
+    {
+        /// <summary>Copies the fields a player needs about themself.</summary>
+        public static void CopySelf(PlayerState s, PlayerState d)
+        {
+            d.Id = s.Id; d.Name = s.Name; d.IsBot = s.IsBot; d.Look = s.Look;
+            d.CopyKinematicsFrom(s);
+            d.Health = s.Health; d.Shield = s.Shield; d.RespawnT = s.RespawnT; d.SpawnProtT = s.SpawnProtT;
+            d.FireCd = s.FireCd; d.PulseCd = s.PulseCd; d.DecoyCd = s.DecoyCd; d.BuyCd = s.BuyCd;
+            d.FireSeq = s.FireSeq; d.CastSeq = s.CastSeq; d.HitSeq = s.HitSeq; d.JumpSeq = s.JumpSeq;
+            d.TowerSightT = s.TowerSightT; d.PublicPingT = s.PublicPingT; d.NoiseT = s.NoiseT;
+            d.Keys = s.Keys; d.CoresCollected = s.CoresCollected; d.ZoneId = s.ZoneId; d.VaultChannel = s.VaultChannel;
+            d.CapturedMask = s.CapturedMask; d.TowerControlTime = s.TowerControlTime; d.Deaths = s.Deaths; d.Elims = s.Elims;
+            d.Primary.CopyFrom(s.Primary); d.Secondary.CopyFrom(s.Secondary); d.Score.CopyFrom(s.Score);
+            d.LastSeq = s.LastSeq; d.LastInput = s.LastInput;
+        }
+
+        public static void Build(MatchSim sim, PlayerState viewer, Snapshot snap)
+        {
+            snap.Tick = sim.Tick;
+            snap.Time = sim.Time;
+            snap.Duration = sim.Duration;
+            snap.Phase = sim.Phase;
+            snap.Circle = sim.CircleRadius;
+            snap.PlayerCount = sim.Players.Count;
+            int alive = 0;
+            foreach (var p in sim.Players) if (p.Alive) alive++;
+            snap.AliveCount = alive;
+            CopySelf(viewer, snap.Self);
+
+            snap.Avatars.Clear();
+            foreach (var p in sim.Players)
+            {
+                if (p == viewer) continue;
+                byte vis = Visibility.OfPlayer(sim, viewer, p);
+                if (vis == Visibility.None) continue;
+                var a = new AvatarSnap
+                {
+                    AvatarId = p.Id, OwnerId = p.Id, Vis = vis, Pos = p.Pos, Vel = p.Vel, H = p.H, Yaw = p.Yaw,
+                    Health01 = p.HealthFrac, FireSeq = p.FireSeq, CastSeq = p.CastSeq, HitSeq = p.HitSeq, JumpSeq = p.JumpSeq,
+                };
+                if (p.Sprinting) a.Flags |= AvatarFlags.Sprinting;
+                if (p.DashT > 0) a.Flags |= AvatarFlags.Dashing;
+                if (p.Grounded) a.Flags |= AvatarFlags.Grounded;
+                if (p.Shield > 0) a.Flags |= AvatarFlags.Shield;
+                if (p.SpawnProtT > 0) a.Flags |= AvatarFlags.SpawnProtected;
+                if (p.ZoneId == sim.RuinsZone) a.Flags |= AvatarFlags.Stealthed;
+                snap.Avatars.Add(a);
+            }
+            foreach (var d in sim.Decoys)
+            {
+                byte vis = Visibility.OfDecoy(sim, viewer, d);
+                if (vis == Visibility.None) continue;
+                var owner = sim.Players[d.Owner];
+                var a = new AvatarSnap
+                {
+                    AvatarId = d.AvatarId, OwnerId = d.Owner, Vis = vis, Pos = d.Pos, Vel = d.Vel, H = 0, Yaw = d.Yaw,
+                    Health01 = owner.HealthFrac, Flags = AvatarFlags.Grounded,
+                };
+                if (owner.Shield > 0) a.Flags |= AvatarFlags.Shield;
+                if (d.Owner == viewer.Id) a.Flags |= AvatarFlags.MyDecoy;
+                if (sim.Map.ZoneAt(d.Pos) == sim.RuinsZone) a.Flags |= AvatarFlags.Stealthed;
+                snap.Avatars.Add(a);
+            }
+
+            snap.Projectiles.Clear();
+            float pr = GameConfig.VisionRadius + 6f;
+            foreach (var p in sim.Projectiles)
+            {
+                if (p.Owner != viewer.Id && Vec2.DistSq(p.Pos, viewer.Pos) > pr * pr) continue;
+                snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel });
+            }
+
+            if (snap.Zones.Length != sim.Zones.Length)
+            {
+                snap.Zones = new ZoneSnap[sim.Zones.Length];
+                for (int i = 0; i < snap.Zones.Length; i++) snap.Zones[i] = new ZoneSnap();
+            }
+            for (int i = 0; i < sim.Zones.Length; i++)
+            {
+                var z = sim.Zones[i];
+                var s = snap.Zones[i];
+                s.Controller = z.Controller; s.Capturer = z.Capturer; s.Progress = z.Progress; s.Contested = z.Contested;
+                s.Occupants = z.Occupants; s.Locked = z.Locked; s.Cooldown = z.Cooldown;
+            }
+        }
+
+        /// <summary>Hidden-information filter for events. Returns false if this viewer must not learn about it.</summary>
+        public static bool FilterEvent(MatchSim sim, PlayerState viewer, ref SimEvent e)
+        {
+            switch (e.Type)
+            {
+                case EventType.PhaseChanged:
+                case EventType.ZoneCaptured:
+                case EventType.VaultOpened:
+                case EventType.Eliminated:
+                case EventType.MatchEnded:
+                case EventType.PickupSpawned:
+                case EventType.PickupCollected:
+                    return true;
+                case EventType.ObjectiveComplete:
+                case EventType.AbilityPlay:
+                case EventType.Purchase:
+                    return e.A == viewer.Id;
+                case EventType.Revealed:
+                    return e.A == viewer.Id || e.B == viewer.Id;
+                case EventType.DecoySpawn:
+                    if (e.B == viewer.Id) return true;
+                    if (!Near(viewer, e.Pos)) return false;
+                    e.A = -1; e.B = -1; // strangers only see a puff, not which avatar is fake
+                    return true;
+                case EventType.DecoyPop:
+                    if (e.B == viewer.Id) return true;
+                    return Near(viewer, e.Pos);
+                default:
+                    return e.A == viewer.Id || e.B == viewer.Id || Near(viewer, e.Pos);
+            }
+        }
+
+        private static bool Near(PlayerState v, Vec2 p)
+        {
+            float r = GameConfig.VisionRadius + 5f;
+            return Vec2.DistSq(v.Pos, p) <= r * r;
+        }
+    }
+}

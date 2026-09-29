@@ -1,0 +1,29 @@
+# Unity
+Client/[Ll]ibrary/
+Client/[Tt]emp/
+Client/[Oo]bj/
+Client/[Ll]ogs/
+Client/[Uu]ser[Ss]ettings/
+Client/*.csproj
+Client/*.sln
+Builds/
+# .NET
+Server/**/bin/
+Server/**/obj/
+Server/**/*.db
+.DS_Store
+# AI tools
+Tools/ai3d/.env
+Tools/ai3d/.venv/
+Tools/ai3d/state.json
+Tools/ai3d/.venvpose/
+Tools/ai3d/output/
+Tools/ai3d/models/
+Tools/Hunyuan3D-2/
+Tools/esrgan/
+Tools/ai3d/renders/
+Tools/ai3d/upscaled/
+Tools/ai3d/__pycache__/
+Tools/ai3d/*.log
+Tools/ai3d/:memory:*
+*.log

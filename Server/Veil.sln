@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Veil.Server", "Veil.Server\Veil.Server.csproj", "{97FF56D0-C690-40E9-90E7-7CD2D63008EF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Veil.LoadTest", "Veil.LoadTest\Veil.LoadTest.csproj", "{721991E9-800D-494F-8E46-FD55991B3FF7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{97FF56D0-C690-40E9-90E7-7CD2D63008EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97FF56D0-C690-40E9-90E7-7CD2D63008EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97FF56D0-C690-40E9-90E7-7CD2D63008EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97FF56D0-C690-40E9-90E7-7CD2D63008EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{721991E9-800D-494F-8E46-FD55991B3FF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{721991E9-800D-494F-8E46-FD55991B3FF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{721991E9-800D-494F-8E46-FD55991B3FF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{721991E9-800D-494F-8E46-FD55991B3FF7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
