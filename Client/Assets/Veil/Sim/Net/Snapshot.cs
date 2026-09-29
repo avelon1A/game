@@ -13,6 +13,7 @@ namespace Veil.Sim
         Shield = 16,
         SpawnProtected = 32,
         Stealthed = 64,
+        Ally = 128,          // squadmate (or a squadmate's decoy)
     }
 
     /// <summary>A visible character. Decoys are sent exactly like players (OwnerId = the player they imitate).</summary>
@@ -37,7 +38,7 @@ namespace Veil.Sim
 
     public sealed class ZoneSnap
     {
-        public int Controller = -1, Capturer = -1;
+        public int Controller = -1, Capturer = -1, Squad = -1, CapturerSquad = -1;
         public float Progress;
         public bool Contested, Locked;
         public int Occupants;
@@ -56,6 +57,8 @@ namespace Veil.Sim
         public readonly List<AvatarSnap> Avatars = new List<AvatarSnap>();
         public readonly List<ProjectileSnap> Projectiles = new List<ProjectileSnap>();
         public ZoneSnap[] Zones = new ZoneSnap[0];
+        public readonly ObjectiveState SquadObjective = new ObjectiveState { IsSquad = true };
+        public int SquadTotal;
     }
 
     public sealed class RosterEntry
@@ -64,6 +67,7 @@ namespace Veil.Sim
         public string Name;
         public Appearance Look;
         public bool IsBot;
+        public int Squad;
     }
 
     public static class SnapshotBuilder
@@ -71,7 +75,7 @@ namespace Veil.Sim
         /// <summary>Copies the fields a player needs about themself.</summary>
         public static void CopySelf(PlayerState s, PlayerState d)
         {
-            d.Id = s.Id; d.Name = s.Name; d.IsBot = s.IsBot; d.Look = s.Look;
+            d.Id = s.Id; d.Name = s.Name; d.IsBot = s.IsBot; d.Look = s.Look; d.Squad = s.Squad;
             d.CopyKinematicsFrom(s);
             d.Health = s.Health; d.Shield = s.Shield; d.RespawnT = s.RespawnT; d.SpawnProtT = s.SpawnProtT;
             d.FireCd = s.FireCd; d.PulseCd = s.PulseCd; d.DecoyCd = s.DecoyCd; d.BuyCd = s.BuyCd;
@@ -95,6 +99,9 @@ namespace Veil.Sim
             foreach (var p in sim.Players) if (p.Alive) alive++;
             snap.AliveCount = alive;
             CopySelf(viewer, snap.Self);
+            var squad = sim.Squads[viewer.Squad];
+            snap.SquadObjective.CopyFrom(squad.Objective);
+            snap.SquadTotal = squad.Total;
 
             snap.Avatars.Clear();
             foreach (var p in sim.Players)
@@ -113,6 +120,7 @@ namespace Veil.Sim
                 if (p.Shield > 0) a.Flags |= AvatarFlags.Shield;
                 if (p.SpawnProtT > 0) a.Flags |= AvatarFlags.SpawnProtected;
                 if (p.ZoneId == sim.RuinsZone) a.Flags |= AvatarFlags.Stealthed;
+                if (p.Squad == viewer.Squad) a.Flags |= AvatarFlags.Ally;
                 snap.Avatars.Add(a);
             }
             foreach (var d in sim.Decoys)
@@ -127,6 +135,7 @@ namespace Veil.Sim
                 };
                 if (owner.Shield > 0) a.Flags |= AvatarFlags.Shield;
                 if (d.Owner == viewer.Id) a.Flags |= AvatarFlags.MyDecoy;
+                if (owner.Squad == viewer.Squad) a.Flags |= AvatarFlags.Ally;
                 if (sim.Map.ZoneAt(d.Pos) == sim.RuinsZone) a.Flags |= AvatarFlags.Stealthed;
                 snap.Avatars.Add(a);
             }
@@ -135,7 +144,7 @@ namespace Veil.Sim
             float pr = GameConfig.VisionRadius + 6f;
             foreach (var p in sim.Projectiles)
             {
-                if (p.Owner != viewer.Id && Vec2.DistSq(p.Pos, viewer.Pos) > pr * pr) continue;
+                if (p.Owner != viewer.Id && !NearSquad(sim, viewer, p.Pos, pr)) continue;
                 snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel });
             }
 
@@ -148,7 +157,8 @@ namespace Veil.Sim
             {
                 var z = sim.Zones[i];
                 var s = snap.Zones[i];
-                s.Controller = z.Controller; s.Capturer = z.Capturer; s.Progress = z.Progress; s.Contested = z.Contested;
+                s.Controller = z.Controller; s.Capturer = z.Capturer; s.Squad = z.Squad; s.CapturerSquad = z.CapturerSquad;
+                s.Progress = z.Progress; s.Contested = z.Contested;
                 s.Occupants = z.Occupants; s.Locked = z.Locked; s.Cooldown = z.Cooldown;
             }
         }
@@ -167,28 +177,39 @@ namespace Veil.Sim
                 case EventType.PickupCollected:
                     return true;
                 case EventType.ObjectiveComplete:
+                    if (e.B == 2) return Ally(sim, viewer, e.A);   // squad objective: the whole squad
+                    return e.A == viewer.Id;
                 case EventType.AbilityPlay:
                 case EventType.Purchase:
                     return e.A == viewer.Id;
                 case EventType.Revealed:
-                    return e.A == viewer.Id || e.B == viewer.Id;
+                    return Ally(sim, viewer, e.A) || e.B == viewer.Id;
                 case EventType.DecoySpawn:
-                    if (e.B == viewer.Id) return true;
-                    if (!Near(viewer, e.Pos)) return false;
-                    e.A = -1; e.B = -1; // strangers only see a puff, not which avatar is fake
+                    if (Ally(sim, viewer, e.B)) return true;
+                    if (!NearSquad(sim, viewer, e.Pos, GameConfig.VisionRadius + 5f)) return false;
+                    e.A = -1; e.B = -1; // enemies only see a puff, not which avatar is fake
                     return true;
                 case EventType.DecoyPop:
-                    if (e.B == viewer.Id) return true;
-                    return Near(viewer, e.Pos);
+                    if (Ally(sim, viewer, e.B)) return true;
+                    return NearSquad(sim, viewer, e.Pos, GameConfig.VisionRadius + 5f);
                 default:
-                    return e.A == viewer.Id || e.B == viewer.Id || Near(viewer, e.Pos);
+                    return e.A == viewer.Id || e.B == viewer.Id || NearSquad(sim, viewer, e.Pos, GameConfig.VisionRadius + 5f);
             }
         }
 
-        private static bool Near(PlayerState v, Vec2 p)
+        private static bool Ally(MatchSim sim, PlayerState viewer, int playerId)
         {
-            float r = GameConfig.VisionRadius + 5f;
-            return Vec2.DistSq(v.Pos, p) <= r * r;
+            var p = sim.Player(playerId);
+            return p != null && p.Squad == viewer.Squad;
+        }
+
+        /// <summary>Within range of the viewer or any squadmate (shared squad awareness).</summary>
+        private static bool NearSquad(MatchSim sim, PlayerState viewer, Vec2 p, float r)
+        {
+            float r2 = r * r;
+            foreach (var m in sim.Players)
+                if (m.Squad == viewer.Squad && Vec2.DistSq(m.Pos, p) <= r2) return true;
+            return false;
         }
     }
 }

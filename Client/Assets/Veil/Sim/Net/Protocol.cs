@@ -19,6 +19,8 @@ namespace Veil.Sim
         public string Name;
         public Appearance Look;
         public string ProfileId = "";
+        /// <summary>Signed match ticket from the Gateway (empty = legacy/LAN quick join).</summary>
+        public string Ticket = "";
     }
 
     public sealed class LobbyEntry
@@ -58,10 +60,16 @@ namespace Veil.Sim
         // ---------------- Hello / Welcome / Reject ----------------
         public static void WriteHello(ByteWriter w, HelloMsg m)
         {
-            w.U8((byte)Msg.Hello); w.I32(m.Protocol); w.Str(m.Name); Look(w, m.Look); w.Str(m.ProfileId);
+            w.U8((byte)Msg.Hello); w.I32(m.Protocol); w.Str(m.Name); Look(w, m.Look); w.Str(m.ProfileId); w.Str(m.Ticket ?? "");
         }
 
-        public static HelloMsg ReadHello(ByteReader r) => new HelloMsg { Protocol = r.I32(), Name = r.Str(), Look = Look(r), ProfileId = r.Str() };
+        public static HelloMsg ReadHello(ByteReader r)
+        {
+            var m = new HelloMsg { Protocol = r.I32() };
+            if (m.Protocol != GameConfig.ProtocolVersion) return m;   // old clients: stop before fields they don't send
+            m.Name = r.Str(); m.Look = Look(r); m.ProfileId = r.Str(); m.Ticket = r.Str();
+            return m;
+        }
 
         public static void WriteWelcome(ByteWriter w, int clientId, string serverName) { w.U8((byte)Msg.Welcome); w.I32(clientId); w.Str(serverName); }
         public static void WriteReject(ByteWriter w, string reason) { w.U8((byte)Msg.Reject); w.Str(reason); }
@@ -95,14 +103,14 @@ namespace Veil.Sim
         {
             w.U8((byte)Msg.MatchStart); w.I32(m.Seed); w.I32(m.MatchSeconds); w.U8((byte)m.YourPlayerId);
             w.U8((byte)m.Roster.Count);
-            foreach (var e in m.Roster) { w.U8((byte)e.Id); w.Str(e.Name); Look(w, e.Look); w.Bool(e.IsBot); }
+            foreach (var e in m.Roster) { w.U8((byte)e.Id); w.Str(e.Name); Look(w, e.Look); w.Bool(e.IsBot); w.U8((byte)e.Squad); }
         }
 
         public static MatchStartMsg ReadMatchStart(ByteReader r)
         {
             var m = new MatchStartMsg { Seed = r.I32(), MatchSeconds = r.I32(), YourPlayerId = r.U8() };
             int n = r.U8();
-            for (int i = 0; i < n; i++) m.Roster.Add(new RosterEntry { Id = r.U8(), Name = r.Str(), Look = Look(r), IsBot = r.Bool() });
+            for (int i = 0; i < n; i++) m.Roster.Add(new RosterEntry { Id = r.U8(), Name = r.Str(), Look = Look(r), IsBot = r.Bool(), Squad = r.U8() });
             return m;
         }
 
@@ -154,7 +162,7 @@ namespace Veil.Sim
             w.U8((byte)s.AliveCount); w.U8((byte)s.PlayerCount);
 
             var p = s.Self;
-            w.U8((byte)p.Id); w.I32(p.LastSeq);
+            w.U8((byte)p.Id); w.U8((byte)p.Squad); w.I32(p.LastSeq);
             w.F32(p.Pos.X); w.F32(p.Pos.Y); w.F32(p.Vel.X); w.F32(p.Vel.Y); w.F32(p.Knock.X); w.F32(p.Knock.Y);
             w.F32(p.DashDir.X); w.F32(p.DashDir.Y); w.F32(p.H); w.F32(p.VH); w.F32(p.Yaw);
             w.Bool(p.Grounded); w.F32(p.DashT); w.F32(p.DashCd); w.F32(p.SpeedBuffT);
@@ -166,7 +174,8 @@ namespace Veil.Sim
             w.I32(p.CapturedMask); w.F32(p.TowerControlTime); w.U8((byte)p.Deaths); w.U8((byte)p.Elims);
             WriteObjective(w, p.Primary); WriteObjective(w, p.Secondary);
             var sc = p.Score;
-            w.I32(sc.Primary); w.I32(sc.Secondary); w.I32(sc.Resources); w.I32(sc.Territory); w.I32(sc.Eliminations); w.I32(sc.Survival); w.I32(sc.Bonus);
+            w.I32(sc.Primary); w.I32(sc.Secondary); w.I32(sc.Resources); w.I32(sc.Territory); w.I32(sc.Eliminations); w.I32(sc.Survival); w.I32(sc.Bonus); w.I32(sc.Squad);
+            WriteObjective(w, s.SquadObjective); w.I32(s.SquadTotal);
 
             w.U8((byte)s.Avatars.Count);
             foreach (var a in s.Avatars)
@@ -186,19 +195,19 @@ namespace Veil.Sim
             w.U8((byte)s.Zones.Length);
             foreach (var z in s.Zones)
             {
-                w.U8((byte)(z.Controller + 1)); w.U8((byte)(z.Capturer + 1)); w.Unit(z.Progress, 1f);
+                w.U8((byte)(z.Controller + 1)); w.U8((byte)(z.Capturer + 1)); w.U8((byte)(z.Squad + 1)); w.U8((byte)(z.CapturerSquad + 1)); w.Unit(z.Progress, 1f);
                 w.Bool(z.Contested); w.Bool(z.Locked); w.U8((byte)z.Occupants); w.Time(z.Cooldown);
             }
         }
 
         private static void WriteObjective(ByteWriter w, ObjectiveState o)
         {
-            w.U8((byte)o.Type); w.Bool(o.IsPrimary); w.F32(o.Progress); w.F32(o.Target); w.Bool(o.Done); w.U8((byte)(o.TargetPlayer + 1));
+            w.U8((byte)o.Type); w.Bool(o.IsPrimary); w.Bool(o.IsSquad); w.F32(o.Progress); w.F32(o.Target); w.Bool(o.Done); w.U8((byte)(o.TargetPlayer + 1));
         }
 
         private static void ReadObjective(ByteReader r, ObjectiveState o)
         {
-            o.Type = (ObjectiveType)r.U8(); o.IsPrimary = r.Bool(); o.Progress = r.F32(); o.Target = r.F32(); o.Done = r.Bool(); o.TargetPlayer = r.U8() - 1;
+            o.Type = (ObjectiveType)r.U8(); o.IsPrimary = r.Bool(); o.IsSquad = r.Bool(); o.Progress = r.F32(); o.Target = r.F32(); o.Done = r.Bool(); o.TargetPlayer = r.U8() - 1;
         }
 
         public static Snapshot ReadSnapshot(ByteReader r)
@@ -209,7 +218,7 @@ namespace Veil.Sim
                 AliveCount = r.U8(), PlayerCount = r.U8(),
             };
             var p = s.Self;
-            p.Id = r.U8(); p.LastSeq = r.I32();
+            p.Id = r.U8(); p.Squad = r.U8(); p.LastSeq = r.I32();
             p.Pos = new Vec2(r.F32(), r.F32()); p.Vel = new Vec2(r.F32(), r.F32()); p.Knock = new Vec2(r.F32(), r.F32());
             p.DashDir = new Vec2(r.F32(), r.F32()); p.H = r.F32(); p.VH = r.F32(); p.Yaw = r.F32();
             p.Grounded = r.Bool(); p.DashT = r.F32(); p.DashCd = r.F32(); p.SpeedBuffT = r.F32();
@@ -221,7 +230,8 @@ namespace Veil.Sim
             p.CapturedMask = r.I32(); p.TowerControlTime = r.F32(); p.Deaths = r.U8(); p.Elims = r.U8();
             ReadObjective(r, p.Primary); ReadObjective(r, p.Secondary);
             var sc = p.Score;
-            sc.Primary = r.I32(); sc.Secondary = r.I32(); sc.Resources = r.I32(); sc.Territory = r.I32(); sc.Eliminations = r.I32(); sc.Survival = r.I32(); sc.Bonus = r.I32();
+            sc.Primary = r.I32(); sc.Secondary = r.I32(); sc.Resources = r.I32(); sc.Territory = r.I32(); sc.Eliminations = r.I32(); sc.Survival = r.I32(); sc.Bonus = r.I32(); sc.Squad = r.I32();
+            ReadObjective(r, s.SquadObjective); s.SquadTotal = r.I32();
 
             int na = r.U8();
             for (int i = 0; i < na; i++)
@@ -240,7 +250,7 @@ namespace Veil.Sim
             {
                 s.Zones[i] = new ZoneSnap
                 {
-                    Controller = r.U8() - 1, Capturer = r.U8() - 1, Progress = r.Unit(1f), Contested = r.Bool(), Locked = r.Bool(),
+                    Controller = r.U8() - 1, Capturer = r.U8() - 1, Squad = r.U8() - 1, CapturerSquad = r.U8() - 1, Progress = r.Unit(1f), Contested = r.Bool(), Locked = r.Bool(),
                     Occupants = r.U8(), Cooldown = r.Time(),
                 };
             }
@@ -276,6 +286,7 @@ namespace Veil.Sim
                 w.U8((byte)x.PlayerId); w.Str(x.Name); w.Bool(x.IsBot); Look(w, x.Look); w.U8((byte)x.Rank); w.I32(x.Total);
                 w.I32(x.Primary); w.I32(x.Secondary); w.I32(x.Resources); w.I32(x.Territory); w.I32(x.Eliminations); w.I32(x.Survival); w.I32(x.Bonus);
                 w.U8((byte)x.Elims); w.U8((byte)x.Deaths); w.Bool(x.PrimaryDone); w.Bool(x.SecondaryDone); w.U8((byte)x.PrimaryType); w.U8((byte)x.SecondaryType);
+                w.U8((byte)x.Squad); w.U8((byte)x.SquadRank); w.I32(x.SquadTotal); w.I32(x.SquadPoints);
             }
         }
 
@@ -288,6 +299,7 @@ namespace Veil.Sim
                 var x = new PlayerResult { PlayerId = r.U8(), Name = r.Str(), IsBot = r.Bool(), Look = Look(r), Rank = r.U8(), Total = r.I32() };
                 x.Primary = r.I32(); x.Secondary = r.I32(); x.Resources = r.I32(); x.Territory = r.I32(); x.Eliminations = r.I32(); x.Survival = r.I32(); x.Bonus = r.I32();
                 x.Elims = r.U8(); x.Deaths = r.U8(); x.PrimaryDone = r.Bool(); x.SecondaryDone = r.Bool(); x.PrimaryType = (ObjectiveType)r.U8(); x.SecondaryType = (ObjectiveType)r.U8();
+                x.Squad = r.U8(); x.SquadRank = r.U8(); x.SquadTotal = r.I32(); x.SquadPoints = r.I32();
                 list.Add(x);
             }
             return list;

@@ -19,6 +19,7 @@ namespace Veil.Sim
         public readonly Dictionary<int, Pickup> Pickups = new Dictionary<int, Pickup>();
         public ZoneState[] Zones;
         public readonly List<BotBrain> Bots = new List<BotBrain>();
+        public readonly SquadState[] Squads = new SquadState[GameConfig.SquadCount];
 
         /// <summary>Events produced during the last tick.</summary>
         public readonly List<SimEvent> Events = new List<SimEvent>();
@@ -48,6 +49,7 @@ namespace Veil.Sim
             Rng = new Rng(settings.Seed);
             Zones = new ZoneState[map.Zones.Count];
             for (int i = 0; i < Zones.Length; i++) Zones[i] = new ZoneState { Id = i };
+            for (int i = 0; i < Squads.Length; i++) Squads[i] = new SquadState { Id = i };
             TowerZone = map.Zone(ZoneType.Tower).Id;
             VaultZone = map.Zone(ZoneType.Vault).Id;
             ReactorZone = map.Zone(ZoneType.Reactor).Id;
@@ -57,21 +59,44 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ setup
 
-        public PlayerState AddPlayer(string name, Appearance look, bool isBot, BotKind kind = BotKind.None)
+        /// <summary>Adds a participant. squad &lt; 0 = the emptiest squad.</summary>
+        public PlayerState AddPlayer(string name, Appearance look, bool isBot, BotKind kind = BotKind.None, int squad = -1)
         {
             if (Players.Count >= GameConfig.MaxPlayers) throw new InvalidOperationException("Match is full");
-            var p = new PlayerState { Id = Players.Count, Name = name, Look = look, IsBot = isBot, BotKind = kind };
+            if (squad < 0 || squad >= GameConfig.SquadCount || SquadMembers(squad) >= GameConfig.SquadSize) squad = EmptiestSquad();
+            var p = new PlayerState { Id = Players.Count, Name = name, Look = look, IsBot = isBot, BotKind = kind, Squad = squad };
             Players.Add(p);
             if (isBot) Bots.Add(new BotBrain(this, p, Rng.Int(int.MaxValue)));
             return p;
         }
+
+        public int SquadMembers(int squad)
+        {
+            int n = 0;
+            foreach (var p in Players) if (p.Squad == squad) n++;
+            return n;
+        }
+
+        public int EmptiestSquad()
+        {
+            int best = 0, bestN = int.MaxValue;
+            for (int s = 0; s < GameConfig.SquadCount; s++)
+            {
+                int n = SquadMembers(s);
+                if (n < bestN) { bestN = n; best = s; }
+            }
+            return best;
+        }
+
+        public static bool Allies(PlayerState a, PlayerState b) => a != null && b != null && a.Squad == b.Squad;
 
         public static readonly string[] BotNames =
         {
             "Kai", "Mira", "Juno", "Rex", "Nova", "Pixel", "Echo", "Zed", "Luna", "Bolt", "Ivy", "Orion", "Sage", "Tank", "Wisp", "Fable",
         };
 
-        /// <summary>Adds bots until the match has TotalPlayers participants. Bot kinds rotate through all five behaviours.</summary>
+        /// <summary>Adds bots until the match has TotalPlayers participants, topping up the emptiest squad first.
+        /// Bot kinds rotate through all five behaviours.</summary>
         public void FillBots()
         {
             var kinds = new[] { BotKind.Explorer, BotKind.Collector, BotKind.Hunter, BotKind.Defender, BotKind.Opportunist };
@@ -96,17 +121,35 @@ namespace Veil.Sim
             if (Started) return;
             Started = true;
 
-            // spawn points shuffled
+            // squads start together, squads far apart: greedy farthest-point pick over the spawn points
             var spawns = new List<Vec2>(Map.SpawnPoints);
             for (int i = spawns.Count - 1; i > 0; i--) { int j = Rng.Int(i + 1); (spawns[i], spawns[j]) = (spawns[j], spawns[i]); }
-            for (int i = 0; i < Players.Count; i++)
+            var anchors = new List<Vec2> { spawns[0] };
+            while (anchors.Count < GameConfig.SquadCount && anchors.Count < spawns.Count)
             {
-                var p = Players[i];
-                p.Pos = spawns[i % spawns.Count];
+                Vec2 far = spawns[0]; float farD = -1;
+                foreach (var c in spawns)
+                {
+                    float md = float.MaxValue;
+                    foreach (var a in anchors) md = MathF.Min(md, Vec2.DistSq(a, c));
+                    if (md > farD) { farD = md; far = c; }
+                }
+                anchors.Add(far);
+            }
+            var slot = new int[GameConfig.SquadCount];
+            foreach (var p in Players)
+            {
+                Vec2 anchor = anchors[p.Squad % anchors.Count];
+                int k = slot[p.Squad]++;
+                Vec2 pos = k == 0 ? anchor : anchor + Vec2.FromYaw(k * 120f + p.Squad * 40f) * 1.8f;
+                Map.ResolveCircle(ref pos, GameConfig.PlayerRadius, 0);
+                if (!Map.Nav.Walkable(pos)) pos = anchor;
+                p.Pos = pos;
                 p.Yaw = (-p.Pos).Yaw;
                 p.SpawnProtT = GameConfig.SpawnProtection;
                 AssignObjectives(p);
             }
+            foreach (var sq in Squads) AssignSquadObjective(sq);
 
             // pickups
             SpawnAtSpots(PickupType.Core, GameConfig.ActiveCores);
@@ -164,6 +207,7 @@ namespace Veil.Sim
             UpdateZones(dt);
             UpdateCollapse(dt);
             UpdateObjectives();
+            UpdateSquadTotals();
 
             if (Time >= Duration) EndMatch();
         }
@@ -241,9 +285,9 @@ namespace Veil.Sim
         private void EndMatch()
         {
             if (Ended) return;
-            // Final objective: whoever controls the Tower when time runs out.
+            // Final objective: the squad holding the Tower when time runs out (credited to its capturer).
             var tower = Zones[TowerZone];
-            if (tower.Controller >= 0)
+            if (tower.Controller >= 0 && tower.Squad >= 0 && Players[tower.Controller].Squad == tower.Squad)
             {
                 Players[tower.Controller].Score.Bonus += GameConfig.FinalTowerBonus;
                 Events.Add(new SimEvent(EventType.AbilityPlay, tower.Controller, 99, GameConfig.FinalTowerBonus, Map.Zones[TowerZone].Center));
@@ -257,12 +301,19 @@ namespace Veil.Sim
                 if (!p.Alive) p.Score.Survival = Math.Max(0, p.Score.Survival - 30);
             }
 
+            UpdateSquadTotals();
+            var order = new List<SquadState>(Squads);
+            order.Sort((a, b) => b.Total.CompareTo(a.Total));
+            for (int i = 0; i < order.Count; i++) order[i].Rank = i + 1;
+
             var list = new List<PlayerResult>();
             foreach (var p in Players)
             {
+                var sq = Squads[p.Squad];
                 list.Add(new PlayerResult
                 {
                     PlayerId = p.Id, Name = p.Name, IsBot = p.IsBot, Look = p.Look,
+                    Squad = p.Squad, SquadRank = sq.Rank, SquadTotal = sq.Total, SquadPoints = p.Score.Squad,
                     Total = p.Score.Total, Primary = p.Score.Primary, Secondary = p.Score.Secondary,
                     Resources = p.Score.Resources, Territory = p.Score.Territory, Eliminations = p.Score.Eliminations,
                     Survival = p.Score.Survival, Bonus = p.Score.Bonus, Elims = p.Elims, Deaths = p.Deaths,
@@ -270,16 +321,40 @@ namespace Veil.Sim
                     PrimaryType = p.Primary.Type, SecondaryType = p.Secondary.Type,
                 });
             }
-            list.Sort((a, b) => b.Total != a.Total ? b.Total.CompareTo(a.Total) : b.Elims.CompareTo(a.Elims));
+            // squads first (placement), then individual score inside the squad
+            list.Sort((a, b) => a.SquadRank != b.SquadRank ? a.SquadRank.CompareTo(b.SquadRank)
+                : b.Total != a.Total ? b.Total.CompareTo(a.Total) : b.Elims.CompareTo(a.Elims));
             for (int i = 0; i < list.Count; i++) list[i].Rank = i + 1;
             Results = list;
             Phase = MatchPhase.Ended;
             Events.Add(new SimEvent(EventType.MatchEnded, -1, 0, 0, Vec2.Zero));
         }
 
+        public void UpdateSquadTotals()
+        {
+            foreach (var sq in Squads) sq.Total = 0;
+            foreach (var p in Players) Squads[p.Squad].Total += p.Score.Total;
+        }
+
         /// <summary>Test helper: fast-forward the clock (used by the autotest and the server admin).</summary>
         public void DebugSkipTime(float seconds) => Time = MathF.Min(Duration - GameConfig.Dt, Time + seconds);
 
         internal int NextEntityId() => _nextEntityId++;
+
+        // ---- per-tick cache of what each squad can see of each enemy (line-of-sight checks are the hot path)
+        private readonly byte[] _squadVis = new byte[GameConfig.SquadCount * GameConfig.MaxPlayers];
+        private readonly int[] _squadVisTick = new int[GameConfig.SquadCount * GameConfig.MaxPlayers];
+
+        public byte SquadVisibility(int squad, PlayerState target)
+        {
+            int k = squad * GameConfig.MaxPlayers + target.Id;
+            int stamp = Tick + 1;   // 0 = never computed
+            if (_squadVisTick[k] != stamp)
+            {
+                _squadVisTick[k] = stamp;
+                _squadVis[k] = Visibility.ComputeSquad(this, squad, target);
+            }
+            return _squadVis[k];
+        }
     }
 }

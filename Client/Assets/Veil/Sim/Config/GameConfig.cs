@@ -6,14 +6,16 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 3;
+        public const int ProtocolVersion = 4;
 
         // ---- Simulation ----
         public const int TickRate = 30;
         public const float Dt = 1f / TickRate;
         public const int SnapshotEveryTicks = 2;           // 15 Hz snapshots on the server
         public const float MapHalf = 75f;                  // 150m x 150m arena
-        public const int MaxPlayers = 15;
+        public const int MaxPlayers = 16;
+        public const int SquadSize = 4;                    // party / squad size
+        public const int SquadCount = 4;                   // 4 squads x 4 = 16 players
 
         // ---- Movement ----
         public const float PlayerRadius = 0.45f;
@@ -110,6 +112,7 @@ namespace Veil.Sim
         public const int SurvivalMax = 150;
         public const int SurvivalPenaltyPerDeath = 30;
         public const int FinalTowerBonus = 300;
+        public const int SquadObjectivePoints = 400;      // split between the squad's members
 
         // ---- Objectives (scaled by match length) ----
         public const float TowerControlSeconds = 90f;
@@ -117,6 +120,10 @@ namespace Veil.Sim
         public const float EnergyThreshold = 70f;
         public const int ZonesToCapture = 2;
         public const int NemesisEliminations = 2;
+        public const float SquadTowerSeconds = 150f;       // squad objectives (shared progress)
+        public const int SquadCoresNeeded = 12;
+        public const int SquadZonesToCapture = 3;
+        public const int SquadVaultsNeeded = 1;
 
         // ---- Collapse ----
         public const float CircleStartRadius = 112f;

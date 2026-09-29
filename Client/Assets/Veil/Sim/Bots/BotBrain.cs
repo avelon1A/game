@@ -87,14 +87,14 @@ namespace Veil.Sim
             float now = _sim.Time;
             foreach (var o in _sim.Players)
             {
-                if (o == _p) continue;
+                if (o == _p || MatchSim.Allies(o, _p)) continue;   // squadmates are never targets
                 byte vis = Visibility.OfPlayer(_sim, _p, o);
                 if (vis == Visibility.None) continue;
                 _seen[o.Id] = new Seen { AvatarId = o.Id, Owner = o.Id, Pos = o.Pos, Vel = o.Vel, Time = now, Health = o.HealthFrac, Full = vis == Visibility.Full };
             }
             foreach (var d in _sim.Decoys)
             {
-                if (d.Owner == _p.Id) continue;
+                if (MatchSim.Allies(_sim.Players[d.Owner], _p)) continue;
                 byte vis = Visibility.OfDecoy(_sim, _p, d);
                 if (vis == Visibility.None) continue;
                 _seen[d.AvatarId] = new Seen { AvatarId = d.AvatarId, Owner = d.Owner, Pos = d.Pos, Vel = d.Vel, Time = now, Health = _sim.Players[d.Owner].HealthFrac, Full = vis == Visibility.Full };
@@ -197,6 +197,27 @@ namespace Veil.Sim
             // ---- objectives ----
             ConsiderObjective(_p.Primary, 60, Consider);
             ConsiderObjective(_p.Secondary, 38, Consider);
+            ConsiderObjective(_sim.Squads[_p.Squad].Objective, 44, Consider);
+
+            // ---- squad: regroup when drifting far from the nearest living squadmate; back up a mate in a fight ----
+            {
+                PlayerState mate = null; float md = float.MaxValue;
+                foreach (var o in _sim.Players)
+                {
+                    if (o == _p || !o.Alive || !MatchSim.Allies(o, _p)) continue;
+                    float d = Vec2.Dist(o.Pos, _p.Pos);
+                    if (d < md) { md = d; mate = o; }
+                }
+                if (mate != null)
+                {
+                    if (md > 28f) Consider(Goal.Wander, 30 + (md - 28f) * 0.6f, mate.Pos);
+                    if (mate.SinceDamage < 2f && mate.LastAttacker >= 0 && md < 40f)
+                    {
+                        var att = _sim.Players[mate.LastAttacker];
+                        if (att.Alive && !MatchSim.Allies(att, _p)) Consider(Goal.Chase, 52 - md * 0.4f, att.Pos, att.Id);
+                    }
+                }
+            }
 
             // ---- energy management ----
             if (_p.Energy < 30)
@@ -221,7 +242,7 @@ namespace Veil.Sim
                     if (!def.Capturable) continue;
                     var z = _sim.Zones[i];
                     float s = (Kind == BotKind.Defender ? 45 : 32) - Vec2.Dist(def.Center, _p.Pos) * 0.25f;
-                    if (z.Controller == _p.Id) s += Kind == BotKind.Defender ? 18 : -20;
+                    if (z.Squad == _p.Squad) s += Kind == BotKind.Defender ? 18 : -20;
                     Consider(Goal.HoldZone, s, def.Center, -1, i);
                 }
             }
@@ -250,7 +271,7 @@ namespace Veil.Sim
                 {
                     var tz = _sim.Map.Zones[_sim.TowerZone];
                     float s = weight - Vec2.Dist(tz.Center, _p.Pos) * 0.15f;
-                    if (_sim.Zones[_sim.TowerZone].Controller == _p.Id) s += 5;
+                    if (_sim.Zones[_sim.TowerZone].Squad == _p.Squad) s += 5;
                     consider(Goal.HoldZone, s, tz.Center, -1, tz.Id);
                     break;
                 }

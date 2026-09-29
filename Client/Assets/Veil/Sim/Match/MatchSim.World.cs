@@ -136,7 +136,7 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ zones
 
-        private readonly int[] _occupant = new int[8];
+        private readonly int[] _squadCount = new int[GameConfig.SquadCount];
 
         private void UpdateZones(float dt)
         {
@@ -148,45 +148,50 @@ namespace Veil.Sim
             {
                 var z = Zones[zi];
                 var def = Map.Zones[zi];
-                int count = 0, single = -1;
+                int count = 0, single = -1, squads = 0, squad = -1;
+                Array.Clear(_squadCount, 0, _squadCount.Length);
                 foreach (var p in Players)
                 {
                     if (!p.Alive || p.ZoneId != zi) continue;
                     count++;
-                    single = p.Id;
+                    if (_squadCount[p.Squad]++ == 0) { squads++; squad = p.Squad; single = p.Id; }
                 }
                 z.Occupants = count;
-                z.Contested = count > 1;
+                z.Contested = squads > 1;
 
                 if (def.Type == ZoneType.Vault) { UpdateVault(z, dt); continue; }
 
-                // ---- capture ----
-                if (count == 1)
+                // ---- capture: one squad alone in the zone captures it (more members = faster) ----
+                if (squads == 1)
                 {
-                    if (z.Controller != single)
+                    if (z.Squad != squad)
                     {
-                        if (z.Capturer != single) { z.Capturer = single; z.Progress = 0; }
-                        z.Progress += dt / GameConfig.CaptureTime;
+                        if (z.CapturerSquad != squad) { z.CapturerSquad = squad; z.Capturer = single; z.Progress = 0; }
+                        float speed = 1f + 0.25f * (_squadCount[squad] - 1);
+                        z.Progress += speed * dt / GameConfig.CaptureTime;
                         if (z.Progress >= 1f)
                         {
                             int prev = z.Controller;
-                            z.Controller = single;
+                            z.Controller = z.Capturer >= 0 && Players[z.Capturer].Squad == squad ? z.Capturer : single;
+                            z.Squad = squad;
                             z.Progress = 0;
                             z.Capturer = -1;
-                            Players[single].CapturedMask |= 1 << zi;
-                            Events.Add(new SimEvent(EventType.ZoneCaptured, single, zi, prev, def.Center));
+                            z.CapturerSquad = -1;
+                            Squads[squad].CapturedMask |= 1 << zi;
+                            foreach (var p in Players) if (p.Squad == squad) p.CapturedMask |= 1 << zi;
+                            Events.Add(new SimEvent(EventType.ZoneCaptured, z.Controller, zi, prev, def.Center));
                         }
                     }
                     else z.Progress = MathF.Max(0, z.Progress - dt / GameConfig.CaptureTime);
                 }
-                else if (count == 0)
+                else if (squads == 0)
                 {
                     z.Progress = MathF.Max(0, z.Progress - dt * 0.5f / GameConfig.CaptureTime);
-                    if (z.Progress <= 0) z.Capturer = -1;
+                    if (z.Progress <= 0) { z.Capturer = -1; z.CapturerSquad = -1; }
                 }
 
-                // ---- control rewards ----
-                if (z.Controller >= 0)
+                // ---- control rewards (territory to the capturer; Tower time/sight to the whole squad) ----
+                if (z.Controller >= 0 && z.Squad >= 0)
                 {
                     var c = Players[z.Controller];
                     float rate = def.Type == ZoneType.Tower
@@ -199,14 +204,17 @@ namespace Veil.Sim
                         c.Score.Territory += whole;
                         c.Score.TerritoryAccum -= whole;
                     }
-                    if (def.Type == ZoneType.Tower && c.Alive)
+                    if (def.Type == ZoneType.Tower)
                     {
-                        c.TowerControlTime += dt;
+                        Squads[z.Squad].TowerTime += dt;
+                        bool ping = false;
                         c.TowerPingTimer += dt;
-                        if (c.TowerPingTimer >= GameConfig.TowerRevealInterval)
+                        if (c.TowerPingTimer >= GameConfig.TowerRevealInterval) { c.TowerPingTimer = 0; ping = true; }
+                        foreach (var m in Players)
                         {
-                            c.TowerPingTimer = 0;
-                            c.TowerSightT = GameConfig.TowerRevealDuration;
+                            if (m.Squad != z.Squad || !m.Alive) continue;
+                            m.TowerControlTime += dt;
+                            if (ping) m.TowerSightT = GameConfig.TowerRevealDuration;
                         }
                     }
                 }
@@ -217,7 +225,7 @@ namespace Veil.Sim
                     foreach (var p in Players)
                     {
                         if (!p.Alive || p.ZoneId != zi) continue;
-                        float rate = GameConfig.ReactorEnergyPerSec + (z.Controller == p.Id ? GameConfig.ReactorControllerBonus : 0);
+                        float rate = GameConfig.ReactorEnergyPerSec + (z.Squad == p.Squad ? GameConfig.ReactorControllerBonus : 0);
                         p.Energy = MathF.Min(GameConfig.MaxEnergy, p.Energy + rate * dt);
                         p.PublicPingT = 0.35f;
                     }
@@ -284,10 +292,33 @@ namespace Veil.Sim
                 case ObjectiveType.HighEnergy: o.Target = GameConfig.EnergyThreshold; break;
                 case ObjectiveType.Nemesis:
                     o.Target = Math.Max(1, (int)MathF.Round(GameConfig.NemesisEliminations * s));
-                    int target;
-                    do target = Rng.Int(Players.Count); while (target == p.Id && Players.Count > 1);
+                    int target = -1;
+                    for (int tries = 0; tries < 64; tries++)
+                    {
+                        int t2 = Rng.Int(Players.Count);
+                        if (!Allies(Players[t2], p)) { target = t2; break; }   // nemesis is always an enemy
+                    }
+                    if (target < 0) { o.Type = ObjectiveType.HighEnergy; o.Target = GameConfig.EnergyThreshold; }
                     o.TargetPlayer = target;
                     break;
+            }
+        }
+
+        private static readonly ObjectiveType[] SquadPool =
+            { ObjectiveType.TowerControl, ObjectiveType.CollectCores, ObjectiveType.VaultRaid, ObjectiveType.CaptureTwo };
+
+        private void AssignSquadObjective(SquadState sq)
+        {
+            float s = Settings.ObjectiveScale;
+            var o = sq.Objective;
+            o.Type = SquadPool[Rng.Int(SquadPool.Length)];
+            o.IsPrimary = false; o.IsSquad = true; o.Progress = 0; o.Done = false; o.TargetPlayer = -1;
+            switch (o.Type)
+            {
+                case ObjectiveType.TowerControl: o.Target = MathF.Round(GameConfig.SquadTowerSeconds * s); break;
+                case ObjectiveType.CollectCores: o.Target = Math.Max(4, (int)MathF.Round(GameConfig.SquadCoresNeeded * s)); break;
+                case ObjectiveType.VaultRaid: o.Target = GameConfig.SquadVaultsNeeded; break;
+                default: o.Target = GameConfig.SquadZonesToCapture; break;
             }
         }
 
@@ -298,6 +329,36 @@ namespace Veil.Sim
                 UpdateObjective(p, p.Primary);
                 UpdateObjective(p, p.Secondary);
             }
+            foreach (var sq in Squads) UpdateSquadObjective(sq);
+        }
+
+        private void UpdateSquadObjective(SquadState sq)
+        {
+            var o = sq.Objective;
+            if (o.Done) return;
+            float v = 0;
+            switch (o.Type)
+            {
+                case ObjectiveType.TowerControl: v = sq.TowerTime; break;
+                case ObjectiveType.CollectCores: foreach (var p in Players) if (p.Squad == sq.Id) v += p.CoresCollected; break;
+                case ObjectiveType.VaultRaid: foreach (var p in Players) if (p.Squad == sq.Id) v += VaultsOpened[p.Id]; break;
+                case ObjectiveType.CaptureTwo: v = PopCount(sq.CapturedMask); break;
+            }
+            o.Progress = v;
+            if (v < o.Target) return;
+            o.Done = true;
+            o.Progress = o.Target;
+            int members = Math.Max(1, SquadMembers(sq.Id));
+            int share = GameConfig.SquadObjectivePoints / members;
+            int first = -1;
+            foreach (var p in Players)
+            {
+                if (p.Squad != sq.Id) continue;
+                p.Score.Squad += share;
+                if (first < 0) first = p.Id;
+            }
+            // B = 2 marks a squad objective; A = any member so the filter can route it to the squad
+            if (first >= 0) Events.Add(new SimEvent(EventType.ObjectiveComplete, first, 2, (int)o.Type, Players[first].Pos));
         }
 
         private void UpdateObjective(PlayerState p, ObjectiveState o)

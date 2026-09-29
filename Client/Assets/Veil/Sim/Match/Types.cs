@@ -72,15 +72,15 @@ namespace Veil.Sim
 
     public sealed class ScoreBreakdown
     {
-        public int Primary, Secondary, Resources, Territory, Eliminations, Survival, Bonus;
+        public int Primary, Secondary, Resources, Territory, Eliminations, Survival, Bonus, Squad;
         public float TerritoryAccum;
 
-        public int Total => Primary + Secondary + Resources + Territory + Eliminations + Survival + Bonus;
+        public int Total => Primary + Secondary + Resources + Territory + Eliminations + Survival + Bonus + Squad;
 
         public void CopyFrom(ScoreBreakdown o)
         {
             Primary = o.Primary; Secondary = o.Secondary; Resources = o.Resources; Territory = o.Territory;
-            Eliminations = o.Eliminations; Survival = o.Survival; Bonus = o.Bonus; TerritoryAccum = o.TerritoryAccum;
+            Eliminations = o.Eliminations; Survival = o.Survival; Bonus = o.Bonus; Squad = o.Squad; TerritoryAccum = o.TerritoryAccum;
         }
     }
 
@@ -88,6 +88,7 @@ namespace Veil.Sim
     {
         public ObjectiveType Type;
         public bool IsPrimary;
+        public bool IsSquad;
         public float Progress;
         public float Target;
         public bool Done;
@@ -97,7 +98,7 @@ namespace Veil.Sim
 
         public void CopyFrom(ObjectiveState o)
         {
-            Type = o.Type; IsPrimary = o.IsPrimary; Progress = o.Progress; Target = o.Target; Done = o.Done; TargetPlayer = o.TargetPlayer;
+            Type = o.Type; IsPrimary = o.IsPrimary; IsSquad = o.IsSquad; Progress = o.Progress; Target = o.Target; Done = o.Done; TargetPlayer = o.TargetPlayer;
         }
 
         public static string Title(ObjectiveType t)
@@ -115,6 +116,16 @@ namespace Veil.Sim
 
         public string Describe(Func<int, string> nameOf)
         {
+            if (IsSquad)
+            {
+                switch (Type)
+                {
+                    case ObjectiveType.TowerControl: return $"Squad: hold the Tower for {Target:0} seconds";
+                    case ObjectiveType.CollectCores: return $"Squad: gather {Target:0} energy cores together";
+                    case ObjectiveType.VaultRaid: return "Squad: unlock the Vault";
+                    case ObjectiveType.CaptureTwo: return $"Squad: capture {Target:0} different locations";
+                }
+            }
             switch (Type)
             {
                 case ObjectiveType.TowerControl: return $"Hold the Tower for {Target:0} seconds";
@@ -136,6 +147,7 @@ namespace Veil.Sim
         public BotKind BotKind;
         public Appearance Look;
         public bool Connected = true;
+        public int Squad;
 
         // kinematics (predicted on the client — see Movement)
         public Vec2 Pos, Vel, Knock, DashDir;
@@ -226,8 +238,10 @@ namespace Veil.Sim
     public sealed class ZoneState
     {
         public int Id;
-        public int Controller = -1;
+        public int Controller = -1;     // player credited with the capture
         public int Capturer = -1;
+        public int Squad = -1;          // controlling squad
+        public int CapturerSquad = -1;
         public float Progress;
         public bool Contested;
         public int Occupants;
@@ -254,11 +268,23 @@ namespace Veil.Sim
         public SimEvent(EventType t, int a, int b, int v, Vec2 pos) { Type = t; A = a; B = b; Value = v; Pos = pos; }
     }
 
+    /// <summary>Shared squad progress. Only the squad itself can see its objective.</summary>
+    public sealed class SquadState
+    {
+        public int Id;
+        public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
+        public float TowerTime;
+        public int CapturedMask;
+        public int Total;       // sum of members' scores (updated at match end / snapshots)
+        public int Rank;
+    }
+
     public sealed class PlayerResult
     {
         public int PlayerId;
         public string Name;
         public bool IsBot;
+        public int Squad, SquadRank, SquadTotal, SquadPoints;
         public Appearance Look;
         public int Rank;
         public int Total;

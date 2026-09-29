@@ -9,23 +9,43 @@ namespace Veil.Sim
     {
         public const byte None = 0, Ping = 1, Full = 2;
 
+        /// <summary>Squadmates always see each other; enemies are seen through the eyes of the whole squad.</summary>
         public static byte OfPlayer(MatchSim sim, PlayerState viewer, PlayerState target)
         {
             if (target == viewer) return Full;
             if (!target.Alive) return None;
-            if (target.RevealedTo[viewer.Id] > 0) return Full;
-            if (SeesPoint(sim, viewer, target.Pos, target.ZoneId)) return Full;
-            if (viewer.TowerSightT > 0 || target.PublicPingT > 0) return Ping;
-            if (target.NoiseT > 0 && Vec2.DistSq(viewer.Pos, target.Pos) <= GameConfig.FireNoiseRadius * GameConfig.FireNoiseRadius) return Ping;
-            return None;
+            if (target.Squad == viewer.Squad) return Full;
+            return sim.SquadVisibility(viewer.Squad, target);
+        }
+
+        /// <summary>Uncached squad view of an enemy (MatchSim caches this per tick).</summary>
+        internal static byte ComputeSquad(MatchSim sim, int squad, PlayerState target)
+        {
+            byte best = None;
+            foreach (var m in sim.Players)
+            {
+                if (m.Squad != squad) continue;
+                if (target.RevealedTo[m.Id] > 0) return Full;
+                if (SeesPoint(sim, m, target.Pos, target.ZoneId)) return Full;
+                if (m.TowerSightT > 0 || target.PublicPingT > 0) best = Ping;
+                else if (target.NoiseT > 0 && Vec2.DistSq(m.Pos, target.Pos) <= GameConfig.FireNoiseRadius * GameConfig.FireNoiseRadius) best = Ping;
+            }
+            return best;
         }
 
         public static byte OfDecoy(MatchSim sim, PlayerState viewer, Decoy d)
         {
-            if (d.Owner == viewer.Id) return Full;
-            if (SeesPoint(sim, viewer, d.Pos, sim.Map.ZoneAt(d.Pos))) return Full;
-            if (viewer.TowerSightT > 0) return Ping;
-            return None;
+            var owner = sim.Players[d.Owner];
+            if (owner.Squad == viewer.Squad) return Full;
+            byte best = None;
+            int zone = sim.Map.ZoneAt(d.Pos);
+            foreach (var m in sim.Players)
+            {
+                if (m.Squad != viewer.Squad) continue;
+                if (SeesPoint(sim, m, d.Pos, zone)) return Full;
+                if (m.TowerSightT > 0) best = Ping;
+            }
+            return best;
         }
 
         public static bool SeesPoint(MatchSim sim, PlayerState viewer, Vec2 pos, int targetZone)

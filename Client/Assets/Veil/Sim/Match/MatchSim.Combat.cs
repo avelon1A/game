@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Veil.Sim
 {
@@ -38,14 +39,14 @@ namespace Veil.Sim
                 float r2 = GameConfig.PulseRadius * GameConfig.PulseRadius;
                 foreach (var o in Players)
                 {
-                    if (o == p || !o.Alive || Vec2.DistSq(o.Pos, p.Pos) > r2) continue;
+                    if (o == p || Allies(o, p) || !o.Alive || Vec2.DistSq(o.Pos, p.Pos) > r2) continue;
                     o.RevealedTo[p.Id] = GameConfig.PulseRevealTime;
                     revealed++;
                     Events.Add(new SimEvent(EventType.Revealed, p.Id, o.Id, 0, o.Pos));
                 }
                 foreach (var d in Decoys)
                 {
-                    if (d.Dead || d.Owner == p.Id || Vec2.DistSq(d.Pos, p.Pos) > r2) continue;
+                    if (d.Dead || Allies(Players[d.Owner], p) || Vec2.DistSq(d.Pos, p.Pos) > r2) continue;
                     PopDecoy(d);
                 }
                 if (revealed > 0) AbilityPlay(p, 1);
@@ -79,7 +80,7 @@ namespace Veil.Sim
         public float MarketPrice(PlayerState p, int item)
         {
             float baseCost = item == 1 ? GameConfig.MarketSpeedCost : item == 2 ? GameConfig.MarketShieldCost : GameConfig.MarketKeyCost;
-            return Zones[MarketZone].Controller == p.Id ? baseCost * GameConfig.MarketDiscount : baseCost;
+            return Zones[MarketZone].Squad == p.Squad ? baseCost * GameConfig.MarketDiscount : baseCost;
         }
 
         private void TryBuy(PlayerState p, int item)
@@ -125,9 +126,10 @@ namespace Veil.Sim
                         Events.Add(new SimEvent(EventType.Hit, pr.Owner, -1, 0, pr.Pos));
                         break;
                     }
+                    var shooter = Players[pr.Owner];
                     foreach (var p in Players)
                     {
-                        if (p.Id == pr.Owner || !p.Alive) continue;
+                        if (p.Id == pr.Owner || Allies(p, shooter) || !p.Alive) continue;   // no friendly fire
                         if (Vec2.DistSq(p.Pos, pr.Pos) > hitR2) continue;
                         Damage(p, pr.Owner, GameConfig.ProjectileDamage, pr.Vel.Normalized);
                         pr.Dead = true;
@@ -136,7 +138,7 @@ namespace Veil.Sim
                     if (pr.Dead) break;
                     foreach (var d in Decoys)
                     {
-                        if (d.Dead || d.Owner == pr.Owner) continue;
+                        if (d.Dead || Allies(Players[d.Owner], shooter)) continue;
                         if (Vec2.DistSq(d.Pos, pr.Pos) > hitR2) continue;
                         pr.Dead = true;
                         PopDecoy(d);
@@ -248,7 +250,7 @@ namespace Veil.Sim
         {
             p.RespawnT -= dt;
             if (p.RespawnT > 0) return;
-            p.Pos = PickRespawnPoint();
+            p.Pos = PickRespawnPoint(p);
             p.Yaw = (-p.Pos).Yaw;
             p.Health = GameConfig.MaxHealth;
             p.Alive = true;
@@ -259,19 +261,30 @@ namespace Veil.Sim
             Events.Add(new SimEvent(EventType.Respawned, p.Id, 0, 0, p.Pos));
         }
 
-        private Vec2 PickRespawnPoint()
+        /// <summary>Far from enemies, preferably close to a living squadmate (squads regroup after a death).</summary>
+        private Vec2 PickRespawnPoint(PlayerState who)
         {
             Vec2 best = Vec2.Zero;
             float bestScore = float.MinValue;
             float limit = CircleRadius * 0.85f;
-            for (int i = 0; i < 24; i++)
+            var mates = new List<Vec2>();
+            foreach (var o in Players) if (o != who && o.Alive && Allies(o, who)) mates.Add(o.Pos);
+            for (int i = 0; i < 24 + mates.Count * 3; i++)
             {
-                Vec2 c = i < Map.SpawnPoints.Count ? Map.SpawnPoints[i] : Map.Nav.RandomWalkable(Rng);
+                Vec2 c;
+                if (i >= 24) c = mates[(i - 24) / 3] + Vec2.FromYaw(Rng.Range(0, 360)) * Rng.Range(3f, 7f);
+                else c = i < Map.SpawnPoints.Count ? Map.SpawnPoints[i] : Map.Nav.RandomWalkable(Rng);
                 if (c.Length > limit) c = Map.Nav.RandomWalkable(Rng).Normalized * Rng.Range(0, limit);
                 if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
-                float minD = 999;
-                foreach (var o in Players) if (o.Alive) minD = MathF.Min(minD, Vec2.Dist(o.Pos, c));
-                float score = minD + Rng.Range(0, 6);
+                float enemy = 999, mate = 999;
+                foreach (var o in Players)
+                {
+                    if (!o.Alive || o == who) continue;
+                    float d = Vec2.Dist(o.Pos, c);
+                    if (Allies(o, who)) mate = MathF.Min(mate, d); else enemy = MathF.Min(enemy, d);
+                }
+                float score = MathF.Min(enemy, 45f) - (mate < 999 ? mate * 0.25f : 0) + Rng.Range(0, 6);
+                if (enemy < 18f) score -= 60f;
                 if (score > bestScore) { bestScore = score; best = c; }
             }
             return best;
