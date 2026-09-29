@@ -72,15 +72,17 @@ namespace Veil.UI
     {
         public int Tab { get; private set; }
         private readonly RectTransform[] _tabs = new RectTransform[4];
-        private readonly Text[] _tabLabels = new Text[4];
+        private readonly Text[] _tabLabels = new Text[5];   // PLAY, CHARACTERS, LEADERBOARD, FRIENDS, SETTINGS
+        private readonly float[] _tabX = new float[5];
+        private readonly float[] _tabW = new float[5];
         private readonly Image _tabUnderline;
-        private Text _profileChip;
+        private Text _profileName, _profileStatus, _profileLevel, _friendsBadge;
+        private RawImage _profileFace;
+        private Image _friendsBadgeBg;
 
         // play tab
         public SquadPanel Squad { get; private set; }
         public FriendsDrawer Friends { get; private set; }
-        private RectTransform _howTo;
-        private Text _friendsLabel;
 
         // characters tab
         private InputField _nameField;
@@ -91,33 +93,61 @@ namespace Veil.UI
         public MenuScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Menu")
         {
             // top bar
-            var bar = UIKit.Rect(Root, "TopBar", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(0, 92));
-            UIKit.Image(bar, UIKit.Square, new Color(0.05f, 0.05f, 0.14f, 0.88f));
-            var edge = UIKit.Rect(bar, "Edge", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, new Vector2(0, 3));
-            UIKit.Image(edge, UIKit.Square, new Color(0.55f, 0.35f, 1f, 0.8f));
-            var logo = Logo(bar, new Vector2(0, 0.5f), new Vector2(36, 0), 70);
+            var bar = UIKit.Rect(Root, "TopBar", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(0, 88));
+            UIKit.Image(bar, UIKit.Square, new Color(0.04f, 0.04f, 0.12f, 0.9f));
+            var edge = UIKit.Rect(bar, "Edge", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, new Vector2(0, 2));
+            UIKit.Image(edge, UIKit.Square, new Color(0.55f, 0.35f, 1f, 0.6f));
+            var logo = Logo(bar, new Vector2(0, 0.5f), new Vector2(34, 0), 66);
             logo.rectTransform.pivot = new Vector2(0, 0.5f);
 
-            string[] names = { "PLAY", "CHARACTERS", "LEADERBOARD", "SETTINGS" };
+            string[] names = { "PLAY", "CHARACTERS", "LEADERBOARD", "FRIENDS", "SETTINGS" };
+            float[] widths = { 120, 200, 210, 150, 160 };
+            float x = 250;
             for (int i = 0; i < names.Length; i++)
             {
                 int idx = i;
-                var b = UIKit.Button(bar, names[i], new Vector2(0, 0.5f), new Vector2(300 + i * 210, 0), new Vector2(200, 60), UIKit.ButtonStyle.Tab, () => SelectTab(idx), 22);
+                _tabX[i] = x; _tabW[i] = widths[i];
+                var b = UIKit.Button(bar, names[i], new Vector2(0, 0.5f), new Vector2(x, 0), new Vector2(widths[i], 60), UIKit.ButtonStyle.Tab, () => OnTabButton(idx), 22);
                 ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
                 _tabLabels[i] = UIKit.ButtonLabel(b);
+                x += widths[i] + 8;
             }
-            var ul = UIKit.At(bar, "Underline", new Vector2(0, 0), new Vector2(300, 8), new Vector2(200, 5));
+            var ul = UIKit.At(bar, "Underline", new Vector2(0, 0), new Vector2(250, 6), new Vector2(120, 5));
             ul.pivot = new Vector2(0, 0);
             _tabUnderline = UIKit.Image(ul, UIKit.Pill, Theme.Yellow);
 
-            var chipRt = UIKit.At(bar, "Profile", new Vector2(1, 0.5f), new Vector2(-170, 0), new Vector2(330, 56));
-            chipRt.pivot = new Vector2(1, 0.5f);
-            UIKit.Image(chipRt, UIKit.Pill, new Color(1, 1, 1, 0.08f));
-            _profileChip = UIKit.Label(chipRt, "", 20, Theme.Text, TextAnchor.MiddleCenter, UIKit.BoldFont);
-            _profileChip.supportRichText = true;
-            var quit = UIKit.Button(bar, "QUIT", new Vector2(1, 0.5f), new Vector2(-24, 0), new Vector2(130, 52), UIKit.ButtonStyle.Ghost, () => Application.Quit(), 20);
-            ((RectTransform)quit.transform).pivot = new Vector2(1, 0.5f);
-            if (Veil.Match.Platform.IsMobile && Application.platform == RuntimePlatform.IPhonePlayer) quit.gameObject.SetActive(false);
+            // profile card (portrait, name, online status, level)
+            var card = UIKit.At(bar, "Profile", new Vector2(1, 0.5f), new Vector2(-20, 0), new Vector2(300, 70));
+            card.pivot = new Vector2(1, 0.5f);
+            UIKit.Image(card, UIKit.RoundedSmall, new Color(1, 1, 1, 0.07f));
+            var faceRt = UIKit.At(card, "Face", new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(56, 56));
+            faceRt.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(faceRt, UIKit.RoundedSmall, new Color(0.14f, 0.13f, 0.3f));
+            var fi = UIKit.Fill(faceRt, "Img", 3);
+            _profileFace = fi.gameObject.AddComponent<RawImage>();
+            _profileFace.raycastTarget = false;
+            _profileName = UIKit.LabelAt(card, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(74, -8), new Vector2(150, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _profileName.rectTransform.pivot = new Vector2(0, 1);
+            _profileStatus = UIKit.LabelAt(card, "", 15, Theme.Green, new Vector2(0, 0), new Vector2(74, 8), new Vector2(150, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _profileStatus.rectTransform.pivot = new Vector2(0, 0);
+            _profileStatus.supportRichText = true;
+            var lvRt = UIKit.At(card, "Lv", new Vector2(1, 0.5f), new Vector2(-10, -10), new Vector2(64, 28));
+            lvRt.pivot = new Vector2(1, 0.5f);
+            UIKit.Image(lvRt, UIKit.Pill, new Color(0, 0, 0, 0.45f));
+            _profileLevel = UIKit.Label(lvRt, "", 15, Theme.Text, TextAnchor.MiddleCenter, UIKit.BoldFont);
+
+            // friends icon (with a badge for requests + invites)
+            var fRt = UIKit.At(bar, "FriendsIcon", new Vector2(1, 0.5f), new Vector2(-336, 0), new Vector2(60, 60));
+            fRt.pivot = new Vector2(1, 0.5f);
+            var fbg = UIKit.Image(fRt, UIKit.Circle, new Color(1, 1, 1, 0.07f), true);
+            var fbtn = fRt.gameObject.AddComponent<Button>(); fbtn.targetGraphic = fbg;
+            fbtn.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); OnTabButton(3); });
+            var fic = UIKit.At(fRt, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
+            UIKit.Image(fic, Icons.Players, Theme.Text);
+            var badge = UIKit.At(fRt, "Badge", new Vector2(1, 1), new Vector2(2, 2), new Vector2(26, 26));
+            badge.pivot = new Vector2(1, 1);
+            _friendsBadgeBg = UIKit.Image(badge, UIKit.Circle, Theme.Red);
+            _friendsBadge = UIKit.Label(badge, "", 14, Color.white, TextAnchor.MiddleCenter, UIKit.BoldFont);
 
             for (int i = 0; i < 4; i++) _tabs[i] = UIKit.Fill(Root, "Tab" + i);
             BuildPlay(_tabs[0]);
@@ -126,13 +156,8 @@ namespace Veil.UI
             BuildSettings(_tabs[3]);
             ((RectTransform)bar.transform).SetAsLastSibling();
 
-            // friends button (with a badge for requests + invites)
-            var fb = UIKit.Button(bar, "FRIENDS", new Vector2(1, 0.5f), new Vector2(-514, 0), new Vector2(170, 52), UIKit.ButtonStyle.Ghost, () => { SelectTab(0); Friends.Toggle(); }, 18);
-            ((RectTransform)fb.transform).pivot = new Vector2(1, 0.5f);
-            _friendsLabel = UIKit.ButtonLabel(fb);
-            _friendsLabel.supportRichText = true;
             Friends = new FriendsDrawer(_tabs[0], app);
-            Squad.OpenFriends = () => Friends.Show(true);
+            Squad.OpenFriends = () => { Friends.Show(true); Underline(3); };
             App.Gateway.Changed += RefreshFriendsBadge;
             App.Gateway.Changed += RefreshProfileChip;
         }
@@ -148,63 +173,54 @@ namespace Veil.UI
             }
         }
 
+        private void OnTabButton(int button)
+        {
+            if (button == 3) { SelectTab(0); Friends.Show(!Friends.Visible || Tab != 0); Underline(Friends.Visible ? 3 : 0); return; }
+            SelectTab(button == 4 ? 3 : button);
+        }
+
+        private void Underline(int button)
+        {
+            for (int k = 0; k < _tabLabels.Length; k++) _tabLabels[k].color = k == button ? Color.white : Theme.TextDim;
+            _tabUnderline.rectTransform.anchoredPosition = new Vector2(_tabX[button], 6);
+            _tabUnderline.rectTransform.sizeDelta = new Vector2(_tabW[button], 5);
+        }
+
         public void SelectTab(int i)
         {
             Tab = i;
-            for (int k = 0; k < 4; k++)
-            {
-                _tabs[k].gameObject.SetActive(k == i);
-                _tabLabels[k].color = k == i ? Color.white : Theme.TextDim;
-            }
-            _tabUnderline.rectTransform.anchoredPosition = new Vector2(300 + i * 210, 8);
+            for (int k = 0; k < 4; k++) _tabs[k].gameObject.SetActive(k == i);
+            if (i != 0 && Friends != null) Friends.Show(false);
+            Underline(i == 3 ? 4 : i);
             if (i == 2) FetchLeaderboard();
+            // the stage shows your squad on PLAY, the character lineup elsewhere
+            if (i == 0) Squad?.ForceStage(); else App.Stage.LobbyPose(App.Profile.Look);
         }
 
         private void RefreshProfileChip()
         {
+            if (_profileName == null) return;
             var op = App.OnlineProfile;
             var g = App.Gateway;
-            string status = g.Online ? "<color=#7dff9a>●</color>" : "<color=#8a90b8>○</color>";
-            _profileChip.text = op != null
-                ? $"{status} {App.Profile.Name}  <color=#c7a6ff>LV {op.level}</color>  <color=#ffd84a>★ {op.rating}</color>"
-                : $"{status} {App.Profile.Name}  <color=#8a90b8>offline</color>";
+            _profileFace.texture = PortraitStudio.Get(App.Profile.Look);
+            _profileName.text = App.Profile.Name;
+            _profileStatus.text = g.Online ? "<color=#7dff9a>●</color> Online" : "<color=#8a90b8>● Offline</color>";
+            _profileLevel.text = op != null ? $"Lv. {op.level}" : "Lv. 1";
         }
 
         private void RefreshFriendsBadge()
         {
-            if (_friendsLabel == null) return;
+            if (_friendsBadge == null) return;
             var g = App.Gateway;
             int n = g.Friends.incoming.Count + g.Invites.Count;
-            int online = 0;
-            foreach (var f in g.Friends.friends) if (f.status > 0) online++;
-            _friendsLabel.text = n > 0 ? $"FRIENDS <color=#ff6b7a>●{n}</color>" : online > 0 ? $"FRIENDS <color=#7dff9a>{online}</color>" : "FRIENDS";
+            _friendsBadge.text = n > 9 ? "9+" : n.ToString();
+            _friendsBadgeBg.gameObject.SetActive(n > 0);
         }
 
         // ------------------------------------------------------------------ PLAY tab
 
         private void BuildPlay(RectTransform tab)
         {
-            // left: pitch + controls
-            var info = UIKit.Panel(tab, "Info", new Vector2(0, 0), new Vector2(40, 40), new Vector2(560, 360));
-            info.rectTransform.pivot = new Vector2(0, 0);
-            _howTo = info.rectTransform;
-            var h = UIKit.LabelAt(info.transform, "HOW TO PLAY", 26, Theme.Yellow, new Vector2(0, 1), new Vector2(26, -24), new Vector2(500, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
-            h.rectTransform.pivot = new Vector2(0, 1);
-            var body = UIKit.LabelAt(info.transform,
-                "Squads of <color=#ffd84a>4</color>, four squads per match. Each of you has a <color=#c7a6ff>secret objective</color>, " +
-                "your squad shares one more — and your vision. Outthink the other squads.\n\n" +
-                (Veil.Match.Platform.IsMobile
-                    ? "<color=#ffd84a>Left thumb</color> move (push fully to sprint)\n<color=#ffd84a>Right side</color> drag to look   <color=#ffd84a>FIRE</color> hold to blast\n<color=#ffd84a>DASH  PULSE  DECOY</color> abilities   <color=#ffd84a>TALK</color> hold for squad voice"
-                    : "<color=#ffd84a>WASD</color> move   <color=#ffd84a>Mouse</color> aim   <color=#ffd84a>LMB</color> blast   <color=#ffd84a>Space</color> jump\n" +
-                      "<color=#ffd84a>Shift</color> sprint   <color=#ffd84a>Q</color> Dash   <color=#ffd84a>E</color> Pulse   <color=#ffd84a>R</color> Decoy\n" +
-                      "<color=#ffd84a>1/2/3</color> Market   <color=#ffd84a>V</color> push-to-talk   <color=#ffd84a>Tab</color> players   <color=#ffd84a>Esc</color> pause"),
-                19, Theme.Text, new Vector2(0, 1), new Vector2(26, -70), new Vector2(510, 270), TextAnchor.UpperLeft, UIKit.BodyFont);
-            body.rectTransform.pivot = new Vector2(0, 1);
-            body.supportRichText = true;
-            body.lineSpacing = 1.15f;
-            body.horizontalOverflow = HorizontalWrapMode.Wrap;
-
-            // right: squad / party lobby
             Squad = new SquadPanel(tab, App);
         }
 
@@ -212,7 +228,6 @@ namespace Veil.UI
         {
             Squad.Update(dt);
             Friends.Update(dt);
-            _howTo.gameObject.SetActive(!Friends.Visible);
         }
 
         // ------------------------------------------------------------------ CHARACTERS tab
@@ -333,6 +348,11 @@ namespace Veil.UI
             int inv = (prof.GyroInvertX ? 1 : 0) + (prof.GyroInvertY ? 2 : 0);
             var gi = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -815), "GYRO INVERT", new[] { "NONE", "HORIZONTAL", "VERTICAL", "BOTH" }, inv,
                 i => { prof.GyroInvertX = (i & 1) != 0; prof.GyroInvertY = (i & 2) != 0; Save(); }, 130);
+            if (Application.platform != RuntimePlatform.IPhonePlayer)
+            {
+                var quit = UIKit.Button(p, "QUIT GAME", new Vector2(1, 1), new Vector2(-40, -30), new Vector2(170, 48), UIKit.ButtonStyle.Ghost, () => Application.Quit(), 18);
+                ((RectTransform)quit.transform).pivot = new Vector2(1, 1);
+            }
             var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim. Hold TALK for squad voice." : "Hold V to talk to your squad. F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 26), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
         }
     }

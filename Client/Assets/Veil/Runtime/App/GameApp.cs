@@ -558,6 +558,7 @@ namespace Veil.App
                     else if (_lineupShot) CamRig.Shot(Stage.Origin + (_lineupClose ? new Vector3(0, 1.7f, -2.4f) : new Vector3(0, 1.35f, -5.6f)), Stage.Origin + (_lineupClose ? new Vector3(0, 1.45f, 0) : new Vector3(0, 1.05f, 0)), dt, 12f);
                     else if (_menu.Tab == 1) CamRig.Shot(Stage.Origin + new Vector3(1.3f, 1.45f, -3.9f), Stage.Origin + new Vector3(1.3f, 1.1f, 0), dt, 4f);
                     else if (_menu.Tab == 3) CamRig.Shot(Stage.Origin + new Vector3(0, 2.4f, -8.5f), Stage.Origin + new Vector3(0, 1.6f, 0), dt, 3f);
+                    else if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(1.85f, 1.5f, -5.5f), Stage.Origin + new Vector3(1.85f, 1.05f, 0), dt, 3f);   // squad lineup, left of the panel
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
                     break;
                 case AppState.Results:
@@ -832,6 +833,7 @@ namespace Veil.App
         private readonly Transform _root;
         private readonly CharacterRig[] _rigs = new CharacterRig[5];
         private readonly Transform[] _pedestals = new Transform[3];
+        private readonly GameObject _squadStage;
         private bool _podium;
         private float _t;
 
@@ -855,6 +857,19 @@ namespace Veil.App
                 _pedestals[i] = p.transform;
                 p.SetActive(false);
             }
+            // squad lobby platform: dark disc with a glowing rim, and a glow ring under each squad slot
+            _squadStage = new GameObject("SquadStage");
+            _squadStage.transform.SetParent(_root, false);
+            var st = _squadStage.transform;
+            var disc = MaterialLib.Toon(Palette.Hex("#2a2450"), 0.2f, 0.3f);
+            Build.Part(st, MeshGen.Cylinder(56), disc, new Vector3(-0.75f, 0.03f, -0.15f), new Vector3(8.6f, 0.06f, 3.4f), null, "Disc", false);
+            Build.Part(st, MeshGen.Torus(0.025f, 64, 8), MaterialLib.Glow(Palette.Hex("#8f6bff"), 1.3f), new Vector3(-0.75f, 0.07f, -0.15f), new Vector3(8.6f, 1f, 3.4f), null, "Rim", false);
+            for (int k = 0; k < SquadSlots.Length; k++)
+            {
+                var c = k == 0 ? Palette.Hex("#ffd84a") : Palette.Hex("#4fe3ff");
+                Build.Part(st, MeshGen.Torus(0.05f, 40, 8), MaterialLib.Glow(c, 1.6f), SquadSlots[k] + new Vector3(0, 0.08f, 0), new Vector3(1.25f, 1f, 1.25f), null, "SlotRing" + k, false);
+            }
+            _squadStage.SetActive(false);
         }
 
         public void SetVisible(bool v) => _root.gameObject.SetActive(v);
@@ -867,6 +882,8 @@ namespace Veil.App
         public void LobbyPose(Appearance mine)
         {
             _podium = false;
+            SquadMode = false;
+            _squadStage.SetActive(false);
             if (!_rigs[0].Look.Equals(mine)) _rigs[0].Rebuild(mine);
             for (int i = 0; i < 5; i++)
             {
@@ -878,6 +895,30 @@ namespace Veil.App
             foreach (var p in _pedestals) p.gameObject.SetActive(false);
         }
 
+        // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
+        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.6f, 0, -0.25f), new Vector3(-1.6f, 0, -0.25f), new Vector3(-3.1f, 0, -0.7f) };
+        public bool SquadMode { get; private set; }
+
+        /// <summary>Shows the squad (up to 4 looks, index 0 = you) standing in the lobby in their hero stance.</summary>
+        public void SquadPose(IList<Appearance> looks)
+        {
+            _podium = false;
+            SquadMode = true;
+            _squadStage.SetActive(true);
+            for (int i = 0; i < _rigs.Length; i++)
+            {
+                bool on = i < looks.Count && i < SquadSlots.Length;
+                _rigs[i].gameObject.SetActive(on);
+                if (!on) continue;
+                if (!_rigs[i].Look.Equals(looks[i])) _rigs[i].Rebuild(looks[i]);
+                _rigs[i].transform.localPosition = SquadSlots[i];
+                _rigs[i].transform.localRotation = Quaternion.Euler(0, -SquadSlots[i].x * 7f, 0);
+                _rigs[i].ResetPose();
+            }
+            foreach (var p in _pedestals) p.gameObject.SetActive(false);
+            for (int k = 0; k < SquadSlots.Length; k++) _squadStage.transform.Find("SlotRing" + k).gameObject.SetActive(k < looks.Count);
+        }
+
         public void UpdateLook(Appearance mine)
         {
             _rigs[0].Rebuild(mine);
@@ -886,6 +927,8 @@ namespace Veil.App
         public void Podium(List<PlayerResult> results)
         {
             _podium = true;
+            SquadMode = false;
+            _squadStage.SetActive(false);
             float[] x = { 0, 1.8f, -1.8f }; // stage faces the camera: local +X is screen-left
             float[] h = { 0.9f, 0.55f, 0.3f };
             for (int i = 0; i < 5; i++) _rigs[i].gameObject.SetActive(i < 3 && i < results.Count);
@@ -908,7 +951,7 @@ namespace Veil.App
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
-                _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
+                _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
                 _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);

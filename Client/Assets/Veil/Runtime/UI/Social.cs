@@ -80,140 +80,58 @@ namespace Veil.UI
         }
     }
 
-    // ====================================================================== squad member card
+    // ====================================================================== squad lobby (PLAY tab)
 
-    /// <summary>One of the four squad slots: portrait, name#tag, character, ready, leader, ping, voice.</summary>
-    internal sealed class SquadCard
+    /// <summary>One squad member as the lobby shows it (party member, you, or a practice bot).</summary>
+    public sealed class SquadMember
     {
-        public readonly RectTransform Root;
-        public string ProfileId = "";
-        private Image _speakRing;
-        private Text _mute;
-
-        public SquadCard(RectTransform parent, int index, float width, float height)
-        {
-            Root = UIKit.At(parent, "Card" + index, new Vector2(0, 1), new Vector2(0, -index * (height + 6)), new Vector2(width, height));
-            Root.pivot = new Vector2(0, 1);
-        }
-
-        public void ShowMember(string id, string name, string handle, Appearance look, int level, bool ready, bool leader, bool online, int ping,
-            bool me, bool iAmLeader, bool idle, bool bot, Action onKick, Action onPromote, Action onMute)
-        {
-            SocialUi.Clear(Root);
-            ProfileId = id;
-            bool idleSolo = false;
-            float h = Root.sizeDelta.y;
-            UIKit.Image(UIKit.Fill(Root, "Bg"), UIKit.RoundedSmall, me ? new Color(0.62f, 0.38f, 1f, 0.28f) : new Color(1, 1, 1, 0.06f));
-            // speaking ring behind the portrait
-            var ringRt = UIKit.At(Root, "Speak", new Vector2(0, 0.5f), new Vector2(4, 0), new Vector2(h - 4, h - 4));
-            ringRt.pivot = new Vector2(0, 0.5f);
-            _speakRing = UIKit.Image(ringRt, UIKit.Ring, new Color(0.4f, 1f, 0.5f, 0));
-            var face = SocialUi.Portrait(Root, look, h - 16, new Vector2(10, 0));
-            if (!online) face.color = new Color(1, 1, 1, 0.35f);
-
-            string title = (leader ? "<color=#ffd84a>★</color> " : "") + name + (me ? " <color=#aab0d8>(you)</color>" : "");
-            var n = UIKit.LabelAt(Root, title, 21, Theme.Text, new Vector2(0, 1), new Vector2(h + 4, -8), new Vector2(260, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            n.rectTransform.pivot = new Vector2(0, 1);
-            n.supportRichText = true;
-            string sub = bot ? $"BOT · {SocialUi.CharacterName(look)}" : $"{handle}  ·  {SocialUi.CharacterName(look)}  ·  LV {level}";
-            var s = UIKit.LabelAt(Root, sub, 15, Theme.TextDim, new Vector2(0, 1), new Vector2(h + 4, -36), new Vector2(300, 22), TextAnchor.MiddleLeft, UIKit.BodyFont);
-            s.rectTransform.pivot = new Vector2(0, 1);
-
-            // right column: ready + ping
-            string st = !online ? "<color=#8a90b8>OFFLINE</color>" : ready ? "<color=#7dff9a>● READY</color>" : leader && !bot && !idleSolo ? "<color=#ffd84a>LEADER</color>" : "<color=#aab0d8>NOT READY</color>";
-            var r = UIKit.LabelAt(Root, st, 16, Theme.Text, new Vector2(1, 1), new Vector2(-12, -8), new Vector2(140, 26), TextAnchor.MiddleRight, UIKit.BoldFont);
-            r.rectTransform.pivot = new Vector2(1, 1);
-            r.supportRichText = true;
-            if (!bot && online) PingBars(ping, new Vector2(-12, -40));
-
-            // actions
-            float x = h + 4;
-            var actions = UIKit.At(Root, "Actions", new Vector2(0, 0), new Vector2(x, 6), new Vector2(360, 30));
-            actions.pivot = new Vector2(0, 0);
-            float ax = 0;
-            if (!me && !bot)
-            {
-                var mb = UIKit.Button(actions, "MUTE", new Vector2(0, 0.5f), new Vector2(ax, 0), new Vector2(84, 28), UIKit.ButtonStyle.Ghost, onMute, 13);
-                ((RectTransform)mb.transform).pivot = new Vector2(0, 0.5f);
-                _mute = UIKit.ButtonLabel(mb);
-                ax += 90;
-            }
-            if (iAmLeader && !me && !bot && idle)
-            {
-                var pb = UIKit.Button(actions, "MAKE LEADER", new Vector2(0, 0.5f), new Vector2(ax, 0), new Vector2(120, 28), UIKit.ButtonStyle.Ghost, onPromote, 13);
-                ((RectTransform)pb.transform).pivot = new Vector2(0, 0.5f);
-                ax += 126;
-                var kb = UIKit.Button(actions, "KICK", new Vector2(0, 0.5f), new Vector2(ax, 0), new Vector2(70, 28), UIKit.ButtonStyle.Ghost, onKick, 13);
-                ((RectTransform)kb.transform).pivot = new Vector2(0, 0.5f);
-                UIKit.ButtonLabel(kb).color = Theme.Red;
-            }
-        }
-
-        private void PingBars(int ping, Vector2 pos)
-        {
-            int bars = ping <= 0 ? 0 : ping < 60 ? 3 : ping < 130 ? 2 : 1;
-            Color c = bars == 3 ? Theme.Green : bars == 2 ? Theme.Yellow : Theme.Red;
-            var root = UIKit.At(Root, "Ping", new Vector2(1, 1), pos, new Vector2(110, 22));
-            root.pivot = new Vector2(1, 1);
-            for (int i = 0; i < 3; i++)
-            {
-                var b = UIKit.At(root, "Bar", new Vector2(0, 0), new Vector2(i * 8, 2), new Vector2(5, 6 + i * 5));
-                b.pivot = new Vector2(0, 0);
-                UIKit.Image(b, UIKit.Square, i < bars ? c : new Color(1, 1, 1, 0.18f));
-            }
-            var t = UIKit.LabelAt(root, ping > 0 ? $"{ping} ms" : "— ms", 14, Theme.TextDim, new Vector2(1, 0.5f), Vector2.zero, new Vector2(80, 22), TextAnchor.MiddleRight, UIKit.BodyFont);
-            t.rectTransform.pivot = new Vector2(1, 0.5f);
-        }
-
-        public void ShowEmpty(Action onInvite, bool canInvite)
-        {
-            SocialUi.Clear(Root);
-            ProfileId = "";
-            _speakRing = null; _mute = null;
-            UIKit.Image(UIKit.Fill(Root, "Bg"), UIKit.RoundedSmall, new Color(1, 1, 1, 0.025f));
-            if (canInvite)
-            {
-                var b = UIKit.Button(Root, "+  INVITE FRIEND", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300, 48), UIKit.ButtonStyle.Ghost, onInvite, 18);
-                UIKit.ButtonLabel(b).color = Theme.PurpleLight;
-            }
-            else
-            {
-                var t = UIKit.LabelAt(Root, "Open slot — matchmaking fills it", 16, new Color(1, 1, 1, 0.35f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(400, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
-            }
-        }
-
-        public void UpdateVoice(IVoiceService voice)
-        {
-            if (_speakRing == null || string.IsNullOrEmpty(ProfileId)) return;
-            bool talking = voice != null && voice.IsSpeaking(ProfileId);
-            var c = _speakRing.color;
-            c.a = Mathf.MoveTowards(c.a, talking ? 1f : 0f, Time.unscaledDeltaTime * 8f);
-            _speakRing.color = c;
-            if (_mute != null && voice != null) _mute.text = voice.IsMuted(ProfileId) ? "UNMUTE" : "MUTE";
-        }
+        public string Id = "", Name = "", Handle = "";
+        public Appearance Look;
+        public int Level = 1, Ping;
+        public bool Ready, Leader, Online = true, Bot, Me;
     }
 
-    // ====================================================================== squad panel (PLAY tab, right side)
-
     /// <summary>
-    /// The party lobby: VS BOTS practice squad, or ONLINE room with up to 4 friends — create / join by code, invites,
-    /// ready, leader controls (kick, make leader, start), member cards, voice controls and matchmaking status.
+    /// Squad lobby: member list (voice + ready), invite / copy code, mode card, match length, READY / START,
+    /// name tags over the squad standing on the stage, and the voice controls pill. Online = Gateway party;
+    /// VS BOTS = you + 3 practice bots.
     /// </summary>
     public sealed class SquadPanel
     {
+        private sealed class Row
+        {
+            public RectTransform Root;
+            public Image Bg, Mic, Spk;
+            public Button SpkBtn, MicBtn, RowBtn;
+            public RawImage Face;
+            public Image Crown;
+            public Text Name, Level, Status;
+            public RectTransform Empty;
+            public SquadMember M;
+        }
+
+        private sealed class Plate
+        {
+            public RectTransform Root;
+            public Image Crown, Spk, ReadyBg, ReadyIcon;
+            public Text Name, Level;
+        }
+
         private readonly GameApp _app;
-        private readonly RectTransform _panel;
-        private readonly ChipRow _mode, _length;
-        private readonly RectTransform _connectRow, _roomRow, _cardsRoot;
-        private readonly InputField _hostField, _codeField;
-        private readonly Text _title, _status, _roomLabel, _actionLabel, _voiceLabel, _countdown;
-        private readonly Button _action, _roomBtn, _copyBtn, _joinBtn, _micBtn;
-        private readonly SquadCard[] _cards = new SquadCard[GameConfig.SquadSize];
-        private bool _online;
-        private bool _offlineCountdown;
-        private float _countT;
+        private readonly RectTransform _tab, _squadPanel, _modePanel, _plates, _voicePill, _popup, _howTo;
+        private readonly Text _title, _modeTitle, _modeSub, _status, _actionLabel, _countdown, _voiceMode;
+        private readonly Button _leave, _joinCode, _action, _side, _copy, _invite;
+        private readonly Image _modeThumbIcon, _micPillIcon, _spkPillIcon;
+        private readonly InputField _hostField;
+        private readonly RectTransform _connectRow;
+        private readonly ChipRowCompact _length;
+        private readonly Row[] _rows = new Row[GameConfig.SquadSize];
+        private readonly Plate[] _plate = new Plate[GameConfig.SquadSize];
+        private readonly List<SquadMember> _members = new List<SquadMember>();
+        private bool _online, _offlineCountdown;
+        private float _countT, _transientT;
         private string _transient = "";
-        private float _transientT;
+        private string _stageKey = "";
         public Action OpenFriends;
 
         public bool Online => _online;
@@ -221,64 +139,230 @@ namespace Veil.UI
         public SquadPanel(RectTransform tab, GameApp app)
         {
             _app = app;
-            var panel = UIKit.Panel(tab, "Squad", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(560, 840));
-            _panel = (RectTransform)panel.transform;
-            var p = _panel;
-            _title = UIKit.LabelAt(p, "SQUAD", 34, Theme.Text, new Vector2(0, 1), new Vector2(28, -26), new Vector2(360, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _tab = tab;
+
+            // ---------------- name tags over the squad on the stage
+            _plates = UIKit.Fill(tab, "Plates");
+            for (int i = 0; i < _plate.Length; i++) _plate[i] = MakePlate(_plates, i);
+
+            // ---------------- squad panel
+            _squadPanel = (RectTransform)UIKit.Panel(tab, "Squad", new Vector2(1, 1), new Vector2(-24, -104), new Vector2(440, 512)).transform;
+            _squadPanel.pivot = new Vector2(1, 1);
+            _title = UIKit.LabelAt(_squadPanel, "SQUAD", 30, Theme.Text, new Vector2(0, 1), new Vector2(22, -16), new Vector2(240, 44), TextAnchor.MiddleLeft, UIKit.TitleFont);
             _title.rectTransform.pivot = new Vector2(0, 1);
             _title.supportRichText = true;
+            _leave = SocialUi.SmallButton(_squadPanel, "LEAVE", new Vector2(1, 1), new Vector2(-16, -38), 104, UIKit.ButtonStyle.Ghost, Leave, 15);
+            _joinCode = SocialUi.SmallButton(_squadPanel, "JOIN CODE", new Vector2(1, 1), new Vector2(-126, -38), 124, UIKit.ButtonStyle.Ghost, () => ShowJoinPopup(), 14);
+            for (int i = 0; i < _rows.Length; i++) _rows[i] = MakeRow(_squadPanel, i);
+            _invite = IconButton(_squadPanel, Icons.Plus, "INVITE FRIEND", new Vector2(0, 0), new Vector2(16, 18), new Vector2(200, 50), () => OpenFriends?.Invoke());
+            _copy = IconButton(_squadPanel, Icons.Copy, "COPY CODE", new Vector2(1, 0), new Vector2(-16, 18), new Vector2(200, 50), CopyCode);
 
-            // voice quick toggle (top-right of the panel)
-            _micBtn = UIKit.Button(p, "MIC", new Vector2(1, 1), new Vector2(-24, -30), new Vector2(150, 40), UIKit.ButtonStyle.Ghost, ToggleMic, 15);
-            ((RectTransform)_micBtn.transform).pivot = new Vector2(1, 1);
-            _voiceLabel = UIKit.ButtonLabel(_micBtn);
-            _voiceLabel.supportRichText = true;
-
-            _mode = new ChipRow(p, new Vector2(0, 1), new Vector2(-150, -104), "", new[] { "VS BOTS", "ONLINE" }, 0, i => SetOnline(i == 1), 170);
-            _mode.Root.pivot = new Vector2(0, 0.5f);
-
-            // connect row (online, gateway offline)
-            _connectRow = UIKit.At(p, "Connect", new Vector2(0, 1), new Vector2(28, -160), new Vector2(504, 50));
-            _connectRow.pivot = new Vector2(0, 0.5f);
-            _hostField = SocialUi.Field(_connectRow, new Vector2(0, 0.5f), Vector2.zero, 320, "server address", 40);
+            // ---------------- mode card
+            _modePanel = (RectTransform)UIKit.Panel(tab, "Mode", new Vector2(1, 1), new Vector2(-24, -628), new Vector2(440, 176)).transform;
+            _modePanel.pivot = new Vector2(1, 1);
+            var thumb = UIKit.At(_modePanel, "Thumb", new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(130, 138));
+            thumb.pivot = new Vector2(0, 0.5f);
+            var tImg = UIKit.Image(thumb, UIKit.Rounded, Color.white);
+            tImg.sprite = UIKit.Gradient;
+            tImg.color = new Color(0.45f, 0.35f, 0.95f);
+            var ic = UIKit.At(thumb, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(70, 70));
+            _modeThumbIcon = UIKit.Image(ic, Icons.Players, Color.white);
+            _modeTitle = UIKit.LabelAt(_modePanel, "", 24, Theme.Text, new Vector2(0, 1), new Vector2(160, -16), new Vector2(270, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _modeTitle.rectTransform.pivot = new Vector2(0, 1);
+            _modeSub = UIKit.LabelAt(_modePanel, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(160, -50), new Vector2(270, 44), TextAnchor.UpperLeft, UIKit.BodyFont);
+            _modeSub.rectTransform.pivot = new Vector2(0, 1);
+            _modeSub.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _modeSub.supportRichText = true;
+            _connectRow = UIKit.At(_modePanel, "Connect", new Vector2(0, 0), new Vector2(160, 16), new Vector2(264, 48));
+            _connectRow.pivot = new Vector2(0, 0);
+            _hostField = SocialUi.Field(_connectRow, new Vector2(0, 0.5f), Vector2.zero, 150, "server", 40);
             _hostField.text = app.Profile.ServerHost;
             _hostField.onEndEdit.AddListener(v => { app.Profile.ServerHost = v.Trim(); app.Profile.Save(); });
-            var connect = SocialUi.SmallButton(_connectRow, "CONNECT", new Vector2(1, 0.5f), Vector2.zero, 170, UIKit.ButtonStyle.Secondary, () => app.GoOnline(), 18);
+            SocialUi.SmallButton(_connectRow, "CONNECT", new Vector2(1, 0.5f), Vector2.zero, 106, UIKit.ButtonStyle.Secondary, () => app.GoOnline(), 14);
+            var change = SocialUi.SmallButton(_modePanel, "CHANGE MODE", new Vector2(1, 0), new Vector2(-16, 38), 150, UIKit.ButtonStyle.Ghost, () => SetMode(!_online), 14);
+            _changeBtn = change;
 
-            // room row (online, gateway online)
-            _roomRow = UIKit.At(p, "Room", new Vector2(0, 1), new Vector2(28, -160), new Vector2(504, 104));
-            _roomRow.pivot = new Vector2(0, 1);
-            _roomLabel = UIKit.LabelAt(_roomRow, "", 22, Theme.Text, new Vector2(0, 1), new Vector2(0, 0), new Vector2(250, 44), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            _roomLabel.rectTransform.pivot = new Vector2(0, 1);
-            _roomLabel.supportRichText = true;
-            _copyBtn = SocialUi.SmallButton(_roomRow, "COPY", new Vector2(0, 1), new Vector2(250, -22), 80, UIKit.ButtonStyle.Ghost, CopyCode, 14);
-            _roomBtn = SocialUi.SmallButton(_roomRow, "CREATE ROOM", new Vector2(1, 1), new Vector2(0, -22), 170, UIKit.ButtonStyle.Secondary, RoomButton, 15);
-            _codeField = SocialUi.Field(_roomRow, new Vector2(0, 1), new Vector2(0, -76), 320, "room code", 8);
-            _joinBtn = SocialUi.SmallButton(_roomRow, "JOIN ROOM", new Vector2(1, 1), new Vector2(0, -76), 170, UIKit.ButtonStyle.Secondary, JoinCode, 15);
-
-            _status = UIKit.LabelAt(p, "", 17, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -272), new Vector2(504, 26), TextAnchor.MiddleLeft, UIKit.BodyFont);
-            _status.rectTransform.pivot = new Vector2(0, 1);
+            // ---------------- length, status, ready
+            _length = new ChipRowCompact(tab, new Vector2(1, 1), new Vector2(-24, -840), new[] { "5 MIN", "10 MIN", "15 MIN" },
+                app.Profile.MatchMinutes >= 15 ? 2 : app.Profile.MatchMinutes >= 10 ? 1 : 0,
+                i => { app.Profile.MatchMinutes = i == 0 ? 5 : i == 1 ? 10 : 15; app.Profile.Save(); UpdateStatus(); });
+            _status = UIKit.LabelAt(tab, "", 16, Theme.Text, new Vector2(1, 1), new Vector2(-24, -886), new Vector2(440, 24), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            _status.rectTransform.pivot = new Vector2(1, 0.5f);
             _status.supportRichText = true;
-
-            _cardsRoot = UIKit.At(p, "Cards", new Vector2(0, 1), new Vector2(28, -304), new Vector2(504, 4 * 88));
-            _cardsRoot.pivot = new Vector2(0, 1);
-            for (int i = 0; i < _cards.Length; i++) _cards[i] = new SquadCard(_cardsRoot, i, 504, 82);
-
-            _length = new ChipRow(p, new Vector2(0, 0), new Vector2(-150, 150), "", new[] { "5 MIN", "10 MIN", "15 MIN" }, app.Profile.MatchMinutes >= 15 ? 2 : app.Profile.MatchMinutes >= 10 ? 1 : 0,
-                i => { app.Profile.MatchMinutes = i == 0 ? 5 : i == 1 ? 10 : 15; app.Profile.Save(); }, 112);
-            _length.Root.pivot = new Vector2(0, 0.5f);
-
-            _action = UIKit.Button(p, "READY", new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(500, 92), UIKit.ButtonStyle.Primary, OnAction, 46);
+            UIKit.Shadow(_status);
+            _action = UIKit.Button(tab, "READY", new Vector2(1, 0), new Vector2(-116, 24), new Vector2(348, 88), UIKit.ButtonStyle.Primary, OnAction, 46);
+            ((RectTransform)_action.transform).pivot = new Vector2(1, 0);
             _actionLabel = UIKit.ButtonLabel(_action);
-            _countdown = UIKit.LabelAt(tab, "", 120, Color.white, new Vector2(0.5f, 0.5f), new Vector2(-260, 60), new Vector2(400, 200), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _actionLabel.fontStyle = FontStyle.Italic;
+            _side = UIKit.Button(tab, "", new Vector2(1, 0), new Vector2(-24, 24), new Vector2(86, 88), UIKit.ButtonStyle.Primary, () => OpenFriends?.Invoke(), 20);
+            ((RectTransform)_side.transform).pivot = new Vector2(1, 0);
+            var sideIc = UIKit.At((RectTransform)_side.transform, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44, 44));
+            UIKit.Image(sideIc, Icons.Players, new Color(0.15f, 0.1f, 0.05f));
+            _countdown = UIKit.LabelAt(tab, "", 130, Color.white, new Vector2(0.5f, 0.5f), new Vector2(-240, 40), new Vector2(400, 200), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_countdown, new Color(0.4f, 0.15f, 0.9f), 5);
+
+            // ---------------- voice pill (bottom-left) + how to play
+            _voicePill = UIKit.At(tab, "Voice", new Vector2(0, 0), new Vector2(100, 24), new Vector2(330, 64));
+            _voicePill.pivot = new Vector2(0, 0);
+            UIKit.Image(_voicePill, UIKit.Pill, new Color(0.05f, 0.06f, 0.15f, 0.88f));
+            var micB = PillIcon(_voicePill, Icons.Mic, new Vector2(12, 0), () => { _app.Voice.MicMuted = !_app.Voice.MicMuted; });
+            _micPillIcon = micB;
+            var spkB = PillIcon(_voicePill, Icons.Speaker, new Vector2(68, 0), () => { _app.Voice.Deafened = !_app.Voice.Deafened; });
+            _spkPillIcon = spkB;
+            var modeBtn = UIKit.Button(_voicePill, "", new Vector2(0, 0.5f), new Vector2(124, 0), new Vector2(194, 48), UIKit.ButtonStyle.Ghost, CycleVoiceMode, 15);
+            ((RectTransform)modeBtn.transform).pivot = new Vector2(0, 0.5f);
+            _voiceMode = UIKit.ButtonLabel(modeBtn);
+            _voiceMode.supportRichText = true;
+            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(24, 24), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf), 30);
+            ((RectTransform)help.transform).pivot = new Vector2(0, 0);
+            _howTo = BuildHowTo(tab);
+            _howTo.gameObject.SetActive(false);
+
+            _popup = UIKit.Fill(tab, "Popup");
+            _popup.gameObject.SetActive(false);
 
             app.Gateway.Changed += Refresh;
             app.Gateway.Notice += t => Flash(t);
             SetOnline(false);
         }
 
-        public void SetMode(bool online) { _mode.Select(online ? 1 : 0); SetOnline(online); }
+        private Button _changeBtn;
+
+        // ------------------------------------------------------------------ construction helpers
+
+        private Row MakeRow(RectTransform parent, int i)
+        {
+            var r = new Row();
+            r.Root = UIKit.At(parent, "Row" + i, new Vector2(0, 1), new Vector2(16, -76 - i * 90), new Vector2(408, 84));
+            r.Root.pivot = new Vector2(0, 1);
+            r.Bg = UIKit.Image(r.Root, UIKit.RoundedSmall, new Color(1, 1, 1, 0.05f), true);
+            r.RowBtn = r.Root.gameObject.AddComponent<Button>();
+            r.RowBtn.targetGraphic = r.Bg;
+            int idx = i;
+            r.RowBtn.onClick.AddListener(() => RowClicked(idx));
+            var faceRt = UIKit.At(r.Root, "Face", new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(68, 68));
+            faceRt.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(faceRt, UIKit.RoundedSmall, new Color(0.14f, 0.13f, 0.3f));
+            var inner = UIKit.Fill(faceRt, "Img", 3);
+            r.Face = inner.gameObject.AddComponent<RawImage>();
+            r.Face.raycastTarget = false;
+            var crownRt = UIKit.At(r.Root, "Crown", new Vector2(0, 1), new Vector2(86, -16), new Vector2(22, 22));
+            crownRt.pivot = new Vector2(0, 1);
+            r.Crown = UIKit.Image(crownRt, Icons.Crown, Theme.Gold);
+            r.Name = UIKit.LabelAt(r.Root, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(86, -12), new Vector2(200, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            r.Name.rectTransform.pivot = new Vector2(0, 1);
+            r.Name.supportRichText = true;
+            r.Level = UIKit.LabelAt(r.Root, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(86, -46), new Vector2(200, 22), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            r.Level.rectTransform.pivot = new Vector2(0, 1);
+            r.Level.supportRichText = true;
+            r.Mic = IconIn(r.Root, Icons.Mic, new Vector2(-150, 0), out r.MicBtn);
+            r.Spk = IconIn(r.Root, Icons.Speaker, new Vector2(-112, 0), out r.SpkBtn);
+            r.MicBtn.onClick.AddListener(() => { if (_rows[idx].M != null && _rows[idx].M.Me) _app.Voice.MicMuted = !_app.Voice.MicMuted; });
+            r.SpkBtn.onClick.AddListener(() =>
+            {
+                var m = _rows[idx].M;
+                if (m == null) return;
+                if (m.Me) _app.Voice.Deafened = !_app.Voice.Deafened;
+                else if (!m.Bot) _app.Voice.SetMuted(m.Id, !_app.Voice.IsMuted(m.Id));
+            });
+            r.Status = UIKit.LabelAt(r.Root, "", 17, Theme.Green, new Vector2(1, 0.5f), new Vector2(-14, 0), new Vector2(96, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
+            r.Status.rectTransform.pivot = new Vector2(1, 0.5f);
+            r.Status.supportRichText = true;
+            r.Empty = UIKit.Fill(r.Root, "Empty");
+            var eb = UIKit.Button(r.Empty, "+  INVITE A FRIEND", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300, 46), UIKit.ButtonStyle.Ghost, () => OpenFriends?.Invoke(), 16);
+            UIKit.ButtonLabel(eb).color = Theme.PurpleLight;
+            return r;
+        }
+
+        private static Image IconIn(RectTransform parent, Sprite icon, Vector2 pos, out Button btn)
+        {
+            var rt = UIKit.At(parent, "Icon", new Vector2(1, 0.5f), pos, new Vector2(34, 34));
+            rt.pivot = new Vector2(1, 0.5f);
+            var hit = UIKit.Image(rt, UIKit.Circle, new Color(1, 1, 1, 0.001f), true);
+            btn = rt.gameObject.AddComponent<Button>();
+            btn.targetGraphic = hit;
+            var ic = UIKit.At(rt, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(26, 26));
+            return UIKit.Image(ic, icon, Theme.TextDim);
+        }
+
+        private Image PillIcon(RectTransform parent, Sprite icon, Vector2 pos, Action onClick)
+        {
+            var rt = UIKit.At(parent, "PillIcon", new Vector2(0, 0.5f), pos, new Vector2(48, 48));
+            rt.pivot = new Vector2(0, 0.5f);
+            var bg = UIKit.Image(rt, UIKit.Circle, new Color(1, 1, 1, 0.08f), true);
+            var b = rt.gameObject.AddComponent<Button>();
+            b.targetGraphic = bg;
+            b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); onClick(); });
+            var ic = UIKit.At(rt, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(28, 28));
+            return UIKit.Image(ic, icon, Theme.Text);
+        }
+
+        private static Button IconButton(RectTransform parent, Sprite icon, string text, Vector2 anchor, Vector2 pos, Vector2 size, Action onClick)
+        {
+            var b = UIKit.Button(parent, "", anchor, pos, size, UIKit.ButtonStyle.Ghost, onClick, 15);
+            var rt = (RectTransform)b.transform;
+            rt.pivot = new Vector2(anchor.x, 0);
+            var ic = UIKit.At(rt, "Icon", new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(20, 20));
+            ic.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(ic, icon, Theme.Text);
+            var l = UIKit.ButtonLabel(b);
+            l.text = text;
+            l.rectTransform.offsetMin = new Vector2(30, 0);
+            return b;
+        }
+
+        private static Plate MakePlate(RectTransform parent, int i)
+        {
+            var p = new Plate();
+            p.Root = UIKit.At(parent, "Plate" + i, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(168, 50));
+            UIKit.Image(p.Root, UIKit.RoundedSmall, new Color(0.05f, 0.06f, 0.16f, 0.82f));
+            var cr = UIKit.At(p.Root, "Crown", new Vector2(0, 0.5f), new Vector2(8, 2), new Vector2(22, 22));
+            cr.pivot = new Vector2(0, 0.5f);
+            p.Crown = UIKit.Image(cr, Icons.Crown, Theme.Gold);
+            p.Name = UIKit.LabelAt(p.Root, "", 17, Theme.Text, new Vector2(0, 1), new Vector2(34, -3), new Vector2(92, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            p.Name.horizontalOverflow = HorizontalWrapMode.Wrap;
+            p.Name.rectTransform.pivot = new Vector2(0, 1);
+            p.Level = UIKit.LabelAt(p.Root, "", 13, Theme.TextDim, new Vector2(0, 0), new Vector2(34, 3), new Vector2(92, 20), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            p.Level.rectTransform.pivot = new Vector2(0, 0);
+            var sp = UIKit.At(p.Root, "Spk", new Vector2(1, 0.5f), new Vector2(-38, 0), new Vector2(20, 20));
+            sp.pivot = new Vector2(1, 0.5f);
+            p.Spk = UIKit.Image(sp, Icons.Speaker, Theme.TextDim);
+            var rd = UIKit.At(p.Root, "Ready", new Vector2(1, 0.5f), new Vector2(-8, 0), new Vector2(24, 24));
+            rd.pivot = new Vector2(1, 0.5f);
+            p.ReadyBg = UIKit.Image(rd, UIKit.Circle, Theme.Green);
+            var ri = UIKit.At(rd, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18, 18));
+            p.ReadyIcon = UIKit.Image(ri, Icons.Check, new Color(0.05f, 0.2f, 0.08f));
+            return p;
+        }
+
+        private RectTransform BuildHowTo(RectTransform tab)
+        {
+            var info = UIKit.Panel(tab, "HowTo", new Vector2(0, 0), new Vector2(24, 104), new Vector2(560, 330));
+            info.rectTransform.pivot = new Vector2(0, 0);
+            var h = UIKit.LabelAt(info.transform, "HOW TO PLAY", 26, Theme.Yellow, new Vector2(0, 1), new Vector2(26, -22), new Vector2(500, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            h.rectTransform.pivot = new Vector2(0, 1);
+            var body = UIKit.LabelAt(info.transform,
+                "Squads of <color=#ffd84a>4</color>, four squads per match. Each of you has a <color=#c7a6ff>secret objective</color>, " +
+                "your squad shares one more — and your vision. Outthink the other squads.\n\n" +
+                (Veil.Match.Platform.IsMobile
+                    ? "<color=#ffd84a>Left thumb</color> move · <color=#ffd84a>right side</color> look · <color=#ffd84a>FIRE</color> hold\n<color=#ffd84a>DASH  PULSE  DECOY</color> abilities · <color=#ffd84a>TALK</color> hold for voice"
+                    : "<color=#ffd84a>WASD</color> move · <color=#ffd84a>Mouse</color> aim · <color=#ffd84a>LMB</color> blast · <color=#ffd84a>Space</color> jump\n" +
+                      "<color=#ffd84a>Shift</color> sprint · <color=#ffd84a>Q</color> Dash · <color=#ffd84a>E</color> Pulse · <color=#ffd84a>R</color> Decoy\n" +
+                      "<color=#ffd84a>1/2/3</color> Market · <color=#ffd84a>V</color> push-to-talk · <color=#ffd84a>Tab</color> players · <color=#ffd84a>Esc</color> pause"),
+                18, Theme.Text, new Vector2(0, 1), new Vector2(26, -66), new Vector2(510, 250), TextAnchor.UpperLeft, UIKit.BodyFont);
+            body.rectTransform.pivot = new Vector2(0, 1);
+            body.supportRichText = true;
+            body.lineSpacing = 1.15f;
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            return info.rectTransform;
+        }
+
+        // ------------------------------------------------------------------ mode
+
+        public void SetMode(bool online)
+        {
+            SetOnline(online);
+        }
 
         private void SetOnline(bool online)
         {
@@ -289,15 +373,13 @@ namespace Veil.UI
         }
 
         public void Flash(string text, float seconds = 4f) { _transient = text; _transientT = seconds; UpdateStatus(); }
-
         public void SetHostText(string host) => _hostField.SetTextWithoutNotify(host);
 
         // ------------------------------------------------------------------ actions
 
-        private void ToggleMic()
+        private void CycleVoiceMode()
         {
             var v = _app.Voice;
-            // cycle: push-to-talk → open mic → off
             v.Mode = (VoiceMode)(((int)v.Mode + 1) % 3);
             _app.Profile.VoiceMode = (int)v.Mode;
             _app.Profile.Save();
@@ -306,24 +388,18 @@ namespace Veil.UI
 
         private void CopyCode()
         {
-            var code = _app.Gateway.Party.code;
-            if (string.IsNullOrEmpty(code)) return;
-            GUIUtility.systemCopyBuffer = code;
-            Flash($"Room code {code} copied");
+            var g = _app.Gateway;
+            if (!_online) { Flash("Switch to ONLINE to invite friends"); return; }
+            if (g.Party.Empty) { g.CreateRoom((ok, err) => { if (ok) CopyCode(); else Result(ok, err); }); return; }
+            GUIUtility.systemCopyBuffer = g.Party.code;
+            Flash($"Room code <color=#ffd84a>{g.Party.code}</color> copied — friends use JOIN CODE");
         }
 
-        private void RoomButton()
+        private void Leave()
         {
             var g = _app.Gateway;
-            if (g.Party.Empty) g.CreateRoom(Result);
-            else g.LeaveRoom(Result);
-        }
-
-        private void JoinCode()
-        {
-            var code = _codeField.text.Trim();
-            if (code.Length < 4) { Flash("<color=#ff9a8a>Enter the 6-letter room code</color>"); return; }
-            _app.Gateway.JoinRoom(code, (ok, err) => { if (ok) _codeField.text = ""; Result(ok, err); });
+            if (g.Party.Empty) return;
+            g.LeaveRoom((ok, err) => { if (ok) g.CreateRoom(); else Result(ok, err); });   // back to your own solo room
         }
 
         private void Result(bool ok, string err) { if (!ok && !string.IsNullOrEmpty(err)) Flash($"<color=#ff9a8a>{err}</color>"); }
@@ -343,7 +419,6 @@ namespace Veil.UI
             if (g.Assignment != null && _app.State != GameApp.AppState.Match) { _app.JoinAssignedMatch(g.Assignment); return; }   // REJOIN
             if (party.Empty)
             {
-                // solo: create a room and queue straight away (matchmaking fills the squad)
                 g.CreateRoom((ok, err) => { if (ok) g.StartQueue(_app.Profile.MatchMinutes * 60, Result); else Result(ok, err); });
                 return;
             }
@@ -353,67 +428,165 @@ namespace Veil.UI
             else g.SetReady(!(g.Me?.ready ?? false), Result);
         }
 
+        private void RowClicked(int i)
+        {
+            var m = _rows[i].M;
+            var g = _app.Gateway;
+            if (m == null || m.Me || m.Bot || !_online) return;
+            bool leaderActions = g.IsLeader && g.Party.phase == (int)PartyPhase.Idle;
+            ShowMemberPopup(m, leaderActions);
+        }
+
+        private void ClosePopup() { SocialUi.Clear(_popup); _popup.gameObject.SetActive(false); }
+
+        private RectTransform OpenPopup(string title, float height)
+        {
+            SocialUi.Clear(_popup);
+            _popup.gameObject.SetActive(true);
+            _popup.SetAsLastSibling();
+            var dim = UIKit.Fill(_popup, "Dim");
+            var dimImg = UIKit.Image(dim, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.55f), true);
+            var db = dim.gameObject.AddComponent<Button>(); db.targetGraphic = dimImg; db.onClick.AddListener(ClosePopup);
+            var p = (RectTransform)UIKit.Panel(_popup, "Box", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(420, height)).transform;
+            var t = UIKit.LabelAt(p, title, 26, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -20), new Vector2(380, 36), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            t.rectTransform.pivot = new Vector2(0.5f, 1);
+            return p;
+        }
+
+        private void ShowMemberPopup(SquadMember m, bool leaderActions)
+        {
+            var g = _app.Gateway;
+            var p = OpenPopup(m.Name, leaderActions ? 300 : 190);
+            float y = -76;
+            string id = m.Id;
+            void Btn(string text, UIKit.ButtonStyle st, Action a)
+            {
+                var b = UIKit.Button(p, text, new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(340, 52), st, () => { a(); ClosePopup(); }, 18);
+                ((RectTransform)b.transform).pivot = new Vector2(0.5f, 1);
+                y -= 62;
+            }
+            Btn(_app.Voice.IsMuted(id) ? "UNMUTE VOICE" : "MUTE VOICE", UIKit.ButtonStyle.Secondary, () => { _app.Voice.SetMuted(id, !_app.Voice.IsMuted(id)); Refresh(); });
+            if (leaderActions)
+            {
+                Btn("MAKE LEADER", UIKit.ButtonStyle.Secondary, () => g.Promote(id, Result));
+                Btn("REMOVE FROM SQUAD", UIKit.ButtonStyle.Ghost, () => g.Kick(id, Result));
+            }
+        }
+
+        private void ShowJoinPopup()
+        {
+            if (!_online) { SetMode(true); }
+            var p = OpenPopup("JOIN A SQUAD", 250);
+            var f = SocialUi.Field(p, new Vector2(0.5f, 1), new Vector2(-170, -100), 340, "6-letter room code", 8);
+            var b = UIKit.Button(p, "JOIN", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(340, 56), UIKit.ButtonStyle.Primary, () =>
+            {
+                var code = f.text.Trim();
+                if (code.Length < 4) { Flash("<color=#ff9a8a>Enter the 6-letter room code</color>"); return; }
+                _app.Gateway.JoinRoom(code, Result);
+                ClosePopup();
+            }, 24);
+            ((RectTransform)b.transform).pivot = new Vector2(0.5f, 1);
+        }
+
+        // ------------------------------------------------------------------ data
+
+        private void BuildMembers()
+        {
+            _members.Clear();
+            var g = _app.Gateway;
+            var prof = _app.Profile;
+            if (!_online || !g.Online || g.Party.Empty)
+            {
+                _members.Add(new SquadMember { Id = g.MyId, Name = prof.Name, Handle = g.Handle, Look = prof.Look, Level = _app.OnlineProfile?.level ?? 1, Leader = true, Me = true, Ready = !_online && _offlineCountdown, Ping = g.PingMs, Online = !_online || g.Online });
+                if (!_online)
+                    for (int i = 1; i < GameConfig.SquadSize; i++)
+                        _members.Add(new SquadMember { Name = MatchSim.BotNames[(i * 3) % MatchSim.BotNames.Length], Look = Appearance.Preset(i == 1 ? 4 : i == 2 ? 1 : 2), Level = 1, Bot = true, Ready = true });
+                return;
+            }
+            // party: you first (centre stage), then the others in join order
+            foreach (var m in g.Party.members)
+            {
+                var sm = new SquadMember
+                {
+                    Id = m.id, Name = m.name, Handle = m.handle, Look = SocialUi.ParseLook(m.look), Level = m.level, Ready = m.ready,
+                    Leader = m.leader, Online = m.online, Ping = m.ping, Me = m.id == g.MyId,
+                };
+                if (sm.Me) { sm.Look = prof.Look; _members.Insert(0, sm); } else _members.Add(sm);
+            }
+        }
+
         // ------------------------------------------------------------------ view
 
         public void Refresh()
         {
-            if (_panel == null) return;
+            if (_squadPanel == null) return;
             var g = _app.Gateway;
-            _connectRow.gameObject.SetActive(_online && !g.Online);
-            _roomRow.gameObject.SetActive(_online && g.Online);
-            _length.Root.gameObject.SetActive(!_online || g.Party.Empty || g.IsLeader);
-            _title.text = _online ? "SQUAD  <size=22><color=#aab0d8>online · 4 × 4</color></size>" : "SQUAD  <size=22><color=#aab0d8>vs bots</color></size>";
-
-            if (!_online) { ShowPractice(); UpdateStatus(); return; }
-
-            var party = g.Party;
-            _roomLabel.text = party.Empty ? "<color=#aab0d8>No room yet</color>" : $"ROOM  <color=#ffd84a>{party.code}</color>";
-            _copyBtn.gameObject.SetActive(!party.Empty);
-            UIKit.ButtonLabel(_roomBtn).text = party.Empty ? "CREATE ROOM" : "LEAVE ROOM";
-            bool idle = party.Empty || party.phase == (int)PartyPhase.Idle;
-            _joinBtn.interactable = idle;
-
-            for (int i = 0; i < _cards.Length; i++)
+            // online: you are always in a room (created on connect), like other squad games
+            if (_online && g.Online && g.Party.Empty && _app.State == GameApp.AppState.Menu && !_creating)
             {
-                if (party.Empty)
-                {
-                    if (i == 0) _cards[0].ShowMember(g.MyId, _app.Profile.Name, g.Handle, _app.Profile.Look, _app.OnlineProfile?.level ?? 1, false, true, g.Online, g.PingMs, true, true, true, false, null, null, null);
-                    else _cards[i].ShowEmpty(() => OpenFriends?.Invoke(), g.Online);
-                    continue;
-                }
-                if (i < party.members.Count)
-                {
-                    var m = party.members[i];
-                    string mid = m.id;
-                    _cards[i].ShowMember(m.id, m.name, m.handle, SocialUi.ParseLook(m.look), m.level, m.ready, m.leader, m.online, m.ping,
-                        m.id == g.MyId, g.IsLeader, idle, false,
-                        () => g.Kick(mid, Result), () => g.Promote(mid, Result),
-                        () => { _app.Voice.SetMuted(mid, !_app.Voice.IsMuted(mid)); Refresh(); });
-                }
-                else
-                {
-                    bool pending = i - party.members.Count < party.pending.Count;
-                    if (pending)
-                    {
-                        var inv = party.pending[i - party.members.Count];
-                        _cards[i].ShowEmpty(null, false);
-                        var t = UIKit.LabelAt(_cards[i].Root, $"Invite sent to {inv.name}…", 17, Theme.PurpleLight, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(400, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
-                    }
-                    else _cards[i].ShowEmpty(() => OpenFriends?.Invoke(), idle);
-                }
+                _creating = true;
+                g.CreateRoom((ok, err) => _creating = false);
             }
+            BuildMembers();
+            var party = g.Party;
+            bool idle = party.Empty || party.phase == (int)PartyPhase.Idle;
+            _title.text = $"SQUAD <color=#aab0d8>({_members.Count}/{GameConfig.SquadSize})</color>";
+            _leave.gameObject.SetActive(_online && g.Online && !party.Empty && party.members.Count > 1 && idle);
+            _joinCode.gameObject.SetActive(_online && g.Online && idle);
+            _invite.interactable = _online && g.Online && idle && _members.Count < GameConfig.SquadSize;
+            _copy.interactable = _online && g.Online;
+            UIKit.ButtonLabel(_copy).text = !party.Empty && _online ? $"COPY {party.code}" : "COPY CODE";
+
+            for (int i = 0; i < _rows.Length; i++)
+            {
+                var r = _rows[i];
+                bool has = i < _members.Count;
+                r.M = has ? _members[i] : null;
+                foreach (Transform c in r.Root) c.gameObject.SetActive(has ? c.name != "Empty" : c.name == "Empty");
+                r.Bg.color = has && r.M.Me ? new Color(0.62f, 0.38f, 1f, 0.22f) : new Color(1, 1, 1, has ? 0.05f : 0.025f);
+                r.Empty.gameObject.SetActive(!has && _online && g.Online && idle);
+                if (!has) continue;
+                var m = r.M;
+                r.Face.texture = PortraitStudio.Get(m.Look);
+                r.Face.color = m.Online ? Color.white : new Color(1, 1, 1, 0.4f);
+                r.Crown.gameObject.SetActive(m.Leader && !m.Bot && _online);
+                r.Name.rectTransform.anchoredPosition = new Vector2(m.Leader && !m.Bot && _online ? 112 : 86, -12);
+                r.Name.text = m.Name + (m.Me ? " <color=#aab0d8>(You)</color>" : "");
+                r.Level.text = m.Bot ? $"BOT · {SocialUi.CharacterName(m.Look)}" : $"Lv. {m.Level}" + (m.Ping > 0 && _online ? $"  <color=#6a6f90>{m.Ping} ms</color>" : "");
+                r.Mic.transform.parent.gameObject.SetActive(!m.Bot);
+                r.Spk.transform.parent.gameObject.SetActive(!m.Bot);
+                r.Status.text = !m.Online ? "<color=#8a90b8>OFFLINE</color>" : m.Ready || m.Bot ? "<color=#7dff9a>READY</color>"
+                    : m.Leader && _online && party.phase == (int)PartyPhase.Idle ? "<color=#ffd84a>LEADER</color>" : "<color=#aab0d8>NOT READY</color>";
+            }
+
+            // mode card
+            _modeTitle.text = _online ? "ONLINE SQUADS" : "SQUAD vs BOTS";
+            _modeThumbIcon.sprite = _online ? Icons.Players : Icons.Target;
+            _modeThumbIcon.transform.parent.GetComponent<Image>().color = _online ? new Color(0.3f, 0.55f, 1f) : new Color(0.45f, 0.35f, 0.95f);
+            bool needConnect = _online && !g.Online;
+            _connectRow.gameObject.SetActive(needConnect);
+            _modeSub.text = !_online ? "Practice with your squad against AI bots"
+                : needConnect ? (g.Status == GatewayClient.State.Connecting ? "Connecting…" : "Server (found automatically on Wi-Fi):")
+                : $"4 squads of 4 · bots fill empty seats\n<color=#7dff9a>●</color> {g.Handle} · {g.PingMs} ms";
+            _length.Root.gameObject.SetActive(!_online || party.Empty || g.IsLeader);
+            UpdateStage();
             UpdateStatus();
         }
 
-        private void ShowPractice()
+        private bool _creating;
+
+        private void UpdateStage()
         {
-            _cards[0].ShowMember("", _app.Profile.Name, "", _app.Profile.Look, _app.OnlineProfile?.level ?? 1, _offlineCountdown, true, true, 0, true, false, false, false, null, null, null);
-            for (int i = 1; i < _cards.Length; i++)
-            {
-                var look = Appearance.Preset(i);
-                _cards[i].ShowMember("", MatchSim.BotNames[i % MatchSim.BotNames.Length], "", look, 1, true, false, true, 0, false, false, false, true, null, null, null);
-            }
+            if (_app.State != GameApp.AppState.Menu) return;
+            var looks = new List<Appearance>();
+            var key = new System.Text.StringBuilder();
+            foreach (var m in _members) { looks.Add(m.Look); key.Append(m.Look.Outfit).Append(m.Look.Color).Append(','); }
+            if (key.ToString() == _stageKey) return;
+            _stageKey = key.ToString();
+            _app.Stage.SquadPose(looks);
         }
+
+        public void ForceStage() { _stageKey = ""; UpdateStage(); }
 
         private void UpdateStatus()
         {
@@ -423,48 +596,45 @@ namespace Veil.UI
             bool actionOn = true;
             if (!_online)
             {
-                s = "Practice: your squad + 3 bots vs 3 bot squads. Same rules as online.";
+                s = "Practice: your squad + 3 bots vs 3 bot squads";
                 action = _offlineCountdown ? "CANCEL" : "READY";
             }
             else if (!g.Online)
             {
                 s = g.Status == GatewayClient.State.Connecting ? "Connecting to the VEIL server…" :
-                    string.IsNullOrEmpty(g.LastError) ? "Enter the server address (auto-detected on your Wi-Fi) and CONNECT." : $"<color=#ff9a8a>Offline: {g.LastError}</color>";
+                    string.IsNullOrEmpty(g.LastError) ? "Connect to a VEIL server to play online" : $"<color=#ff9a8a>Offline: {g.LastError}</color>";
                 action = "CONNECT";
             }
             else
             {
                 var party = g.Party;
-                if (g.Assignment != null && _app.State != GameApp.AppState.Match)
-                {
-                    s = "<color=#ffd84a>Your match is still running.</color> Rejoin your squad!";
-                    action = "REJOIN";
-                }
-                else if (party.Empty)
-                {
-                    s = $"<color=#7dff9a>●</color> Online as <color=#ffd84a>{g.Handle}</color> · {g.PingMs} ms · create a room or play solo";
-                    action = "PLAY SOLO";
-                }
+                if (g.Assignment != null && _app.State != GameApp.AppState.Match) { s = "<color=#ffd84a>Your match is still running!</color>"; action = "REJOIN"; }
+                else if (party.Empty) { s = "Creating your squad…"; action = "READY"; }
                 else if (party.phase == (int)PartyPhase.Queued)
                 {
-                    s = $"<color=#40e6ff>Finding a match…</color> {party.queueSeconds / 60}:{party.queueSeconds % 60:00}  ·  bots fill empty seats";
-                    action = g.IsLeader ? "CANCEL" : "SEARCHING…";
+                    s = $"<color=#40e6ff>Finding a match…</color> {party.queueSeconds / 60}:{party.queueSeconds % 60:00}";
+                    action = g.IsLeader ? "CANCEL" : "SEARCHING";
                     actionOn = g.IsLeader;
                 }
-                else if (party.phase == (int)PartyPhase.InMatch)
-                {
-                    s = "Match starting…";
-                    action = "LOADING…";
-                    actionOn = false;
-                }
+                else if (party.phase == (int)PartyPhase.InMatch) { s = "Match starting…"; action = "LOADING"; actionOn = false; }
                 else
                 {
                     int ready = 0;
                     foreach (var m in party.members) if (m.ready || m.leader) ready++;
                     int minutes = g.IsLeader ? _app.Profile.MatchMinutes : party.seconds / 60;
-                    s = $"{party.members.Count}/{GameConfig.SquadSize} in squad · {ready} ready · {minutes} min match";
-                    if (g.IsLeader) { action = ready == party.members.Count ? "START" : "WAITING…"; actionOn = ready == party.members.Count; }
-                    else action = (g.Me?.ready ?? false) ? "UNREADY" : "READY";
+                    if (g.IsLeader)
+                    {
+                        bool all = ready == party.members.Count;
+                        action = all ? (party.members.Count == 1 ? "READY" : "START") : "WAITING";
+                        actionOn = all;
+                        s = all ? $"{minutes} min match · press {(party.members.Count == 1 ? "READY" : "START")} to find a match" : $"Waiting for squad to ready up ({ready}/{party.members.Count})";
+                    }
+                    else
+                    {
+                        bool me = g.Me?.ready ?? false;
+                        action = me ? "UNREADY" : "READY";
+                        s = me ? "Waiting for the leader to start" : "Ready up — the leader starts the match";
+                    }
                 }
             }
             if (_transientT > 0 && !string.IsNullOrEmpty(_transient)) s = _transient;
@@ -476,13 +646,58 @@ namespace Veil.UI
         public void Update(float dt)
         {
             if (_transientT > 0) { _transientT -= dt; if (_transientT <= 0) UpdateStatus(); }
-            foreach (var c in _cards) c.UpdateVoice(_app.Voice);
             var v = _app.Voice;
-            string mode = v.Mode == VoiceMode.Off ? "<color=#8a90b8>VOICE OFF</color>" : v.Mode == VoiceMode.OpenMic ? "OPEN MIC" : "PUSH TO TALK";
-            if (v.Mode != VoiceMode.Off && v.LocalSpeaking) mode = "<color=#7dff9a>● TALKING</color>";
-            _voiceLabel.text = mode;
-            if (_online && _app.Gateway.Party.phase == (int)PartyPhase.Queued) UpdateStatus();
+            bool voiceOn = _online && v.Mode != VoiceMode.Off;
+            // rows: mic = speaking indicator (you: tap to mute), speaker = mute that player (you: deafen)
+            foreach (var r in _rows)
+            {
+                if (r.M == null || r.M.Bot) continue;
+                bool talking = voiceOn && v.IsSpeaking(r.M.Id);
+                bool muted = r.M.Me ? v.MicMuted : v.IsMuted(r.M.Id);
+                r.Mic.sprite = r.M.Me && v.MicMuted ? Icons.MicOff : Icons.Mic;
+                r.Mic.color = talking ? Theme.Green : r.M.Me && v.MicMuted ? Theme.Red : Theme.TextDim;
+                bool spkOff = r.M.Me ? v.Deafened : muted;
+                r.Spk.sprite = spkOff ? Icons.SpeakerOff : Icons.Speaker;
+                r.Spk.color = spkOff ? Theme.Red : Theme.TextDim;
+            }
+            // voice pill (voice only exists online)
+            _voicePill.gameObject.SetActive(_online);
+            _micPillIcon.sprite = v.MicMuted ? Icons.MicOff : Icons.Mic;
+            _micPillIcon.color = v.MicMuted ? Theme.Red : v.LocalSpeaking ? Theme.Green : Theme.Text;
+            _spkPillIcon.sprite = v.Deafened ? Icons.SpeakerOff : Icons.Speaker;
+            _spkPillIcon.color = v.Deafened ? Theme.Red : Theme.Text;
+            string pttKey = Veil.Match.Platform.IsMobile ? "TALK" : "V";
+            _voiceMode.text = v.Mode == VoiceMode.Off ? "<color=#8a90b8>VOICE OFF</color>" : v.LocalSpeaking ? "<color=#7dff9a>● TALKING</color>"
+                : v.Mode == VoiceMode.OpenMic ? "OPEN MIC" : $"HOLD {pttKey} TO TALK";
 
+            // name tags over the squad on the stage
+            bool show = _app.State == GameApp.AppState.Menu && _app.Cam != null;
+            for (int i = 0; i < _plate.Length; i++)
+            {
+                var p = _plate[i];
+                bool has = show && i < _members.Count;
+                p.Root.gameObject.SetActive(has);
+                if (!has) continue;
+                var m = _members[i];
+                var sp = _app.Cam.WorldToScreenPoint(_app.Stage.HeadPoint(i) + Vector3.down * 0.4f);
+                if (sp.z <= 0) { p.Root.gameObject.SetActive(false); continue; }
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(_plates, sp, null, out var lp);
+                p.Root.anchoredPosition = Vector2.Lerp(p.Root.anchoredPosition, lp + new Vector2(0, 30), p.Root.anchoredPosition == Vector2.zero ? 1 : 0.35f);
+                p.Name.text = m.Name;
+                p.Level.text = m.Bot ? "BOT" : $"Lv. {m.Level}";
+                bool crown = m.Leader && !m.Bot && _online;
+                p.Crown.gameObject.SetActive(crown);
+                p.Name.rectTransform.anchoredPosition = new Vector2(crown ? 34 : 12, -3);
+                p.Level.rectTransform.anchoredPosition = new Vector2(crown ? 34 : 12, 3);
+                bool talking = voiceOn && !m.Bot && v.IsSpeaking(m.Id);
+                p.Spk.gameObject.SetActive(!m.Bot);
+                p.Spk.color = talking ? Theme.Green : new Color(1, 1, 1, 0.55f);
+                bool ready = m.Ready || m.Bot;
+                p.ReadyBg.color = ready ? Theme.Green : new Color(1, 1, 1, 0.12f);
+                p.ReadyIcon.enabled = ready;
+            }
+
+            if (_online && _app.Gateway.Party.phase == (int)PartyPhase.Queued) UpdateStatus();
             if (!_online && _offlineCountdown)
             {
                 int before = Mathf.CeilToInt(_countT);
@@ -503,7 +718,43 @@ namespace Veil.UI
         public void OnShow()
         {
             _offlineCountdown = false;
+            ClosePopup();
+            _stageKey = "";
+            foreach (var p in _plate) p.Root.anchoredPosition = Vector2.zero;
             Refresh();
+        }
+    }
+
+    /// <summary>Compact segmented chip row (no title), right-aligned.</summary>
+    public sealed class ChipRowCompact
+    {
+        public readonly RectTransform Root;
+        private readonly List<Image> _chips = new List<Image>();
+        private readonly List<Text> _labels = new List<Text>();
+
+        public ChipRowCompact(Transform parent, Vector2 anchor, Vector2 pos, string[] options, int selected, Action<int> onPick)
+        {
+            float w = 440, cw = (w - 8 * (options.Length - 1)) / options.Length;
+            Root = UIKit.At(parent, "Chips", anchor, pos, new Vector2(w, 50));
+            Root.pivot = new Vector2(1, 0.5f);
+            for (int i = 0; i < options.Length; i++)
+            {
+                int idx = i;
+                var b = UIKit.Button(Root, options[i], new Vector2(0, 0.5f), new Vector2(i * (cw + 8), 0), new Vector2(cw, 48), UIKit.ButtonStyle.Ghost, () => { Select(idx); onPick(idx); }, 18);
+                ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
+                _chips.Add((Image)b.targetGraphic);
+                _labels.Add(UIKit.ButtonLabel(b));
+            }
+            Select(selected);
+        }
+
+        public void Select(int i)
+        {
+            for (int k = 0; k < _chips.Count; k++)
+            {
+                _chips[k].color = k == i ? Theme.Yellow : new Color(0.05f, 0.06f, 0.16f, 0.88f);
+                _labels[k].color = k == i ? new Color(0.12f, 0.08f, 0.02f) : Theme.TextDim;
+            }
         }
     }
 

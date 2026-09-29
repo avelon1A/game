@@ -8,7 +8,8 @@ namespace Veil.UI
     /// </summary>
     public static class Icons
     {
-        public static Sprite Dash, Pulse, Decoy, Blaster, Tower, Vault, Reactor, Market, Ruins, Key, Core, Energy, Health, Players, Clock, Shield, Speed, Target, Arrow, Skull, Trophy, Eye;
+        public static Sprite Dash, Pulse, Decoy, Blaster, Tower, Vault, Reactor, Market, Ruins, Key, Core, Energy, Health, Players, Clock, Shield, Speed, Target, Arrow, Skull, Trophy, Eye,
+            Mic, MicOff, Speaker, SpeakerOff, Crown, Check, Gear, Copy, Plus;
 
         public static void Init()
         {
@@ -35,6 +36,25 @@ namespace Veil.UI
             Skull = Make(c => { c.Circle(0.5f, 0.56f, 0.3f); c.Box(0.5f, 0.24f, 0.16f, 0.1f); c.Erase(e => { e.Circle(0.39f, 0.56f, 0.08f); e.Circle(0.61f, 0.56f, 0.08f); }); });
             Trophy = Make(c => { c.Poly(new[] { new Vector2(0.25f, 0.85f), new Vector2(0.75f, 0.85f), new Vector2(0.66f, 0.45f), new Vector2(0.34f, 0.45f) }); c.Box(0.5f, 0.3f, 0.05f, 0.12f); c.Box(0.5f, 0.14f, 0.2f, 0.05f); c.Ring(0.25f, 0.7f, 0.1f, 0.04f); c.Ring(0.75f, 0.7f, 0.1f, 0.04f); });
             Eye = Make(c => { c.Poly(Ellipse(0.5f, 0.5f, 0.4f, 0.24f, 24)); c.Erase(e => e.Circle(0.5f, 0.5f, 0.15f)); c.Circle(0.5f, 0.5f, 0.07f); });
+            Mic = Make(MicShape);
+            MicOff = Make(c => { MicShape(c); c.Erase(e => e.Line(0.16f, 0.14f, 0.84f, 0.9f, 0.14f)); c.Line(0.18f, 0.16f, 0.82f, 0.88f, 0.07f); });
+            Speaker = Make(c => { c.Ring(0.46f, 0.5f, 0.2f, 0.06f); c.Ring(0.46f, 0.5f, 0.34f, 0.06f); c.Erase(e => e.Box(0.3f, 0.5f, 0.3f, 0.5f)); SpeakerCone(c); });
+            SpeakerOff = Make(c => { SpeakerCone(c); c.Line(0.62f, 0.36f, 0.88f, 0.64f, 0.07f); c.Line(0.62f, 0.64f, 0.88f, 0.36f, 0.07f); });
+            Crown = Make(c => c.Poly(new[] { new Vector2(0.14f, 0.24f), new Vector2(0.86f, 0.24f), new Vector2(0.92f, 0.74f), new Vector2(0.68f, 0.5f), new Vector2(0.5f, 0.84f), new Vector2(0.32f, 0.5f), new Vector2(0.08f, 0.74f) }));
+            Check = Make(c => { c.Line(0.2f, 0.52f, 0.42f, 0.28f, 0.11f); c.Line(0.42f, 0.28f, 0.82f, 0.74f, 0.11f); });
+            Gear = Make(c =>
+            {
+                c.Circle(0.5f, 0.5f, 0.28f);
+                for (int i = 0; i < 8; i++) { float a = i * Mathf.PI / 4; c.Line(0.5f + Mathf.Cos(a) * 0.2f, 0.5f + Mathf.Sin(a) * 0.2f, 0.5f + Mathf.Cos(a) * 0.4f, 0.5f + Mathf.Sin(a) * 0.4f, 0.13f); }
+                c.Erase(e => e.Circle(0.5f, 0.5f, 0.12f));
+            });
+            Copy = Make(c =>
+            {
+                c.Box(0.58f, 0.58f, 0.25f, 0.25f); c.Erase(e => e.Box(0.58f, 0.58f, 0.18f, 0.18f));
+                c.Erase(e => e.Box(0.4f, 0.4f, 0.3f, 0.3f));
+                c.Box(0.4f, 0.4f, 0.25f, 0.25f); c.Erase(e => e.Box(0.4f, 0.4f, 0.18f, 0.18f));
+            });
+            Plus = Make(c => { c.Box(0.5f, 0.5f, 0.07f, 0.34f); c.Box(0.5f, 0.5f, 0.34f, 0.07f); });
         }
 
         private static Vector2[] Ellipse(float cx, float cy, float rx, float ry, int n)
@@ -43,6 +63,16 @@ namespace Veil.UI
             for (int i = 0; i < n; i++) { float a = i / (float)n * Mathf.PI * 2; p[i] = new Vector2(cx + Mathf.Cos(a) * rx, cy + Mathf.Sin(a) * ry); }
             return p;
         }
+
+        private static void MicShape(Canvas c)
+        {
+            c.Circle(0.5f, 0.74f, 0.13f); c.Box(0.5f, 0.6f, 0.13f, 0.14f); c.Circle(0.5f, 0.47f, 0.13f);
+            c.Ring(0.5f, 0.52f, 0.25f, 0.06f, 1f);
+            c.Line(0.5f, 0.27f, 0.5f, 0.13f, 0.06f); c.Line(0.34f, 0.12f, 0.66f, 0.12f, 0.06f);
+        }
+
+        private static void SpeakerCone(Canvas c) =>
+            c.Poly(new[] { new Vector2(0.12f, 0.38f), new Vector2(0.3f, 0.38f), new Vector2(0.52f, 0.18f), new Vector2(0.52f, 0.82f), new Vector2(0.3f, 0.62f), new Vector2(0.12f, 0.62f) });
 
         private static void Person(Canvas c, float x, float s)
         {
