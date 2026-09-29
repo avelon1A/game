@@ -120,6 +120,9 @@ namespace Veil.App
             _pause = new PauseScreen(Canvas, this);
             _toasts = new Toasts(Canvas, this);
             GoTitle();
+            // remote boot config: the cached copy already chose the server in Profile.Load; fetch the fresh one
+            ApplyBoot(BootConfig.Current, cached: true);
+            StartCoroutine(BootConfig.Fetch(d => ApplyBoot(d, cached: false)));
 
             var args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
@@ -329,6 +332,8 @@ namespace Veil.App
         public void GoOnline()
         {
             if (_goingOnline || Gateway.Online) return;
+            if (BootConfig.UpdateRequired) { _menu?.Squad?.Flash("<color=#ff9a8a>Update Rilo to play online</color> (Settings → UPDATE)", 8); return; }
+            if (BootConfig.Maintenance) { _menu?.Squad?.Flash($"<color=#ffd84a>{MaintenanceText}</color>", 8); return; }
             StartCoroutine(GoOnlineRoutine());
         }
 
@@ -389,6 +394,36 @@ namespace Veil.App
             Gateway.Connect(Profile.ServerHost, Profile.HttpPort, Profile.BackendId, Profile.BackendToken, Profile.Name, _sentLook);
             if (OnlineProfile == null) FetchProfile(p => OnlineProfile = p, e => { });
             _goingOnline = false;
+        }
+
+        private string _bootNoticeShown = "";
+        private static string MaintenanceText => string.IsNullOrEmpty(BootConfig.Current?.message) ? "Online play is paused for maintenance — back soon" : BootConfig.Current.message;
+
+        /// <summary>Applies the boot config: server switch (live reconnect), maintenance, update prompts, announcement.</summary>
+        private void ApplyBoot(BootData d, bool cached)
+        {
+            if (d == null) return;
+            if (!cached && Profile.SetAutoServer(d.server))
+            {
+                Debug.Log($"[VEIL] boot config moved the server to {Profile.ServerAddress}");
+                _menu?.Squad?.SetHostText(Profile.ServerAddress);
+                if (State != AppState.Match && Gateway.Status != GatewayClient.State.Offline) { Gateway.Disconnect(); _profileRequested = false; }
+                if (State != AppState.Match && (_menu?.Squad?.Online ?? false)) GoOnline();
+            }
+            if (BootConfig.Maintenance && Gateway.Online && State != AppState.Match) Gateway.Disconnect();
+            string note = BootConfig.UpdateRequired ? "A new version of Rilo is needed to play online — Settings → UPDATE"
+                : BootConfig.Maintenance ? MaintenanceText
+                : !string.IsNullOrEmpty(d.message) ? d.message
+                : BootConfig.UpdateAvailable ? "A new version of Rilo is available — Settings → UPDATE" : "";
+            if (!string.IsNullOrEmpty(note) && note != _bootNoticeShown) { _bootNoticeShown = note; _toasts?.Notice(note, 7f); }
+        }
+
+        /// <summary>Opens the update link from the boot config (APK / store page).</summary>
+        public void OpenUpdate()
+        {
+            var url = BootConfig.Current?.updateUrl;
+            if (!string.IsNullOrEmpty(url)) Application.OpenURL(url);
+            else _toasts?.Notice(BootConfig.UpdateAvailable || BootConfig.UpdateRequired ? "Ask for the new Rilo APK" : $"You have the latest Rilo (build {BootConfig.Build})", 4f);
         }
 
         private void OnServerFound(string ip, int port, string name, int players)
@@ -811,7 +846,7 @@ namespace Veil.App
         private IEnumerator OnlineTest()
         {
             yield return new WaitForSeconds(2f);
-            Profile.SetServerAddress(_onlineHost);   // "127.0.0.1", "host:port" or "udp://host:port"
+            Profile.UseServerForSession(_onlineHost);   // "127.0.0.1", "host:port" or "udp://host:port" (not saved)
             Profile.MatchMinutes = 1;
             GoMenu(0);
             _menu.Squad.SetMode(true);

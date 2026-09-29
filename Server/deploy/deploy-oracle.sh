@@ -90,5 +90,5 @@ journalctl -u rilo -n 8 --no-pager | sed 's/^/    /'
 REMOTE
 
 echo "==> checking from here"
-if curl -fsS --max-time 8 "http://$IP:5080/api/health"; then echo; echo "Server is up: udp://$IP:7779"
+if curl -fsS --max-time 8 "http://$IP:5080/api/health"; then echo; echo "Server is up: udp://$IP:7779"; echo "Moved to a new machine? Point every installed app at it:  ./Tools/boot/boot.sh server udp://$IP:7779"
 else echo "REST port 5080 not reachable yet: add the Ingress rules in the Oracle console (see Server/deploy/ORACLE.md)"; fi

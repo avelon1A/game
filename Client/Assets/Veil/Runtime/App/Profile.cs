@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Veil.Sim;
 
@@ -13,6 +14,11 @@ namespace Veil.App
         public int HttpPort;
         /// <summary>Gateway over UDP (address written as udp://host:port) — for UDP-only tunnels such as playit.gg.</summary>
         public bool ServerUdp;
+        /// <summary>Server typed by the player (Settings / lobby field). Empty = automatic.</summary>
+        public string ServerOverride = "";
+        /// <summary>Automatic server: from the remote boot config (cached), else the one built into the app.</summary>
+        public string AutoServer = "";
+        public string EffectiveServer => !string.IsNullOrEmpty(ServerOverride) ? ServerOverride : AutoServer;
         /// <summary>Lobby mode: online squads (default) or practice vs bots.</summary>
         public bool LobbyOnline;
         public string BackendId, BackendToken;
@@ -58,20 +64,13 @@ namespace Veil.App
                 MicSensitivity = PlayerPrefs.GetFloat("micSens", 0.35f),
                 Handle = PlayerPrefs.GetString("handle", ""),
             };
-            // server address: saved choice, else the default baked into the build (Resources/server_default.txt)
-            string saved = PlayerPrefs.GetString("server", "");
+            // server: what the player typed, else the remote boot config (last cached copy), else the built-in default
             var defAsset = Resources.Load<TextAsset>("server_default");
             string baked = defAsset != null ? defAsset.text.Trim() : "";
-            // a build with a new baked-in server (e.g. the cloud one) moves existing installs over once
-            if (!string.IsNullOrEmpty(baked) && baked != PlayerPrefs.GetString("serverBaked", ""))
-            {
-                saved = baked;
-                PlayerPrefs.SetString("serverBaked", baked);
-                PlayerPrefs.SetString("server", baked);
-                PlayerPrefs.Save();
-            }
-            if (string.IsNullOrEmpty(saved)) saved = baked;
-            if (!string.IsNullOrEmpty(saved)) p.ParseAddress(saved);
+            var boot = BootConfig.LoadCached();
+            p.AutoServer = boot != null && !string.IsNullOrEmpty(boot.server) ? boot.server.Trim() : baked;
+            p.ServerOverride = PlayerPrefs.GetString("serverOverride", "");
+            p.ParseAddress(p.EffectiveServer);
             p.MatchMinutes = p.MatchMinutes >= 15 ? 15 : p.MatchMinutes >= 10 ? 10 : 5;   // lobby offers 5 / 10 / 15
             p.Look = new Appearance
             {
@@ -87,7 +86,6 @@ namespace Veil.App
         public void Save()
         {
             PlayerPrefs.SetString("name", Name);
-            PlayerPrefs.SetString("server", ServerAddress);
             PlayerPrefs.SetInt("port", ServerPort);
             PlayerPrefs.SetString("bid", BackendId ?? "");
             PlayerPrefs.SetString("btok", BackendToken ?? "");
@@ -116,7 +114,30 @@ namespace Veil.App
         }
 
         /// <summary>"host" or "host:port" (port = the web/Gateway port, e.g. a playit.gg TCP tunnel).</summary>
-        public void SetServerAddress(string s) { ParseAddress(s); Save(); }
+        /// <summary>Player-typed server; empty or "auto" returns to the automatic (boot config) server.</summary>
+        public void SetServerAddress(string s)
+        {
+            s = (s ?? "").Trim();
+            ServerOverride = s.Equals("auto", StringComparison.OrdinalIgnoreCase) ? "" : s;
+            PlayerPrefs.SetString("serverOverride", ServerOverride);
+            PlayerPrefs.Save();
+            ParseAddress(EffectiveServer);
+        }
+
+        /// <summary>Use a server for this run only (tests); nothing is saved.</summary>
+        public void UseServerForSession(string s) => ParseAddress(s);
+
+        /// <summary>New automatic server from the boot config. True if the server actually in use changed.</summary>
+        public bool SetAutoServer(string s)
+        {
+            s = (s ?? "").Trim();
+            if (string.IsNullOrEmpty(s) || s == AutoServer) return false;
+            AutoServer = s;
+            if (!string.IsNullOrEmpty(ServerOverride)) return false;
+            string before = ServerAddress;
+            ParseAddress(AutoServer);
+            return ServerAddress != before;
+        }
 
         /// <summary>"host", "host:port" (web/Gateway port) or "udp://host:port" (Gateway over UDP).</summary>
         public void ParseAddress(string s)

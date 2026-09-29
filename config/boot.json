@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "server": "udp://144.24.139.103:7779",
+  "message": "",
+  "maintenance": false,
+  "minBuild": 1,
+  "latestBuild": 2,
+  "updateUrl": ""
+}

@@ -81,7 +81,7 @@ namespace Veil.EditorTools
         {
             PlayerSettings.companyName = "VEIL Studio";
             PlayerSettings.productName = "Rilo";   // app name on the home screen / dock (bundle id stays com.veilstudio.veil)
-            PlayerSettings.bundleVersion = "0.1.0";
+            PlayerSettings.bundleVersion = "0.1." + Veil.App.BootConfig.Build;
             PlayerSettings.defaultScreenWidth = 1600;
             PlayerSettings.defaultScreenHeight = 900;
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
@@ -157,7 +157,7 @@ namespace Veil.EditorTools
             PlayerSettings.SetScriptingBackend(nt, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
-            PlayerSettings.Android.bundleVersionCode = 1;
+            PlayerSettings.Android.bundleVersionCode = Veil.App.BootConfig.Build;   // bump BootConfig.Build per released APK
             EditorUserBuildSettings.buildAppBundle = false;
             Run(BuildTarget.Android, BuildTargetGroup.Android, Out("Android/Rilo.apk"));
         }

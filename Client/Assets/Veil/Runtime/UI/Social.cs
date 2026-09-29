@@ -181,7 +181,7 @@ namespace Veil.UI
             _connectRow.pivot = new Vector2(0, 0);
             _hostField = SocialUi.Field(_connectRow, new Vector2(0, 0.5f), Vector2.zero, 150, "server", 40);
             _hostField.text = app.Profile.ServerAddress;
-            _hostField.onEndEdit.AddListener(v => app.Profile.SetServerAddress(v));
+            _hostField.onEndEdit.AddListener(v => { if (v.Trim() != app.Profile.ServerAddress) app.Profile.SetServerAddress(v); });   // only a real edit pins a server
             SocialUi.SmallButton(_connectRow, "CONNECT", new Vector2(1, 0.5f), Vector2.zero, 106, UIKit.ButtonStyle.Secondary, () => app.GoOnline(), 14);
             var change = SocialUi.SmallButton(_modePanel, "CHANGE MODE", new Vector2(1, 0), new Vector2(-16, 38), 150, UIKit.ButtonStyle.Ghost, () => SetMode(!_online), 14);
             _changeBtn = change;
@@ -1004,10 +1004,12 @@ namespace Veil.UI
             app.Gateway.Notice += Notice;
         }
 
-        public void Notice(string text)
+        public void Notice(string text) => Notice(text, 3.5f);
+
+        public void Notice(string text, float seconds)
         {
             _noticeText.text = text;
-            _noticeT = 3.5f;
+            _noticeT = seconds;
             _notice.gameObject.SetActive(true);
             _root.SetAsLastSibling();
         }

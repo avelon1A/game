@@ -105,7 +105,7 @@ namespace Veil.UI
             return s;
         }
 
-        public static InputField InputRow(Transform parent, Vector2 anchor, Vector2 pos, string title, string value, Action<string> onChange, float width = 360)
+        public static InputField InputRow(Transform parent, Vector2 anchor, Vector2 pos, string title, string value, Action<string> onChange, float width = 360, string placeholder = null)
         {
             var root = UIKit.At(parent, "Input_" + title, anchor, pos, new Vector2(width + 180, 52));
             var t = UIKit.LabelAt(root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
@@ -122,6 +122,13 @@ namespace Veil.UI
             field.textComponent = text;
             field.targetGraphic = img;
             field.characterLimit = 32;
+            if (!string.IsNullOrEmpty(placeholder))
+            {
+                var ph = UIKit.Label(textRt, placeholder, 18, new Color(1, 1, 1, 0.4f), TextAnchor.MiddleLeft, UIKit.BodyFont, "Placeholder");
+                ph.fontStyle = FontStyle.Italic;
+                UIKit.Fit(ph);
+                field.placeholder = ph;
+            }
             field.text = value;
             field.onEndEdit.AddListener(v => onChange(v));
             field.onValueChanged.AddListener(v => onChange(v));

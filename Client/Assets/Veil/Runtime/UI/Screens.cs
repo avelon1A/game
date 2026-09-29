@@ -348,7 +348,10 @@ namespace Veil.UI
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
             var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
-            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-80, -450), "SERVER", prof.ServerAddress, v => prof.SetServerAddress(v), 340);
+            // empty = automatic: the server comes from the remote boot config, so moving the server needs no new app
+            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-150, -450), "SERVER", prof.ServerOverride, v => prof.SetServerAddress(v), 340, "AUTO (recommended)");
+            var upd = UIKit.Button(p, "UPDATE", new Vector2(0.5f, 1), new Vector2(330, -450), new Vector2(150, 48), UIKit.ButtonStyle.Ghost, () => App.OpenUpdate(), 18);
+            var build = UIKit.LabelAt(p, $"build {BootConfig.Build}", 14, Theme.TextDim, new Vector2(0.5f, 1), new Vector2(330, -486), new Vector2(150, 20), TextAnchor.MiddleCenter, UIKit.BodyFont);
             // squad voice
             var vm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -515), "VOICE CHAT", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode,
                 i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); }, 160);
