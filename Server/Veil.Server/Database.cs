@@ -26,6 +26,20 @@ namespace Veil.Server
         public int objectives { get; set; }
         public string appearance { get; set; }
         public string createdAt { get; set; }
+        public int tag { get; set; }
+        public string handle { get; set; }   // Name#1234 — what friends type to add you
+    }
+
+    /// <summary>A friend (or request) as shown in the friends list.</summary>
+    public sealed class FriendInfo
+    {
+        public string id { get; set; }
+        public string name { get; set; }
+        public string handle { get; set; }
+        public string appearance { get; set; }
+        public int level { get; set; }
+        public long requestId { get; set; }
+        public string since { get; set; }
     }
 
     public sealed class MatchSummary
@@ -62,7 +76,47 @@ CREATE TABLE IF NOT EXISTS matches(
   players INTEGER NOT NULL, winner TEXT NOT NULL, winner_score INTEGER NOT NULL, results_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS match_players(
   match_id INTEGER NOT NULL, player_id TEXT NOT NULL, rank INTEGER NOT NULL, score INTEGER NOT NULL,
-  PRIMARY KEY(match_id, player_id));");
+  PRIMARY KEY(match_id, player_id));
+CREATE TABLE IF NOT EXISTS friendships(
+  a TEXT NOT NULL, b TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(a, b));
+CREATE TABLE IF NOT EXISTS friend_requests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, from_id TEXT NOT NULL, to_id TEXT NOT NULL, created_at TEXT NOT NULL,
+  UNIQUE(from_id, to_id));");
+            AddColumn("players", "tag", "INTEGER NOT NULL DEFAULT 0");
+            AddColumn("players", "last_seen", "TEXT NOT NULL DEFAULT ''");
+            AddColumn("match_players", "squad", "INTEGER NOT NULL DEFAULT 0");
+            AddColumn("match_players", "squad_rank", "INTEGER NOT NULL DEFAULT 0");
+            // older rows: give every player a discriminator so handles are unique
+            lock (_lock)
+            {
+                using var c = Open();
+                using var q = c.CreateCommand();
+                q.CommandText = "SELECT id FROM players WHERE tag = 0";
+                var ids = new List<string>();
+                using (var r = q.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
+                foreach (var id in ids)
+                {
+                    using var u = c.CreateCommand();
+                    u.CommandText = "UPDATE players SET tag=$t WHERE id=$id";
+                    u.Parameters.AddWithValue("$t", RandomNumberGenerator.GetInt32(1000, 10000));
+                    u.Parameters.AddWithValue("$id", id);
+                    u.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private void AddColumn(string table, string col, string def)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                using var q = c.CreateCommand();
+                q.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='{col}'";
+                if (Convert.ToInt32(q.ExecuteScalar()) > 0) return;
+                using var a = c.CreateCommand();
+                a.CommandText = $"ALTER TABLE {table} ADD COLUMN {col} {def}";
+                a.ExecuteNonQuery();
+            }
         }
 
         private SqliteConnection Open()
@@ -103,7 +157,8 @@ CREATE TABLE IF NOT EXISTS match_players(
             {
                 using var c = Open();
                 using var cmd = c.CreateCommand();
-                cmd.CommandText = "INSERT INTO players(id, token, name, created_at) VALUES($id, $t, $n, $c)";
+                cmd.CommandText = "INSERT INTO players(id, token, name, created_at, tag) VALUES($id, $t, $n, $c, $tag)";
+                cmd.Parameters.AddWithValue("$tag", RandomNumberGenerator.GetInt32(1000, 10000));
                 cmd.Parameters.AddWithValue("$id", id);
                 cmd.Parameters.AddWithValue("$t", token);
                 cmd.Parameters.AddWithValue("$n", name);
@@ -187,8 +242,11 @@ CREATE TABLE IF NOT EXISTS match_players(
             int level = LevelForXp(xp, out int into, out int need);
             int matches = r.GetInt32(r.GetOrdinal("matches"));
             int total = r.GetInt32(r.GetOrdinal("total_score"));
+            string nm = r.GetString(r.GetOrdinal("name"));
+            int tag = r.GetInt32(r.GetOrdinal("tag"));
             return new PlayerProfile
             {
+                tag = tag, handle = $"{nm}#{tag}",
                 id = r.GetString(r.GetOrdinal("id")),
                 name = r.GetString(r.GetOrdinal("name")),
                 createdAt = r.GetString(r.GetOrdinal("created_at")),
@@ -231,14 +289,15 @@ CREATE TABLE IF NOT EXISTS match_players(
                     matchId = (long)cmd.ExecuteScalar();
                 }
 
-                int n = results.Count;
+                int squads = Math.Max(2, GameConfig.SquadCount);
                 foreach (var res in results)
                 {
                     if (!profileByPlayer.TryGetValue(res.PlayerId, out var pid) || string.IsNullOrEmpty(pid)) continue;
-                    // placement-based Elo-ish rating: expected mid-table, K = 32
-                    float placement = n > 1 ? 1f - (res.Rank - 1) / (float)(n - 1) : 1f; // 1 = first, 0 = last
-                    int delta = (int)MathF.Round(32 * (placement - 0.5f) * 2f);
-                    int xpGain = 50 + res.Total / 10 + (res.Rank == 1 ? 100 : 0);
+                    // team rating: squad placement drives it (K = 32), individual share of the squad score nudges it (±6)
+                    float placement = 1f - (res.SquadRank - 1) / (float)(squads - 1);   // 1 = best squad, 0 = last
+                    float share = res.SquadTotal > 0 ? res.Total / (float)res.SquadTotal : 0.25f;
+                    int delta = (int)MathF.Round(32 * (placement - 0.5f) * 2f + MathUtil.Clamp((share - 0.25f) * 24f, -6f, 6f));
+                    int xpGain = 50 + res.Total / 10 + (res.SquadRank == 1 ? 100 : 0);
                     int objectives = (res.PrimaryDone ? 1 : 0) + (res.SecondaryDone ? 1 : 0);
                     using var cmd = c.CreateCommand();
                     cmd.Transaction = tx;
@@ -247,8 +306,8 @@ CREATE TABLE IF NOT EXISTS match_players(
                         eliminations = eliminations + $k, deaths = deaths + $dth, objectives = objectives + $o WHERE id = $id";
                     cmd.Parameters.AddWithValue("$xp", xpGain);
                     cmd.Parameters.AddWithValue("$dr", delta);
-                    cmd.Parameters.AddWithValue("$win", res.Rank == 1 ? 1 : 0);
-                    cmd.Parameters.AddWithValue("$top3", res.Rank <= 3 ? 1 : 0);
+                    cmd.Parameters.AddWithValue("$win", res.SquadRank == 1 ? 1 : 0);
+                    cmd.Parameters.AddWithValue("$top3", res.SquadRank <= 2 ? 1 : 0);
                     cmd.Parameters.AddWithValue("$s", res.Total);
                     cmd.Parameters.AddWithValue("$k", res.Elims);
                     cmd.Parameters.AddWithValue("$dth", res.Deaths);
@@ -258,7 +317,9 @@ CREATE TABLE IF NOT EXISTS match_players(
 
                     using var mp = c.CreateCommand();
                     mp.Transaction = tx;
-                    mp.CommandText = "INSERT OR REPLACE INTO match_players(match_id, player_id, rank, score) VALUES($m,$p,$r,$s)";
+                    mp.CommandText = "INSERT OR REPLACE INTO match_players(match_id, player_id, rank, score, squad, squad_rank) VALUES($m,$p,$r,$s,$sq,$sr)";
+                    mp.Parameters.AddWithValue("$sq", res.Squad);
+                    mp.Parameters.AddWithValue("$sr", res.SquadRank);
                     mp.Parameters.AddWithValue("$m", matchId);
                     mp.Parameters.AddWithValue("$p", pid);
                     mp.Parameters.AddWithValue("$r", res.Rank);
@@ -287,6 +348,186 @@ CREATE TABLE IF NOT EXISTS match_players(
                         id = r.GetInt64(0), endedAt = r.GetString(1), durationSec = r.GetInt32(2), players = r.GetInt32(3),
                         winner = r.GetString(4), winnerScore = r.GetInt32(5),
                         results = JsonSerializer.Deserialize<List<PlayerResult>>(r.GetString(6), new JsonSerializerOptions { IncludeFields = true }),
+                    });
+                }
+            }
+            return list;
+        }
+
+        // ---------------- social ----------------
+
+        public void Touch(string id)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "UPDATE players SET last_seen=$t WHERE id=$id";
+                cmd.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("o"));
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>"Name#1234" → player id (null if unknown).</summary>
+        public string FindByHandle(string handle)
+        {
+            handle = (handle ?? "").Trim();
+            int hash = handle.LastIndexOf('#');
+            if (hash <= 0 || !int.TryParse(handle.Substring(hash + 1), out int tag)) return null;
+            string name = handle.Substring(0, hash).Trim();
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "SELECT id FROM players WHERE name = $n COLLATE NOCASE AND tag = $t LIMIT 1";
+                cmd.Parameters.AddWithValue("$n", name);
+                cmd.Parameters.AddWithValue("$t", tag);
+                return cmd.ExecuteScalar() as string;
+            }
+        }
+
+        private static (string, string) Pair(string x, string y) => string.CompareOrdinal(x, y) < 0 ? (x, y) : (y, x);
+
+        public bool AreFriends(string x, string y)
+        {
+            var (a, b) = Pair(x, y);
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM friendships WHERE a=$a AND b=$b";
+                cmd.Parameters.AddWithValue("$a", a); cmd.Parameters.AddWithValue("$b", b);
+                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+            }
+        }
+
+        public enum RequestResult { Sent, AlreadyFriends, AlreadySent, BecameFriends, Invalid }
+
+        /// <summary>Sends a friend request. If the other player already asked us, this accepts it instead.</summary>
+        public RequestResult SendRequest(string from, string to)
+        {
+            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to) || from == to || !Exists(to)) return RequestResult.Invalid;
+            if (AreFriends(from, to)) return RequestResult.AlreadyFriends;
+            lock (_lock)
+            {
+                using var c = Open();
+                using (var rev = c.CreateCommand())
+                {
+                    rev.CommandText = "SELECT id FROM friend_requests WHERE from_id=$t AND to_id=$f";
+                    rev.Parameters.AddWithValue("$t", to); rev.Parameters.AddWithValue("$f", from);
+                    if (rev.ExecuteScalar() is long rid) { AcceptLocked(c, rid, from); return RequestResult.BecameFriends; }
+                }
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "INSERT OR IGNORE INTO friend_requests(from_id, to_id, created_at) VALUES($f,$t,$c)";
+                cmd.Parameters.AddWithValue("$f", from); cmd.Parameters.AddWithValue("$t", to);
+                cmd.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+                return cmd.ExecuteNonQuery() > 0 ? RequestResult.Sent : RequestResult.AlreadySent;
+            }
+        }
+
+        /// <summary>Accepts request <paramref name="requestId"/> addressed to <paramref name="by"/>. Returns the requester's id.</summary>
+        public string AcceptRequest(long requestId, string by)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                return AcceptLocked(c, requestId, by);
+            }
+        }
+
+        private string AcceptLocked(SqliteConnection c, long requestId, string by)
+        {
+            string from;
+            using (var q = c.CreateCommand())
+            {
+                q.CommandText = "SELECT from_id FROM friend_requests WHERE id=$id AND to_id=$to";
+                q.Parameters.AddWithValue("$id", requestId); q.Parameters.AddWithValue("$to", by);
+                from = q.ExecuteScalar() as string;
+            }
+            if (from == null) return null;
+            var (a, b) = Pair(from, by);
+            using (var ins = c.CreateCommand())
+            {
+                ins.CommandText = "INSERT OR IGNORE INTO friendships(a, b, created_at) VALUES($a,$b,$c)";
+                ins.Parameters.AddWithValue("$a", a); ins.Parameters.AddWithValue("$b", b);
+                ins.Parameters.AddWithValue("$c", DateTime.UtcNow.ToString("o"));
+                ins.ExecuteNonQuery();
+            }
+            using (var del = c.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM friend_requests WHERE (from_id=$x AND to_id=$y) OR (from_id=$y AND to_id=$x)";
+                del.Parameters.AddWithValue("$x", from); del.Parameters.AddWithValue("$y", by);
+                del.ExecuteNonQuery();
+            }
+            return from;
+        }
+
+        /// <summary>Removes a request the player sent (cancel) or received (decline). Returns the other player's id.</summary>
+        public string DeleteRequest(long requestId, string by)
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                string other;
+                using (var q = c.CreateCommand())
+                {
+                    q.CommandText = "SELECT CASE WHEN from_id=$by THEN to_id ELSE from_id END FROM friend_requests WHERE id=$id AND (from_id=$by OR to_id=$by)";
+                    q.Parameters.AddWithValue("$id", requestId); q.Parameters.AddWithValue("$by", by);
+                    other = q.ExecuteScalar() as string;
+                }
+                if (other == null) return null;
+                using var d = c.CreateCommand();
+                d.CommandText = "DELETE FROM friend_requests WHERE id=$id";
+                d.Parameters.AddWithValue("$id", requestId);
+                d.ExecuteNonQuery();
+                return other;
+            }
+        }
+
+        public bool RemoveFriend(string x, string y)
+        {
+            var (a, b) = Pair(x, y);
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "DELETE FROM friendships WHERE a=$a AND b=$b";
+                cmd.Parameters.AddWithValue("$a", a); cmd.Parameters.AddWithValue("$b", b);
+                return cmd.ExecuteNonQuery() > 0;
+            }
+        }
+
+        public List<FriendInfo> Friends(string id) => QueryFriends(@"
+SELECT p.id, p.name, p.tag, p.appearance, p.xp, 0, f.created_at FROM friendships f
+JOIN players p ON p.id = CASE WHEN f.a=$id THEN f.b ELSE f.a END
+WHERE f.a=$id OR f.b=$id ORDER BY p.name COLLATE NOCASE", id);
+
+        public List<FriendInfo> Incoming(string id) => QueryFriends(@"
+SELECT p.id, p.name, p.tag, p.appearance, p.xp, r.id, r.created_at FROM friend_requests r
+JOIN players p ON p.id = r.from_id WHERE r.to_id=$id ORDER BY r.id DESC", id);
+
+        public List<FriendInfo> Outgoing(string id) => QueryFriends(@"
+SELECT p.id, p.name, p.tag, p.appearance, p.xp, r.id, r.created_at FROM friend_requests r
+JOIN players p ON p.id = r.to_id WHERE r.from_id=$id ORDER BY r.id DESC", id);
+
+        private List<FriendInfo> QueryFriends(string sql, string id)
+        {
+            var list = new List<FriendInfo>();
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.AddWithValue("$id", id);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    string nm = r.GetString(1);
+                    list.Add(new FriendInfo
+                    {
+                        id = r.GetString(0), name = nm, handle = $"{nm}#{r.GetInt32(2)}", appearance = r.GetString(3),
+                        level = LevelForXp(r.GetInt32(4), out _, out _), requestId = r.GetInt64(5), since = r.GetString(6),
                     });
                 }
             }

@@ -15,11 +15,16 @@ namespace Veil.Server
         {
             app.MapGet("/", () => Results.Text(
                 "VEIL test backend\n\nGET  /api/health\nPOST /api/players/register {name}\nGET  /api/players/{id}\nPUT  /api/players/{id} {token,name,appearance}\n" +
-                "GET  /api/leaderboard\nGET  /api/matches/recent\nGET  /api/servers\nPOST /api/matchmaking/join\n"));
+                "GET  /api/leaderboard\nGET  /api/matches/recent\nGET  /api/servers\n\nWS   /ws  (Gateway: presence, friends, parties, matchmaking)\n"));
 
             var api = app.MapGroup("/api");
 
-            api.MapGet("/health", (GameServer gs) => Results.Ok(new { ok = true, time = DateTime.UtcNow, server = gs.Describe() }));
+            api.MapGet("/health", (GameHost gs, SocialHub hub, VoiceRelay voice) => Results.Ok(new
+            {
+                ok = true, time = DateTime.UtcNow, server = gs.Describe(),
+                social = new { online = hub.OnlineCount, parties = hub.PartyCount, queued = hub.QueuedParties },
+                voice = new { speakers = voice.Speakers, framesForwarded = voice.FramesForwarded },
+            }));
 
             api.MapPost("/players/register", (RegisterRequest req, Database db) =>
             {
@@ -44,14 +49,8 @@ namespace Veil.Server
 
             api.MapGet("/matches/recent", (Database db, int? limit) => Results.Ok(new { matches = db.RecentMatches(Math.Clamp(limit ?? 10, 1, 50)) }));
 
-            api.MapGet("/servers", (GameServer gs) => Results.Ok(new { servers = new[] { gs.Describe() } }));
-
-            // Matchmaking stub (GDD §24): one server for now; later: pick by rating / region / ping.
-            api.MapPost("/matchmaking/join", (GameServer gs) =>
-            {
-                var o = gs.Options;
-                return Results.Ok(new { host = o.PublicHost, port = o.UdpPort, key = GameServer.ConnectionKey, status = gs.StatusName });
-            });
+            // Server list for a future multi-region fleet; one entry today.
+            api.MapGet("/servers", (GameHost gs) => Results.Ok(new { servers = new[] { gs.Describe() } }));
         }
     }
 }

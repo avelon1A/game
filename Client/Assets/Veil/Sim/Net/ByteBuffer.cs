@@ -22,6 +22,7 @@ namespace Veil.Sim
         }
 
         public void U8(byte v) { Ensure(1); _buf[Length++] = v; }
+        public void Bytes(byte[] src, int offset, int count) { Ensure(count); Array.Copy(src, offset, _buf, Length, count); Length += count; }
         public void Bool(bool v) => U8(v ? (byte)1 : (byte)0);
         public void I16(short v) { Ensure(2); _buf[Length++] = (byte)v; _buf[Length++] = (byte)(v >> 8); }
         public void U16(ushort v) { Ensure(2); _buf[Length++] = (byte)v; _buf[Length++] = (byte)(v >> 8); }
@@ -60,6 +61,7 @@ namespace Veil.Sim
         public ByteReader(byte[] buf) : this(buf, 0, buf.Length) { }
 
         public int Remaining => _end - _pos;
+        public int Position => _pos;
 
         private void Need(int n) { if (_pos + n > _end) throw new FormatException("Packet truncated"); }
 
