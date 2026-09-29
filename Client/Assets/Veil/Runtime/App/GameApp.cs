@@ -546,6 +546,7 @@ namespace Veil.App
 
         private void LateUpdate()
         {
+            UpdateBackdrop();
             float dt = Time.deltaTime;
             float t = Time.time;
             switch (State)
@@ -558,7 +559,7 @@ namespace Veil.App
                     else if (_lineupShot) CamRig.Shot(Stage.Origin + (_lineupClose ? new Vector3(0, 1.7f, -2.4f) : new Vector3(0, 1.35f, -5.6f)), Stage.Origin + (_lineupClose ? new Vector3(0, 1.45f, 0) : new Vector3(0, 1.05f, 0)), dt, 12f);
                     else if (_menu.Tab == 1) CamRig.Shot(Stage.Origin + new Vector3(1.3f, 1.45f, -3.9f), Stage.Origin + new Vector3(1.3f, 1.1f, 0), dt, 4f);
                     else if (_menu.Tab == 3) CamRig.Shot(Stage.Origin + new Vector3(0, 2.4f, -8.5f), Stage.Origin + new Vector3(0, 1.6f, 0), dt, 3f);
-                    else if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(1.85f, 1.5f, -5.5f), Stage.Origin + new Vector3(1.85f, 1.05f, 0), dt, 3f);   // squad lineup, left of the panel
+                    else if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(1.28f, 1.3f, -3.9f), Stage.Origin + new Vector3(1.28f, 1.4f, 0), dt, 3f);   // squad lineup, left of the panel
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
                     break;
                 case AppState.Results:
@@ -671,6 +672,43 @@ namespace Veil.App
                 if (score < best) { best = score; bestYaw = yaw; }
             }
             if (best < 999) CamRig.Yaw = Mathf.MoveTowardsAngle(CamRig.Yaw, bestYaw, 110f * dt);
+        }
+
+        // ---- squad lobby backdrop: the painted scene, filling the screen behind the squad (camera renders only the lobby layer)
+        private SpriteRenderer _backdrop;
+
+        private void UpdateBackdrop()
+        {
+            bool on = State == AppState.Menu && Stage.SquadMode;
+            if (on && _backdrop == null)
+            {
+                var tex = Resources.Load<Texture2D>("UI/lobby_bg");
+                if (tex != null)
+                {
+                    var go = new GameObject("LobbyBackdrop");
+                    go.transform.SetParent(Cam.transform, false);
+                    go.layer = Stage.LobbyLayer;
+                    _backdrop = go.AddComponent<SpriteRenderer>();
+                    _backdrop.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.height);
+                    _backdrop.color = new Color(0.93f, 0.93f, 0.95f);   // keep it just under the bloom threshold
+                    _backdrop.sortingOrder = -100;
+                }
+            }
+            if (_backdrop != null)
+            {
+                _backdrop.gameObject.SetActive(on);
+                if (on)
+                {
+                    const float D = 14f;
+                    float h = 2f * D * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                    float imgAspect = _backdrop.sprite.rect.width / _backdrop.sprite.rect.height;
+                    float scale = Mathf.Max(h, h * Cam.aspect / imgAspect) * 1.02f;   // cover the screen (crop, never letterbox)
+                    _backdrop.transform.localPosition = new Vector3(0, 0, D);
+                    _backdrop.transform.localRotation = Quaternion.identity;
+                    _backdrop.transform.localScale = new Vector3(scale, scale, 1);
+                }
+            }
+            Cam.cullingMask = on ? (1 << Stage.LobbyLayer) : ~0;
         }
 
         private void OnApplicationPause(bool paused)
@@ -867,7 +905,28 @@ namespace Veil.App
             for (int k = 0; k < SquadSlots.Length; k++)
             {
                 var c = k == 0 ? Palette.Hex("#ffd84a") : Palette.Hex("#4fe3ff");
-                Build.Part(st, MeshGen.Torus(0.05f, 40, 8), MaterialLib.Glow(c, 1.6f), SquadSlots[k] + new Vector3(0, 0.08f, 0), new Vector3(1.25f, 1f, 1.25f), null, "SlotRing" + k, false);
+                Build.Part(st, MeshGen.Torus(0.035f, 40, 8), MaterialLib.Glow(c, 0.9f), SquadSlots[k] + new Vector3(0, 0.03f, 0), new Vector3(0.95f, 1f, 0.95f), null, "SlotRing" + k, false);
+            }
+            // soft contact shadows (the painted floor can't receive real ones)
+            var blobTex = new Texture2D(64, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < 64; y++)
+                for (int x = 0; x < 64; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), new Vector2(31.5f, 31.5f)) / 32f;
+                    blobTex.SetPixel(x, y, new Color(0, 0, 0, Mathf.Clamp01(1 - d) * Mathf.Clamp01(1 - d)));
+                }
+            blobTex.Apply();
+            var blob = Sprite.Create(blobTex, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f), 64);
+            for (int k = 0; k < SquadSlots.Length; k++)
+            {
+                var b = new GameObject("Blob" + k);
+                b.transform.SetParent(st, false);
+                b.transform.localPosition = SquadSlots[k] + new Vector3(0, 0.02f, 0);
+                b.transform.localRotation = Quaternion.Euler(90, 0, 0);
+                b.transform.localScale = new Vector3(1.5f, 0.9f, 1);
+                var sr = b.AddComponent<SpriteRenderer>();
+                sr.sprite = blob;
+                sr.color = new Color(0, 0, 0, 0.55f);
             }
             _squadStage.SetActive(false);
         }
@@ -884,6 +943,7 @@ namespace Veil.App
             _podium = false;
             SquadMode = false;
             _squadStage.SetActive(false);
+            SetLayer(_root, 0);
             if (!_rigs[0].Look.Equals(mine)) _rigs[0].Rebuild(mine);
             for (int i = 0; i < 5; i++)
             {
@@ -896,7 +956,8 @@ namespace Veil.App
         }
 
         // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
-        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.6f, 0, -0.25f), new Vector3(-1.6f, 0, -0.25f), new Vector3(-3.1f, 0, -0.7f) };
+        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.3f), new Vector3(1.3f, 0, -0.2f), new Vector3(-1.3f, 0, -0.2f), new Vector3(-2.55f, 0, -0.55f) };
+        public const int LobbyLayer = 9;   // squad lobby renders only this layer, in front of the painted backdrop
         public bool SquadMode { get; private set; }
 
         /// <summary>Shows the squad (up to 4 looks, index 0 = you) standing in the lobby in their hero stance.</summary>
@@ -912,11 +973,26 @@ namespace Veil.App
                 if (!on) continue;
                 if (!_rigs[i].Look.Equals(looks[i])) _rigs[i].Rebuild(looks[i]);
                 _rigs[i].transform.localPosition = SquadSlots[i];
+                SetLayer(_rigs[i].transform, LobbyLayer);
                 _rigs[i].transform.localRotation = Quaternion.Euler(0, -SquadSlots[i].x * 7f, 0);
                 _rigs[i].ResetPose();
             }
             foreach (var p in _pedestals) p.gameObject.SetActive(false);
-            for (int k = 0; k < SquadSlots.Length; k++) _squadStage.transform.Find("SlotRing" + k).gameObject.SetActive(k < looks.Count);
+            for (int k = 0; k < SquadSlots.Length; k++)
+            {
+                _squadStage.transform.Find("SlotRing" + k).gameObject.SetActive(k < looks.Count);
+                _squadStage.transform.Find("Blob" + k).gameObject.SetActive(k < looks.Count);
+            }
+            // the painted backdrop has its own platform: hide the 3D disc and rim
+            _squadStage.transform.Find("Disc").gameObject.SetActive(false);
+            _squadStage.transform.Find("Rim").gameObject.SetActive(false);
+            SetLayer(_squadStage.transform, LobbyLayer);
+        }
+
+        private static void SetLayer(Transform t, int layer)
+        {
+            t.gameObject.layer = layer;
+            foreach (Transform c in t) SetLayer(c, layer);
         }
 
         public void UpdateLook(Appearance mine)
@@ -929,6 +1005,7 @@ namespace Veil.App
             _podium = true;
             SquadMode = false;
             _squadStage.SetActive(false);
+            SetLayer(_root, 0);
             float[] x = { 0, 1.8f, -1.8f }; // stage faces the camera: local +X is screen-left
             float[] h = { 0.9f, 0.55f, 0.3f };
             for (int i = 0; i < 5; i++) _rigs[i].gameObject.SetActive(i < 3 && i < results.Count);
