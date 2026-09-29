@@ -27,3 +27,5 @@ Tools/ai3d/__pycache__/
 Tools/ai3d/*.log
 Tools/ai3d/:memory:*
 *.log
+Client/.utmp/
+Client/[Bb]uild/
