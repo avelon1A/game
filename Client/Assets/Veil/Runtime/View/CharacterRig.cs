@@ -75,6 +75,24 @@ namespace Veil.View
         /// <summary>When true, characters use AI-generated prefabs from Resources/Characters if present.</summary>
         public static bool UseModels = true;
         public static readonly string[] ModelNames = { "ranger", "huntress", "warden", "scout", "drifter", "wanderer" };
+        /// <summary>Each hero's blaster (Kenney Blaster Kit, CC0) in Resources/Weapons, same order as ModelNames.</summary>
+        public static readonly string[] WeaponNames = { "blaster-p", "blaster-n", "blaster-g", "blaster-e", "blaster-j", "blaster-a" };
+        private static Material _weaponMat;
+
+        private static Material WeaponMaterial()
+        {
+            if (_weaponMat != null) return _weaponMat;
+            _weaponMat = new Material(Shader.Find("Veil/Toon")) { name = "Blaster", enableInstancing = true };
+            _weaponMat.SetTexture("_BaseMap", Resources.Load<Texture2D>("Weapons/colormap"));
+            _weaponMat.SetColor("_BaseColor", Color.white);
+            _weaponMat.SetColor("_ShadeColor", new Color(0.78f, 0.78f, 0.95f));
+            _weaponMat.SetColor("_RimColor", new Color(1, 1, 1, 0.15f));
+            _weaponMat.SetFloat("_Ramp", 0.35f);
+            _weaponMat.SetFloat("_ArtKeep", 0.35f);
+            _weaponMat.SetFloat("_ShadowStrength", 0.6f);
+            _weaponMat.SetColor("_EmissionColor", Color.black);
+            return _weaponMat;
+        }
         public bool IsModel => _anim != null;
 
         private Animator _anim;
@@ -111,11 +129,27 @@ namespace Veil.View
             var dark = M(Palette.Hex("#1f1d26"), 0.25f, 0.4f);
             var rbox = MeshGen.RoundBox(0.4f);
             _gun = Build.Node(_body, "Blaster", Vector3.zero);
-            P(_gun, rbox, dark, new Vector3(0, 0.1f, 0.02f), new Vector3(0.1f, 0.3f, 0.13f));
-            P(_gun, rbox, M(accent * 0.9f, 0.3f), new Vector3(0, 0.04f, -0.07f), new Vector3(0.07f, 0.1f, 0.1f));
-            P(_gun, MeshGen.Cylinder(10), glow, new Vector3(0, 0.27f, 0.02f), new Vector3(0.065f, 0.05f, 0.065f));
-            P(_gun, MeshGen.Torus(0.25f), glow, new Vector3(0, 0.15f, 0.02f), new Vector3(0.14f, 0.2f, 0.16f));
-            _blasterTip = Build.Node(_gun, "Tip", new Vector3(0, 0.3f, 0.02f));
+            var weapon = Resources.Load<GameObject>("Weapons/" + WeaponNames[Look.Outfit % WeaponNames.Length]);
+            if (weapon != null)
+            {
+                // Kenney Blaster Kit gun (CC0), re-centred on import: grip at the pivot, barrel along +Y (Editor/WeaponImport.cs)
+                var w = Instantiate(weapon, _gun, false);
+                w.transform.localPosition = Vector3.zero; w.transform.localRotation = Quaternion.identity; w.transform.localScale = Vector3.one;
+                foreach (var r in w.GetComponentsInChildren<Renderer>())
+                {
+                    r.sharedMaterial = WeaponMaterial();
+                    r.shadowCastingMode = _shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+                _blasterTip = w.transform.Find("Muzzle");
+            }
+            else
+            {
+                P(_gun, rbox, dark, new Vector3(0, 0.1f, 0.02f), new Vector3(0.1f, 0.3f, 0.13f));
+                P(_gun, rbox, M(accent * 0.9f, 0.3f), new Vector3(0, 0.04f, -0.07f), new Vector3(0.07f, 0.1f, 0.1f));
+                P(_gun, MeshGen.Cylinder(10), glow, new Vector3(0, 0.27f, 0.02f), new Vector3(0.065f, 0.05f, 0.065f));
+                P(_gun, MeshGen.Torus(0.25f), glow, new Vector3(0, 0.15f, 0.02f), new Vector3(0.14f, 0.2f, 0.16f));
+            }
+            if (_blasterTip == null) _blasterTip = Build.Node(_gun, "Tip", new Vector3(0, 0.3f, 0.02f));
             return true;
         }
 

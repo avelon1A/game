@@ -968,9 +968,9 @@ namespace Veil.App
             yield return new WaitForSeconds(0.5f);
             Canvas.gameObject.SetActive(false);
             _lineupShot = true;
-            foreach (var (yaw, tag) in new[] { (90f, "side"), (0f, "front") })
+            foreach (var (yaw, tag, aim) in new[] { (90f, "side", false), (0f, "front", false), (90f, "aim", true) })
             {
-                Stage.WalkPreview(yaw);
+                Stage.WalkPreview(yaw, aim);
                 yield return new WaitForSeconds(1.2f);
                 for (int k = 0; k < 8; k++) { yield return Shot($"walk_{tag}_{k}"); yield return new WaitForSeconds(0.12f); }
             }
@@ -1196,10 +1196,11 @@ namespace Veil.App
         }
 
         /// <summary>Testing: all five heroes walk in place side by side (yaw: 90 = side view, 0 = towards the camera).</summary>
-        public void WalkPreview(float yaw)
+        public void WalkPreview(float yaw, bool aim = false)
         {
             LobbyPose(Appearance.Preset(0));
             _walkPreview = true;
+            _aimPreview = aim;
             for (int i = 0; i < 5; i++)
             {
                 _rigs[i].Rebuild(Appearance.Preset(i));
@@ -1208,7 +1209,7 @@ namespace Veil.App
             }
         }
 
-        private bool _walkPreview;
+        private bool _walkPreview, _aimPreview;
 
         public void UpdateLook(Appearance mine)
         {
@@ -1245,7 +1246,7 @@ namespace Veil.App
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
-                if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Velocity = _rigs[i].transform.forward * 2.2f }, dt);
+                if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Aiming = _aimPreview, Velocity = _aimPreview ? Vector3.zero : _rigs[i].transform.forward * 2.2f }, dt);
                 else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)

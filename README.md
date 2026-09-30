@@ -174,6 +174,7 @@ textured models more toon lighting (`<name>_textured.txt` marker). Shade uses `T
 
 ## Credits
 
+Blasters: Kenney Blaster Kit (CC0), re-centred on import by `Editor/WeaponImport.cs`.
 Fonts: Lilita One and Chakra Petch (SIL Open Font License, Google Fonts). Networking: LiteNetLib (MIT).
 Heroes (Ranger, Huntress, Warden, Scout, Drifter, Wanderer): Quaternius (CC0) — Modular Character Outfits Fantasy, Universal Base Characters, Universal Animation Library, reshaped to stylized proportions by `Tools/ai3d/blender/build_heroes.py`. The earlier Meshy heroes are archived in `Tools/ai3d/meshy_heroes_archive`.
 Character generation: Hunyuan3D-2 (Tencent Hunyuan community license), MediaPipe (Apache 2.0), rembg (MIT), Blender (GPL; output assets are yours).
