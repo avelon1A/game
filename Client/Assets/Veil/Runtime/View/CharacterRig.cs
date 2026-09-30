@@ -74,7 +74,7 @@ namespace Veil.View
 
         /// <summary>When true, characters use AI-generated prefabs from Resources/Characters if present.</summary>
         public static bool UseModels = true;
-        public static readonly string[] ModelNames = { "vanguard", "pixie", "shade", "nova", "bolt", "ranger" };
+        public static readonly string[] ModelNames = { "ranger", "huntress", "warden", "scout", "drifter", "wanderer" };
         public bool IsModel => _anim != null;
 
         private Animator _anim;

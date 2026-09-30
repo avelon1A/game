@@ -251,7 +251,7 @@ namespace Veil.UI
             var p = panel.transform;
             var title = UIKit.LabelAt(p, "CHARACTER", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
-            var note = UIKit.LabelAt(p, CharacterRig.HasModel(0) ? "AI-generated 3D characters active: OUTFIT picks the character. Cosmetic only." : "Cosmetic only — no gameplay advantage. Right-drag the character to rotate.", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -68), new Vector2(700, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            var note = UIKit.LabelAt(p, CharacterRig.HasModel(0) ? "Pick your hero — cosmetic only, no gameplay advantage. Right-drag to rotate." : "Cosmetic only — no gameplay advantage. Right-drag the character to rotate.", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -68), new Vector2(700, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
             note.rectTransform.pivot = new Vector2(0, 1);
 
             var prof = App.Profile;
@@ -265,7 +265,7 @@ namespace Veil.UI
             void Changed() { prof.Save(); App.Stage.UpdateLook(prof.Look); }
             var outfitNames = new string[Palette.Outfits.Length];
             for (int i = 0; i < outfitNames.Length; i++) outfitNames[i] = Palette.Outfits[i].Name.ToUpper();
-            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "OUTFIT", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 86);
+            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 86);
             r1.Root.pivot = new Vector2(0, 0.5f);
             var hairNames = new string[Palette.HairNames.Length];
             for (int i = 0; i < hairNames.Length; i++) hairNames[i] = Palette.HairNames[i].ToUpper();
@@ -280,6 +280,7 @@ namespace Veil.UI
 
             var presetsT = UIKit.LabelAt(p, "PRESETS", 20, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -620), new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
             presetsT.rectTransform.pivot = new Vector2(0, 0.5f);
+            var presetButtons = new List<GameObject>();
             for (int i = 0; i < Palette.Outfits.Length; i++)
             {
                 int idx = i;
@@ -293,6 +294,16 @@ namespace Veil.UI
                     BuildCharacters(tab);
                 }, 15);
                 ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
+                presetButtons.Add(b.gameObject);
+            }
+            if (CharacterRig.HasModel(0))
+            {
+                // model heroes: hair / accessories only apply to the old procedural characters, HERO already picks the preset
+                foreach (var n in new[] { "Chips_HAIR", "Swatches_HAIR COLOR", "Chips_ACCESSORY" }) { var t = p.Find(n); if (t) t.gameObject.SetActive(false); }
+                var glowRow = p.Find("Swatches_GLOW COLOR") as RectTransform;
+                if (glowRow) glowRow.anchoredPosition = new Vector2(glowRow.anchoredPosition.x, -300);
+                presetsT.gameObject.SetActive(false);
+                foreach (var b in presetButtons) b.SetActive(false);
             }
             var play = UIKit.Button(p, "PLAY", new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(680, 84), UIKit.ButtonStyle.Primary, () => SelectTab(0), 44);
         }

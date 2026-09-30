@@ -20,7 +20,7 @@ namespace Veil.EditorTools
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
         /// locomotion retargets onto them. The Ranger already shares the library's rig and stays generic.
         /// </summary>
-        public static readonly string[] HumanoidHeroes = { "vanguard", "pixie", "shade", "nova", "bolt" };
+        public static readonly string[] HumanoidHeroes = { };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
         public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
 
         public override uint GetVersion() => 2;   // bump → Unity re-imports every character with these rules
