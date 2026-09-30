@@ -16,13 +16,24 @@ namespace Veil.EditorTools
     {
         private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory" };
 
+        /// <summary>
+        /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
+        /// locomotion retargets onto them. The Ranger already shares the library's rig and stays generic.
+        /// </summary>
+        public static readonly string[] HumanoidHeroes = { "vanguard", "pixie", "shade", "nova", "bolt" };
+        public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
+
+        public override uint GetVersion() => 2;   // bump → Unity re-imports every character with these rules
+
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
+        private bool IsLibrary => assetPath == LibraryFbx;
+        private bool IsHumanoid => IsLibrary || HumanoidHeroes.Contains(Path.GetFileNameWithoutExtension(assetPath));
 
         private void OnPreprocessModel()
         {
             if (!IsCharacter) return;
             var mi = (ModelImporter)assetImporter;
-            mi.animationType = ModelImporterAnimationType.Generic;
+            mi.animationType = IsHumanoid ? ModelImporterAnimationType.Human : ModelImporterAnimationType.Generic;
             mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
             mi.importAnimation = true;
             mi.importCameras = false;
@@ -69,8 +80,15 @@ namespace Veil.EditorTools
             {
                 string action = ActionOf(c.takeName);
                 c.name = action;
-                c.loopTime = Looping.Contains(action);
+                c.loopTime = Looping.Contains(action) || action.EndsWith("_loop");
                 c.loopPose = false;
+                if (IsHumanoid)
+                {
+                    // in-place clips: bake the root into the pose so characters never drift, turn or sink
+                    c.lockRootRotation = true; c.keepOriginalOrientation = true;
+                    c.lockRootHeightY = true; c.keepOriginalPositionY = true;
+                    c.lockRootPositionXZ = true; c.keepOriginalPositionXZ = true;
+                }
             }
             mi.clipAnimations = clips;
         }
@@ -98,11 +116,66 @@ namespace Veil.EditorTools
             AssetDatabase.SaveAssets();
         }
 
-        private static void BuildOne(string name, string fbx)
-        {
-            var clips = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>()
+        private static Dictionary<string, AnimationClip> ClipsOf(string fbx) =>
+            AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>()
                 .Where(c => !c.name.StartsWith("__preview__"))
                 .GroupBy(c => CharacterImport.ActionOf(c.name)).ToDictionary(g => g.Key, g => g.First());
+
+        /// <summary>
+        /// The heroes were rigged in an A-pose (arms down). Unity's humanoid retargeting needs a T-pose reference, so
+        /// rotate the arms straight out to the sides in the avatar's skeleton description (like "Enforce T-Pose").
+        /// </summary>
+        private static void EnsureTPose(string fbx)
+        {
+            var mi = (ModelImporter)AssetImporter.GetAtPath(fbx);
+            if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v1") return;
+            var hd = mi.humanDescription;
+            if (hd.human == null || hd.human.Length == 0) { Debug.LogWarning($"[VEIL] {fbx}: humanoid mapping failed"); return; }
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
+            var go = Object.Instantiate(model);
+            var all = go.GetComponentsInChildren<Transform>(true);
+            var map = hd.human.ToDictionary(h => h.humanName, h => h.boneName);
+            Transform T(string human) => map.TryGetValue(human, out var b) ? all.FirstOrDefault(t => t.name == b) : null;
+            void Align(Transform bone, Vector3 cur, Vector3 want) => bone.rotation = Quaternion.FromToRotation(cur, want) * bone.rotation;
+            foreach (var side in new[] { "Left", "Right" })
+            {
+                var ua = T(side + "UpperArm"); var la = T(side + "LowerArm"); var hand = T(side + "Hand");
+                if (ua == null || la == null) continue;
+                float sx = Mathf.Sign(go.transform.InverseTransformPoint(la.position).x - go.transform.InverseTransformPoint(ua.position).x);
+                var want = go.transform.TransformDirection(new Vector3(sx, 0, 0));
+                Align(ua, la.position - ua.position, want);
+                if (hand != null) Align(la, hand.position - la.position, want);
+            }
+            var byName = all.GroupBy(t => t.name).ToDictionary(g => g.Key, g => g.First());
+            var sk = hd.skeleton;
+            for (int i = 0; i < sk.Length; i++)
+                if (byName.TryGetValue(sk[i].name, out var t) && t != go.transform) { sk[i].rotation = t.localRotation; sk[i].position = t.localPosition; }
+            hd.skeleton = sk;
+            mi.humanDescription = hd;
+            mi.userData = "tpose-v1";
+            Object.DestroyImmediate(go);
+            mi.SaveAndReimport();
+            Debug.Log($"[VEIL] {fbx}: humanoid T-pose reference set");
+        }
+
+        // game locomotion clip -> Universal Animation Library clip (retargeted onto humanoid heroes)
+        private static readonly (string game, string lib)[] LibraryLocomotion =
+        {
+            ("idle", "idle_loop"), ("walk", "walk_loop"), ("run", "jog_fwd_loop"), ("sprint", "sprint_loop"),
+            ("jump", "jump_start"), ("fall", "jump_loop"), ("dash", "roll"),
+        };
+
+        private static void BuildOne(string name, string fbx)
+        {
+            bool humanoid = CharacterImport.HumanoidHeroes.Contains(name);
+            if (humanoid) EnsureTPose(fbx);
+            var clips = ClipsOf(fbx);
+            if (humanoid && File.Exists(CharacterImport.LibraryFbx))
+            {
+                var lib = ClipsOf(CharacterImport.LibraryFbx);
+                foreach (var (game, libName) in LibraryLocomotion)
+                    if (lib.TryGetValue(libName, out var lc)) clips[game] = lc;
+            }
             AnimationClip C(params string[] names) { foreach (var n in names) if (clips.TryGetValue(n, out var c)) return c; return null; }
 
             // ---- material: VEIL toon shader with the baked concept-art texture ----
@@ -208,7 +281,13 @@ namespace Veil.EditorTools
 
             // upper-body layer (shoot / hit over locomotion)
             var mask = new AvatarMask { name = name + "_UpperBody" };
-            mask.AddTransformPath(inst.transform, true);
+            if (humanoid)
+                foreach (AvatarMaskBodyPart part in System.Enum.GetValues(typeof(AvatarMaskBodyPart)))
+                    if (part != AvatarMaskBodyPart.LastBodyPart)
+                        mask.SetHumanoidBodyPartActive(part, part == AvatarMaskBodyPart.Body || part == AvatarMaskBodyPart.Head ||
+                            part == AvatarMaskBodyPart.LeftArm || part == AvatarMaskBodyPart.RightArm ||
+                            part == AvatarMaskBodyPart.LeftFingers || part == AvatarMaskBodyPart.RightFingers);
+            else mask.AddTransformPath(inst.transform, true);
             for (int i = 0; i < mask.transformCount; i++)
             {
                 string p = mask.GetTransformPath(i);

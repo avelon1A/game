@@ -133,8 +133,9 @@ namespace Veil.App
                 if (args[i] == "-autotest-scripted") { _autotest = true; _scripted = true; }
                 if (args[i] == "-autotest-online" && i + 1 < args.Length) { _autotest = true; _scripted = true; _onlineHost = args[i + 1]; }
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
+                if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
             }
-            if (_autotest) StartCoroutine(_onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
+            if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
         }
 
         // ------------------------------------------------------------------ setup
@@ -957,6 +958,25 @@ namespace Veil.App
 
         private FriendsDrawer Friends() => _menu.Friends;
 
+        private bool _walkTest;
+
+        /// <summary>-walkpreview: frames of every hero walking, side view then front view (for comparing walk cycles).</summary>
+        private IEnumerator WalkPreviewTest()
+        {
+            yield return new WaitForSeconds(2f);
+            GoMenu(0);
+            yield return new WaitForSeconds(0.5f);
+            Canvas.gameObject.SetActive(false);
+            _lineupShot = true;
+            foreach (var (yaw, tag) in new[] { (90f, "side"), (0f, "front") })
+            {
+                Stage.WalkPreview(yaw);
+                yield return new WaitForSeconds(1.2f);
+                for (int k = 0; k < 8; k++) { yield return Shot($"walk_{tag}_{k}"); yield return new WaitForSeconds(0.12f); }
+            }
+            Application.Quit();
+        }
+
         private IEnumerator AutoTest()
         {
             Debug.Log("[VEIL] autotest start");
@@ -1175,6 +1195,21 @@ namespace Veil.App
             SetLayer(_squadStage.transform, LobbyLayer);
         }
 
+        /// <summary>Testing: all five heroes walk in place side by side (yaw: 90 = side view, 0 = towards the camera).</summary>
+        public void WalkPreview(float yaw)
+        {
+            LobbyPose(Appearance.Preset(0));
+            _walkPreview = true;
+            for (int i = 0; i < 5; i++)
+            {
+                _rigs[i].Rebuild(Appearance.Preset(i));
+                _rigs[i].transform.localPosition = new Vector3(LineX[i], 0, 0);
+                _rigs[i].transform.localRotation = Quaternion.Euler(0, yaw, 0);
+            }
+        }
+
+        private bool _walkPreview;
+
         public void UpdateLook(Appearance mine)
         {
             _rigs[0].Rebuild(mine);
@@ -1210,7 +1245,8 @@ namespace Veil.App
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
-                _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
+                if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Velocity = _rigs[i].transform.forward * 2.2f }, dt);
+                else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
                 _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);

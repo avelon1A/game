@@ -180,6 +180,10 @@ PrefabInstance:
       propertyPath: m_CullingMode
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: b443fc287492e4a9290afe6792133450, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6747610311885499356, guid: b443fc287492e4a9290afe6792133450, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
