@@ -175,4 +175,5 @@ textured models more toon lighting (`<name>_textured.txt` marker). Shade uses `T
 ## Credits
 
 Fonts: Lilita One and Chakra Petch (SIL Open Font License, Google Fonts). Networking: LiteNetLib (MIT).
+Ranger hero: Quaternius (CC0) — Modular Character Outfits Fantasy, Universal Base Characters, Universal Animation Library (built by `Tools/ai3d/blender/build_ranger.py`).
 Character generation: Hunyuan3D-2 (Tencent Hunyuan community license), MediaPipe (Apache 2.0), rembg (MIT), Blender (GPL; output assets are yours).

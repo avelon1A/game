@@ -246,6 +246,13 @@ namespace Veil.View
                 Shoe = Hex("#ffc21f"), ShoeAccent = Hex("#1f1f25"), Sole = Hex("#1f1f25"), Belt = Hex("#ffc21f"), Buckle = Hex("#1f1f25"), Sock = Hex("#ffc21f"),
                 HoodDown = true, Cargo = true,
             },
+            new Outfit // hooded ranger (Quaternius CC0 model + Universal Animation Library): forest green + leather
+            {
+                Name = "Ranger", Jacket = Hex("#2f5a2c"), Panel = Hex("#6b4a2e"), Inner = Hex("#1c2a1b"), Collar = Hex("#2f5a2c"),
+                Pants = Hex("#1a2a1d"), Cuff = Hex("#6b4a2e"), Glove = Hex("#4a3322"), GloveAccent = Hex("#b9c2c9"),
+                Shoe = Hex("#6b4a2e"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#1a2a1d"),
+                ShoulderPad = true,
+            },
         };
 
         public static readonly string[] HairNames = { "Spiky", "Ponytail", "Sleek", "Crest", "Hood" };

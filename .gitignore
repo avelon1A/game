@@ -30,3 +30,6 @@ Tools/ai3d/:memory:*
 Client/.utmp/
 Client/[Bb]uild/
 Tools/playit/
+
+# downloaded third-party packs (re-download: Quaternius, see Tools/ai3d/blender/build_ranger.py)
+Tools/assets_dl/

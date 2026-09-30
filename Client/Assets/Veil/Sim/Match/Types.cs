@@ -58,14 +58,15 @@ namespace Veil.Sim
 
         public static Appearance Preset(int i)
         {
-            i = ((i % 5) + 5) % 5;
+            i = ((i % 6) + 6) % 6;
             switch (i)
             {
                 case 0: return new Appearance { Outfit = 0, Hair = 0, HairColor = 0, Accessory = 0, Color = 0 }; // orange hero
                 case 1: return new Appearance { Outfit = 1, Hair = 1, HairColor = 1, Accessory = 1, Color = 1 }; // pink goggles
                 case 2: return new Appearance { Outfit = 2, Hair = 4, HairColor = 5, Accessory = 0, Color = 2 }; // hooded shade
                 case 3: return new Appearance { Outfit = 3, Hair = 2, HairColor = 2, Accessory = 2, Color = 3 }; // white hair headphones
-                default: return new Appearance { Outfit = 4, Hair = 3, HairColor = 3, Accessory = 3, Color = 4 }; // green visor
+                case 4: return new Appearance { Outfit = 4, Hair = 3, HairColor = 3, Accessory = 3, Color = 4 }; // green visor
+                default: return new Appearance { Outfit = 5, Hair = 4, HairColor = 0, Accessory = 0, Color = 5 }; // hooded ranger
             }
         }
     }

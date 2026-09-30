@@ -265,7 +265,7 @@ namespace Veil.UI
             void Changed() { prof.Save(); App.Stage.UpdateLook(prof.Look); }
             var outfitNames = new string[Palette.Outfits.Length];
             for (int i = 0; i < outfitNames.Length; i++) outfitNames[i] = Palette.Outfits[i].Name.ToUpper();
-            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "OUTFIT", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 102);
+            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "OUTFIT", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 86);
             r1.Root.pivot = new Vector2(0, 0.5f);
             var hairNames = new string[Palette.HairNames.Length];
             for (int i = 0; i < hairNames.Length; i++) hairNames[i] = Palette.HairNames[i].ToUpper();
@@ -280,10 +280,10 @@ namespace Veil.UI
 
             var presetsT = UIKit.LabelAt(p, "PRESETS", 20, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -620), new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
             presetsT.rectTransform.pivot = new Vector2(0, 0.5f);
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < Palette.Outfits.Length; i++)
             {
                 int idx = i;
-                var b = UIKit.Button(p, Palette.Outfits[i].Name.ToUpper(), new Vector2(0, 1), new Vector2(210 + i * 104, -620), new Vector2(96, 44), UIKit.ButtonStyle.Secondary, () =>
+                var b = UIKit.Button(p, Palette.Outfits[i].Name.ToUpper(), new Vector2(0, 1), new Vector2(200 + i * 90, -620), new Vector2(84, 44), UIKit.ButtonStyle.Secondary, () =>
                 {
                     prof.Look = Appearance.Preset(idx);
                     prof.Save();

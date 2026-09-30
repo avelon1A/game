@@ -74,7 +74,7 @@ namespace Veil.View
 
         /// <summary>When true, characters use AI-generated prefabs from Resources/Characters if present.</summary>
         public static bool UseModels = true;
-        public static readonly string[] ModelNames = { "vanguard", "pixie", "shade", "nova", "bolt" };
+        public static readonly string[] ModelNames = { "vanguard", "pixie", "shade", "nova", "bolt", "ranger" };
         public bool IsModel => _anim != null;
 
         private Animator _anim;
@@ -96,13 +96,14 @@ namespace Veil.View
                 r.shadowCastingMode = _shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
             bool human = _anim.avatar != null && _anim.avatar.isHuman;
             Transform Bone(HumanBodyBones hb, string generic) => human ? _anim.GetBoneTransform(hb) : FindBone(inst.transform, generic);
-            _head = Bone(HumanBodyBones.Head, "Head");
-            _chest = Bone(HumanBodyBones.Chest, "Chest");
-            _boneRUpper = Bone(HumanBodyBones.RightUpperArm, "UpperArm.R");
-            _boneRLower = Bone(HumanBodyBones.RightLowerArm, "LowerArm.R");
-            _handR = Bone(HumanBodyBones.RightHand, "Hand.R");
-            _footL = Bone(HumanBodyBones.LeftFoot, "Foot.L");
-            _footR = Bone(HumanBodyBones.RightFoot, "Foot.R");
+            // our Blender rigs use "UpperArm.R"; Quaternius / UE-style rigs (Ranger) use "upperarm_r"
+            _head = Bone(HumanBodyBones.Head, "Head") ?? FindBone(inst.transform, "head");
+            _chest = Bone(HumanBodyBones.Chest, "Chest") ?? FindBone(inst.transform, "spine_03");
+            _boneRUpper = Bone(HumanBodyBones.RightUpperArm, "UpperArm.R") ?? FindBone(inst.transform, "upperarm_r");
+            _boneRLower = Bone(HumanBodyBones.RightLowerArm, "LowerArm.R") ?? FindBone(inst.transform, "lowerarm_r");
+            _handR = Bone(HumanBodyBones.RightHand, "Hand.R") ?? FindBone(inst.transform, "hand_r");
+            _footL = Bone(HumanBodyBones.LeftFoot, "Foot.L") ?? FindBone(inst.transform, "foot_l");
+            _footR = Bone(HumanBodyBones.RightFoot, "Foot.R") ?? FindBone(inst.transform, "foot_r");
 
             // blaster lives outside the bone hierarchy (world-scaled), follows the right hand
             Color accent = Palette.AccentColors[Look.Color % Palette.AccentColors.Length];

@@ -213,8 +213,11 @@ namespace Veil.EditorTools
             {
                 string p = mask.GetTransformPath(i);
                 string leaf = p.Contains("/") ? p.Substring(p.LastIndexOf('/') + 1) : p;
-                bool upper = leaf.StartsWith("Chest") || leaf.StartsWith("Shoulder") || leaf.StartsWith("UpperArm") || leaf.StartsWith("LowerArm") ||
-                             leaf.StartsWith("Hand") || leaf.StartsWith("Neck") || leaf.StartsWith("Head");
+                string lo = leaf.ToLowerInvariant();
+                // our Blender rigs (Chest, UpperArm.R…) and UE-style rigs such as the Ranger's (spine_03, clavicle_r, upperarm_r, hand_r, fingers…)
+                bool upper = lo.StartsWith("chest") || lo.StartsWith("shoulder") || lo.StartsWith("upperarm") || lo.StartsWith("lowerarm") ||
+                             lo.StartsWith("hand") || lo.StartsWith("neck") || lo.StartsWith("head") || lo == "spine_03" || lo.StartsWith("clavicle") ||
+                             lo.StartsWith("thumb") || lo.StartsWith("index") || lo.StartsWith("middle") || lo.StartsWith("ring") || lo.StartsWith("pinky");
                 mask.SetTransformActive(i, upper);
             }
             string maskPath = $"{Root}/{name}/{name}_UpperBody.mask";
