@@ -57,6 +57,9 @@ namespace Veil.Server
         public volatile int PublicPlayers;
         public long MatchesPlayed;
         public double LastTickMs;
+        /// <summary>Admin dashboard: live match summaries, rebuilt by the host thread about once a second.</summary>
+        public volatile object[] LiveMatches = Array.Empty<object>();
+        private double _summaryT;
 
         public GameHost(ServerOptions opt, Database db, TicketSigner tickets, ILogger<GameHost> log)
         {
@@ -142,6 +145,7 @@ namespace Veil.Server
                     LastTickMs = tickSw.Elapsed.TotalMilliseconds;
                     PublicMatches = _matches.Count;
                     PublicPlayers = _byPeer.Count;
+                    if ((_summaryT += GameConfig.Dt) >= 1.0) { _summaryT = 0; LiveMatches = _matches.Values.Select(m => m.Summary()).ToArray(); }
                 }
                 Thread.Sleep(1);
             }
@@ -217,6 +221,19 @@ namespace Veil.Server
         public event Action<int, List<PlayerResult>, Dictionary<int, string>> Ended;
 
         public bool Finished => _sim.Ended;
+
+        public object Summary() => new
+        {
+            id = Id,
+            started = _sim.Started, ended = _sim.Ended,
+            phase = _sim.Phase.ToString(),
+            timeLeft = (int)_sim.TimeLeft,
+            seconds = _req.Seconds,
+            humans = _humans.Count,
+            connected = _humans.Count(h => h.Peer != null),
+            bots = _sim.Players.Count - _humans.Count,
+            players = _humans.Select(h => new { name = h.Seat.Name, squad = h.Seat.Squad, connected = h.Peer != null }).ToArray(),
+        };
         public bool Disposable => _lingerT == 0;
         public IEnumerable<NetPeer> Peers => _humans.Where(h => h.Peer != null).Select(h => h.Peer);
 

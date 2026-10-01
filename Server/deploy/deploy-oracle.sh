@@ -50,6 +50,7 @@ chmod +x /opt/rilo/server/Veil.Server
 [ -f /opt/rilo/secret.env ] || echo "VEIL_TICKET_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '/+=')" > /opt/rilo/secret.env
 chmod 600 /opt/rilo/secret.env
 install -m 644 /tmp/rilo-server.env /opt/rilo/server.env
+[ -f /opt/rilo/admins.txt ] || install -m 600 /dev/null /opt/rilo/admins.txt   # dashboard keys (Tools/admin/admin.sh)
 chown -R rilo:rilo /opt/rilo
 
 cat > /etc/systemd/system/rilo.service <<'UNIT'

@@ -81,6 +81,17 @@ Full steps (creating the Oracle VM, ports, keys): [Server/deploy/ORACLE.md](Serv
 ssh -i ~/.ssh/rilo_server.key opc@144.24.139.103 'sudo journalctl -u rilo -f'   # live log
 ```
 
+**Admin dashboard** (head users): <http://144.24.139.103:5080/admin> — live players, parties, matches, accounts, activity
+chart and server health, refreshed every 5 s. Each admin has a personal key:
+
+```bash
+./Tools/admin/admin.sh add <name>      # new key → clipboard (and ~/.rilo/admin_keys); send it to that person privately
+./Tools/admin/admin.sh remove <name>   # revoke
+./Tools/admin/admin.sh list
+```
+
+The dashboard runs over plain HTTP: keys are only as private as the network. For real players add a domain + HTTPS.
+
 New machine → run `deploy-oracle.sh NEW-IP …`, then `./Tools/boot/boot.sh server udp://NEW-IP:7779`.
 The script detects x64 / ARM, installs `/opt/rilo`, opens the VM firewall, adds swap on small VMs and prints a health check.
 The Oracle **security list** must allow UDP 7777-7779 and TCP 5080 (already set on `vcn-20260929-2318`).

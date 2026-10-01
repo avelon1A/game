@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rilo Server Dashboard</title>
+<style>
+  :root {
+    --bg: #0f0d1c; --panel: #1b1830; --panel2: #231f3d; --line: #2f2a52; --text: #f3f1ff; --dim: #9a96c4;
+    --yellow: #ffd84a; --purple: #8f6bff; --cyan: #40e6ff; --green: #5ee68a; --red: #ff6b7d; --orange: #ffa94d;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(15,13,28,.94); backdrop-filter: blur(8px); z-index: 5; }
+  .logo { font-weight: 900; font-style: italic; font-size: 22px; letter-spacing: .5px; color: #fff; text-shadow: 2px 2px 0 var(--purple); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .grow { flex: 1; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); display: inline-block; margin-right: 6px; }
+  .dot.bad { background: var(--red); box-shadow: 0 0 10px var(--red); }
+  button, .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--purple); }
+  button.on { background: var(--purple); border-color: var(--purple); }
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; display: grid; gap: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .kpi .v { font-size: 30px; font-weight: 800; letter-spacing: -.5px; }
+  .kpi .l { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  .kpi.hi .v { color: var(--yellow); }
+  .row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .count { background: var(--panel2); color: var(--dim); border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
+  .card h2 .right { margin-left: auto; display: flex; gap: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid rgba(47,42,82,.6); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .scroll { overflow-x: auto; }
+  .chip { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--panel2); color: var(--dim); }
+  .chip.match { background: rgba(143,107,255,.2); color: #c7b6ff; }
+  .chip.searching { background: rgba(64,230,255,.15); color: var(--cyan); }
+  .chip.party { background: rgba(255,216,74,.15); color: var(--yellow); }
+  .chip.lobby { background: rgba(94,230,138,.13); color: var(--green); }
+  .muted { color: var(--dim); }
+  .empty { color: var(--dim); padding: 14px 4px; text-align: center; }
+  .health { display: grid; gap: 12px; }
+  .meter .top { display: flex; justify-content: space-between; font-size: 13px; }
+  .bar { height: 8px; border-radius: 99px; background: var(--panel2); overflow: hidden; margin-top: 5px; }
+  .bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--purple), var(--cyan)); }
+  .bar > i.warn { background: linear-gradient(90deg, var(--orange), var(--red)); }
+  svg { width: 100%; height: 220px; display: block; }
+  .legend { display: flex; gap: 14px; color: var(--dim); font-size: 12px; margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  input[type=search], input[type=password] { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; font: inherit; width: 100%; }
+  #login { min-height: 80vh; display: grid; place-items: center; padding: 16px; }
+  #login .box { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px; width: 100%; max-width: 380px; display: grid; gap: 12px; }
+  #login h1 { margin: 0; font-size: 20px; }
+  .err { color: var(--red); min-height: 18px; font-size: 13px; }
+  .players-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .players-list span { background: var(--panel2); border-radius: 6px; padding: 0 6px; font-size: 12px; }
+  .players-list span.off { opacity: .5; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } .kpi .v { font-size: 24px; } }
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <form class="box" onsubmit="event.preventDefault(); login();">
+    <div class="logo">RILO</div>
+    <h1>Server dashboard</h1>
+    <div class="sub">Head users only. Enter your admin key.</div>
+    <input id="key" type="password" placeholder="Admin key" autocomplete="current-password" required>
+    <div class="err" id="loginErr"></div>
+    <button class="on" type="submit">Open dashboard</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <div class="logo">RILO</div>
+    <div>
+      <div><span class="dot" id="statusDot"></span><b id="srvName">Server</b></div>
+      <div class="sub" id="srvSub">connecting…</div>
+    </div>
+    <div class="grow"></div>
+    <div class="sub" id="updated"></div>
+    <button onclick="logout()" title="Forget the key on this device">Sign out</button>
+  </header>
+  <main>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="row">
+      <div class="card">
+        <h2>Activity <span class="right"><button data-r="1">1h</button><button data-r="6">6h</button><button data-r="24" class="on">24h</button></span></h2>
+        <svg id="chart" viewBox="0 0 800 220" preserveAspectRatio="none"></svg>
+        <div class="legend"><span><i style="background:var(--yellow)"></i>Online</span><span><i style="background:var(--purple)"></i>In matches</span><span><i style="background:var(--cyan)"></i>Searching parties</span></div>
+      </div>
+      <div class="card">
+        <h2>Server health</h2>
+        <div class="health" id="health"></div>
+      </div>
+    </section>
+
+    <section class="row">
+      <div class="card"><h2>Online players <span class="count" id="onlineCount">0</span></h2><div class="scroll" id="online"></div></div>
+      <div class="card"><h2>Parties <span class="count" id="partyCount">0</span></h2><div class="scroll" id="parties"></div></div>
+    </section>
+
+    <section class="card"><h2>Live matches <span class="count" id="matchCount">0</span></h2><div class="scroll" id="matches"></div></section>
+    <section class="card"><h2>Recent matches</h2><div class="scroll" id="recent"></div></section>
+
+    <section class="card">
+      <h2>All players <span class="count" id="playerCount">0</span><span class="right" style="width:min(280px,50vw)"><input id="search" type="search" placeholder="Search Name#1234"></span></h2>
+      <div class="scroll" id="players"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let KEY = '';
+try { KEY = localStorage.getItem('riloAdminKey') || ''; } catch (e) {}
+let range = 24, history = [], timer = null, searchT = null;
+
+async function api(path) {
+  const r = await fetch(path, { headers: { 'X-Admin-Key': KEY }, cache: 'no-store' });
+  if (r.status === 401) throw new Error('auth');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function login() {
+  KEY = $('key').value.trim();
+  $('loginErr').textContent = '';
+  try {
+    await api('/api/admin/overview');
+    try { localStorage.setItem('riloAdminKey', KEY); } catch (e) {}
+    start();
+  } catch (e) { $('loginErr').textContent = e.message === 'auth' ? 'That key is not valid.' : 'Server not reachable (' + e.message + ').'; }
+}
+function logout() { try { localStorage.removeItem('riloAdminKey'); } catch (e) {} KEY = ''; clearInterval(timer); $('app').hidden = true; $('login').hidden = false; }
+
+function ago(iso) {
+  if (!iso) return '—';
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (isNaN(s)) return '—';
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+  return Math.floor(s / 86400) + ' d ago';
+}
+const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+const local = iso => { const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+const chipClass = st => st === 'in match' ? 'match' : st === 'searching' ? 'searching' : st === 'in party' ? 'party' : 'lobby';
+const table = (cols, rows, empty) => rows.length ? `<table><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>` : `<div class="empty">${empty}</div>`;
+
+function render(o) {
+  $('statusDot').className = 'dot';
+  $('srvName').textContent = o.server.name;
+  const up = o.server.uptimeMinutes;
+  $('srvSub').textContent = `up ${up >= 1440 ? Math.floor(up / 1440) + 'd ' : ''}${Math.floor(up % 1440 / 60)}h ${up % 60}m · protocol v${o.server.version} · signed in as ${o.admin}`;
+  $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+
+  const t = o.totals, l = o.live;
+  const k = [
+    ['Online now', l.online, true], ['In matches', l.inMatch], ['Searching', l.queued], ['Live matches', l.matches],
+    ['Accounts', t.accounts], ['Active 24h', t.active24h], ['New today', t.new24h], ['Matches 24h', t.matches24h],
+    ['Active 7 days', t.active7d], ['New 7 days', t.new7d], ['Total matches', t.matches], ['Google accounts', t.google],
+  ];
+  $('kpis').innerHTML = k.map(([lab, v, hi]) => `<div class="kpi${hi ? ' hi' : ''}"><div class="v">${v}</div><div class="l">${lab}</div></div>`).join('');
+
+  const tick = o.server.tickMs, cpu = o.server.cpu, mem = o.server.memMb;
+  const meter = (label, value, pct, warn) => `<div class="meter"><div class="top"><span class="muted">${label}</span><b>${value}</b></div><div class="bar"><i class="${warn ? 'warn' : ''}" style="width:${Math.min(100, Math.max(2, pct))}%"></i></div></div>`;
+  $('health').innerHTML =
+    meter('Simulation tick (budget 33 ms)', tick.toFixed(2) + ' ms', tick / 33 * 100, tick > 20) +
+    meter(`CPU (${o.server.cores} cores)`, cpu.toFixed(1) + ' %', cpu, cpu > 70) +
+    meter('Memory', mem.toFixed(0) + ' MB', mem / 2048 * 100, mem > 1500) +
+    `<div class="meter"><div class="top"><span class="muted">Voice</span><b>${o.server.voiceSpeakers} talking · ${o.server.voiceFrames.toLocaleString()} frames</b></div></div>` +
+    `<div class="meter"><div class="top"><span class="muted">Matches since start</span><b>${o.server.matchesPlayed}</b></div></div>`;
+
+  const on = o.social.online;
+  $('onlineCount').textContent = on.length;
+  $('online').innerHTML = table(['Player', 'Status', 'Party', 'Lv', 'Ping', 'Online'],
+    on.map(p => `<tr><td><b>${esc(p.handle)}</b></td><td><span class="chip ${chipClass(p.status)}">${esc(p.status)}</span></td><td class="muted">${esc(p.party)}</td><td>${p.level}</td><td>${p.ping ? p.ping + ' ms' : '—'}</td><td class="muted">${p.minutes < 1 ? 'now' : p.minutes + ' min'}</td></tr>`),
+    'Nobody is online right now');
+
+  const pa = o.social.parties;
+  $('partyCount').textContent = pa.length;
+  $('parties').innerHTML = table(['Code', 'Members', 'State'],
+    pa.map(p => `<tr><td><b>${esc(p.code)}</b></td><td>${p.members.map(m => esc(m) + (m === p.leader ? ' 👑' : '')).join('<br>')}</td><td><span class="chip ${p.phase === 'Queued' ? 'searching' : p.phase === 'InMatch' ? 'match' : 'lobby'}">${p.phase === 'Queued' ? 'searching ' + mmss(p.queueSeconds) : p.phase === 'InMatch' ? 'in match' : 'idle'}</span></td></tr>`),
+    'No parties');
+
+  const ms = o.matches || [];
+  $('matchCount').textContent = ms.length;
+  $('matches').innerHTML = table(['Match', 'Phase', 'Time left', 'Humans', 'Bots', 'Players'],
+    ms.map(m => `<tr><td><b>#${m.id}</b></td><td>${m.ended ? 'finished' : m.started ? esc(m.phase) : 'waiting for players'}</td><td>${mmss(m.timeLeft)} / ${mmss(m.seconds)}</td><td>${m.connected}/${m.humans}</td><td class="muted">${m.bots}</td><td><div class="players-list">${m.players.map(p => `<span class="${p.connected ? '' : 'off'}">${esc(p.name)} <span class="muted">S${p.squad + 1}</span></span>`).join('')}</div></td></tr>`),
+    'No match running');
+
+  const rc = o.recent || [];
+  $('recent').innerHTML = table(['Ended', 'Duration', 'Players', 'Winner', 'Score'],
+    rc.map(m => `<tr><td>${local(m.endedAt)}</td><td>${mmss(m.durationSec)}</td><td>${m.players}</td><td><b>${esc(m.winner)}</b></td><td>${m.winnerScore ?? ''}</td></tr>`),
+    'No matches yet');
+}
+
+function drawChart() {
+  const svg = $('chart'), W = 800, H = 220, P = 26;
+  const cut = Date.now() / 1000 - range * 3600;
+  const s = history.filter(x => x.t >= cut);
+  if (s.length < 2) { svg.innerHTML = `<text x="400" y="115" fill="#9a96c4" text-anchor="middle" font-size="14">Collecting data — a point is added every 30 seconds</text>`; return; }
+  const max = Math.max(4, ...s.map(x => Math.max(x.online, x.inMatch)));
+  const t0 = s[0].t, t1 = s[s.length - 1].t;
+  const X = t => P + (t - t0) / Math.max(1, t1 - t0) * (W - P - 8), Y = v => H - 22 - v / max * (H - 40);
+  const line = (key, color) => `<polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="${s.map(x => X(x.t).toFixed(1) + ',' + Y(x[key]).toFixed(1)).join(' ')}"/>`;
+  let grid = '';
+  for (let i = 0; i <= 4; i++) { const v = Math.round(max * i / 4), y = Y(v); grid += `<line x1="${P}" x2="${W - 8}" y1="${y}" y2="${y}" stroke="#2f2a52" stroke-width="1"/><text x="${P - 6}" y="${y + 4}" fill="#9a96c4" font-size="11" text-anchor="end">${v}</text>`; }
+  const tl = t => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  grid += `<text x="${P}" y="${H - 4}" fill="#9a96c4" font-size="11">${tl(t0)}</text><text x="${W - 8}" y="${H - 4}" fill="#9a96c4" font-size="11" text-anchor="end">${tl(t1)}</text>`;
+  svg.innerHTML = grid + line('queued', '#40e6ff') + line('inMatch', '#8f6bff') + line('online', '#ffd84a');
+}
+
+async function loadPlayers() {
+  try {
+    const q = $('search').value.trim();
+    const r = await api('/api/admin/players?limit=300&q=' + encodeURIComponent(q));
+    $('playerCount').textContent = r.players.length;
+    $('players').innerHTML = table(['Player', 'Lv', 'Matches', 'Wins', 'Rating', 'Best', 'Last seen', 'Joined', ''],
+      r.players.map(p => `<tr><td><b>${esc(p.handle)}</b></td><td>${p.level}</td><td>${p.matches}</td><td>${p.wins}</td><td>${p.rating}</td><td>${p.best}</td><td class="muted">${ago(p.lastSeen)}</td><td class="muted">${local(p.created)}</td><td title="${p.google ? 'Google account' : 'guest'}">${p.google ? 'G' : ''}</td></tr>`),
+      q ? 'No player matches that search' : 'No players yet');
+  } catch (e) { if (e.message === 'auth') logout(); }
+}
+
+async function refresh() {
+  try { render(await api('/api/admin/overview')); }
+  catch (e) {
+    if (e.message === 'auth') { logout(); $('loginErr').textContent = 'Your key was removed or changed.'; return; }
+    $('statusDot').className = 'dot bad'; $('srvSub').textContent = 'server not reachable — retrying…';
+  }
+}
+async function refreshHistory() { try { history = (await api('/api/admin/history')).samples; drawChart(); } catch (e) {} }
+
+function start() {
+  $('login').hidden = true; $('app').hidden = false;
+  refresh(); refreshHistory(); loadPlayers();
+  clearInterval(timer);
+  let n = 0;
+  timer = setInterval(() => { refresh(); if (++n % 6 === 0) { refreshHistory(); loadPlayers(); } }, 5000);
+}
+
+document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
+  range = +b.dataset.r; document.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x === b)); drawChart();
+});
+$('search').addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(loadPlayers, 300); });
+
+if (KEY) api('/api/admin/overview').then(start).catch(() => { $('login').hidden = false; });
+else $('login').hidden = false;
+</script>
+</body>
+</html>

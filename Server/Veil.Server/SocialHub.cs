@@ -24,6 +24,7 @@ namespace Veil.Server
             public int Level = 1;
             public GatewayConnection Conn;
             public DateTime LastSeen = DateTime.UtcNow;
+            public DateTime ConnectedAt = DateTime.UtcNow;
             public int PingMs;
             public string PartyId;
             public int MatchId = -1;
@@ -69,6 +70,34 @@ namespace Veil.Server
         }
 
         public int OnlineCount { get { lock (_gate) return _sessions.Values.Count(s => s.Online); } }
+
+        /// <summary>Admin dashboard: who is online, what they are doing, and every party.</summary>
+        public object AdminSnapshot()
+        {
+            lock (_gate)
+            {
+                var now = DateTime.UtcNow;
+                string Status(Session s)
+                {
+                    if (s.MatchId >= 0 && s.Assignment != null && now < s.MatchEndsUtc) return "in match";
+                    var p = PartyOf(s);
+                    return p == null ? "lobby" : p.Phase == PartyPhase.Queued ? "searching" : p.Members.Count > 1 ? "in party" : "lobby";
+                }
+                var online = _sessions.Values.Where(s => s.Online).OrderBy(s => s.ConnectedAt).Select(s => new
+                {
+                    handle = s.Handle, level = s.Level, ping = s.PingMs, status = Status(s),
+                    party = PartyOf(s)?.Code ?? "", minutes = (int)(now - s.ConnectedAt).TotalMinutes,
+                }).ToArray();
+                var parties = _parties.Values.Where(p => p.Members.Count > 0).Select(p => new
+                {
+                    code = p.Code, phase = p.Phase.ToString(),
+                    queueSeconds = p.Phase == PartyPhase.Queued ? (int)(now - p.QueuedAt).TotalSeconds : 0,
+                    members = p.Members.Select(m => _sessions.TryGetValue(m.Id, out var ms) ? ms.Handle : "?").ToArray(),
+                    leader = _sessions.TryGetValue(p.Leader, out var ls) ? ls.Handle : "",
+                }).ToArray();
+                return new { online, parties };
+            }
+        }
         public int PartyCount { get { lock (_gate) return _parties.Count; } }
         public int QueuedParties { get { lock (_gate) return _queue.Count; } }
 
@@ -97,6 +126,7 @@ namespace Veil.Server
                 if (!_sessions.TryGetValue(hello.id, out s)) { s = new Session { Id = hello.id }; _sessions[hello.id] = s; }
                 if (s.Conn != null && s.Conn != conn) replaced = s.Conn;
                 s.Conn = conn;
+                s.ConnectedAt = DateTime.UtcNow;
                 s.Name = prof.name; s.Handle = prof.handle; s.Look = prof.appearance; s.Level = prof.level;
                 s.Friends = friends;
                 s.LastSeen = DateTime.UtcNow;

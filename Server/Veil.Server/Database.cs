@@ -171,6 +171,60 @@ CREATE TABLE IF NOT EXISTS friend_requests(
             return (id, token);
         }
 
+        // ---------------- admin dashboard ----------------
+        public object AdminStats()
+        {
+            lock (_lock)
+            {
+                using var c = Open();
+                long Q(string sql, string since = null)
+                {
+                    using var cmd = c.CreateCommand(); cmd.CommandText = sql;
+                    if (since != null) cmd.Parameters.AddWithValue("$s", since);
+                    return Convert.ToInt64(cmd.ExecuteScalar());
+                }
+                string Ago(double hours) => DateTime.UtcNow.AddHours(-hours).ToString("o");
+                return new
+                {
+                    accounts = Q("SELECT COUNT(*) FROM players"),
+                    google = Q("SELECT COUNT(*) FROM players WHERE google_sub <> ''"),
+                    active24h = Q("SELECT COUNT(*) FROM players WHERE last_seen > $s", Ago(24)),
+                    active7d = Q("SELECT COUNT(*) FROM players WHERE last_seen > $s", Ago(24 * 7)),
+                    new24h = Q("SELECT COUNT(*) FROM players WHERE created_at > $s", Ago(24)),
+                    new7d = Q("SELECT COUNT(*) FROM players WHERE created_at > $s", Ago(24 * 7)),
+                    matches = Q("SELECT COUNT(*) FROM matches"),
+                    matches24h = Q("SELECT COUNT(*) FROM matches WHERE ended_at > $s", Ago(24)),
+                    friendships = Q("SELECT COUNT(*) FROM friendships"),
+                };
+            }
+        }
+
+        public List<object> AdminPlayers(string query, int limit)
+        {
+            var list = new List<object>();
+            lock (_lock)
+            {
+                using var c = Open();
+                using var cmd = c.CreateCommand();
+                cmd.CommandText = "SELECT name, tag, xp, rating, matches, wins, best_score, eliminations, created_at, last_seen, email FROM players " +
+                                  "WHERE $q = '' OR name LIKE $like OR (name || '#' || tag) LIKE $like ORDER BY last_seen DESC LIMIT $n";
+                cmd.Parameters.AddWithValue("$q", query ?? "");
+                cmd.Parameters.AddWithValue("$like", "%" + (query ?? "") + "%");
+                cmd.Parameters.AddWithValue("$n", limit);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    int level = LevelForXp(r.GetInt32(2), out _, out _);
+                    list.Add(new
+                    {
+                        handle = r.GetString(0) + "#" + r.GetInt32(1), level, rating = r.GetInt32(3), matches = r.GetInt32(4), wins = r.GetInt32(5),
+                        best = r.GetInt32(6), elims = r.GetInt32(7), created = r.GetString(8), lastSeen = r.GetString(9), google = r.GetString(10) != "",
+                    });
+                }
+            }
+            return list;
+        }
+
         // ---------------- Google accounts ----------------
         /// <summary>Player id owning this Google account (subject), or null.</summary>
         public string FindByGoogle(string sub) => Scalar("SELECT id FROM players WHERE google_sub=$v AND google_sub <> ''", sub);

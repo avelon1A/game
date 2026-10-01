@@ -80,14 +80,18 @@ namespace Veil.Server
             builder.Services.AddSingleton<SocialHub>();
             builder.Services.AddSingleton<VoiceRelay>();
             builder.Services.AddSingleton<UdpGateway>();
+            builder.Services.AddSingleton<AdminAuth>();
+            builder.Services.AddSingleton<AdminMetrics>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<GameHost>());
             builder.Services.AddHostedService(sp => sp.GetRequiredService<SocialHub>());
             builder.Services.AddHostedService(sp => sp.GetRequiredService<VoiceRelay>());
             builder.Services.AddHostedService(sp => sp.GetRequiredService<UdpGateway>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<AdminMetrics>());
 
             var app = builder.Build();
             Gateway.Map(app);
             Api.Map(app);
+            AdminApi.Map(app);
 
             Console.WriteLine($"VEIL server  |  REST http://localhost:{opt.HttpPort}/api/health  |  Gateway ws://localhost:{opt.HttpPort}/ws  |  " +
                               $"UDP gateway {opt.GatewayUdpPort}  |  UDP match {opt.UdpPort}  |  UDP voice {opt.VoicePort}  |  db {db.Path}");
