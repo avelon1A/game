@@ -464,18 +464,30 @@ CREATE TABLE IF NOT EXISTS friend_requests(
         /// <summary>"Name#1234" → player id (null if unknown).</summary>
         public string FindByHandle(string handle)
         {
-            handle = (handle ?? "").Trim();
+            // forgiving: phone keyboards add spaces, full-width '＃', zero-width characters, autocapitalisation
+            var sb = new System.Text.StringBuilder();
+            foreach (char ch in (handle ?? "").Normalize(System.Text.NormalizationForm.FormKC))
+                if (ch == '#' || ch == '＃' || ch == '♯') sb.Append('#');
+                else if (!char.IsWhiteSpace(ch) && !char.IsControl(ch) && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.Format) sb.Append(ch);
+            handle = sb.ToString();
             int hash = handle.LastIndexOf('#');
-            if (hash <= 0 || !int.TryParse(handle.Substring(hash + 1), out int tag)) return null;
-            string name = handle.Substring(0, hash).Trim();
             lock (_lock)
             {
                 using var c = Open();
                 using var cmd = c.CreateCommand();
-                cmd.CommandText = "SELECT id FROM players WHERE name = $n COLLATE NOCASE AND tag = $t LIMIT 1";
-                cmd.Parameters.AddWithValue("$n", name);
-                cmd.Parameters.AddWithValue("$t", tag);
-                return cmd.ExecuteScalar() as string;
+                if (hash > 0 && int.TryParse(handle.Substring(hash + 1), out int tag))
+                {
+                    cmd.CommandText = "SELECT id FROM players WHERE replace(name, ' ', '') = $n COLLATE NOCASE AND tag = $t LIMIT 1";
+                    cmd.Parameters.AddWithValue("$n", handle.Substring(0, hash));
+                    cmd.Parameters.AddWithValue("$t", tag);
+                    return cmd.ExecuteScalar() as string;
+                }
+                // name only: fine when exactly one player has it
+                cmd.CommandText = "SELECT id FROM players WHERE replace(name, ' ', '') = $n COLLATE NOCASE LIMIT 2";
+                cmd.Parameters.AddWithValue("$n", hash < 0 ? handle : handle.Substring(0, Math.Max(0, hash)));
+                var ids = new List<string>();
+                using (var r = cmd.ExecuteReader()) while (r.Read()) ids.Add(r.GetString(0));
+                return ids.Count == 1 ? ids[0] : null;
             }
         }
 

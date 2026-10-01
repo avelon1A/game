@@ -279,7 +279,7 @@ namespace Veil.Server
         private string FriendRequest(Session s, string handle)
         {
             string to = _db.FindByHandle(handle);
-            if (to == null) return $"No player called {handle}. Use the full Name#1234.";
+            if (to == null) { _log.LogInformation("Friend search miss: {Q}", string.Join(" ", (handle ?? "").Select(ch => ((int)ch).ToString("x")))); return $"No player called {handle}. Use the full Name#1234."; }
             switch (_db.SendRequest(s.Id, to))
             {
                 case Database.RequestResult.Invalid: return "You can't add yourself";
