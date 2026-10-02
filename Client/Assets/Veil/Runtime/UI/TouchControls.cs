@@ -45,6 +45,9 @@ namespace Veil.UI
             _dash = Btn("DASH", Icons.Dash, new Vector2(-350, 270), 118, Theme.Cyan, false, Buttons.Dash);
             _pulse = Btn("PULSE", Icons.Pulse, new Vector2(-230, 390), 118, Theme.Purple, false, Buttons.Pulse);
             _decoy = Btn("DECOY", Icons.Decoy, new Vector2(-70, 400), 118, Theme.PurpleLight, false, Buttons.Decoy);
+            // sniper scope: tap to zoom in / out (only shown when you carry the sniper)
+            _scope = UIKit.Button(Root, "SCOPE", new Vector2(1, 0), new Vector2(-150, 300), new Vector2(120, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn, 20);
+            ((RectTransform)_scope.transform).pivot = new Vector2(0.5f, 0.5f);
 
             // squad voice: hold to talk (push-to-talk mode)
             var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
@@ -67,6 +70,8 @@ namespace Veil.UI
             var board = UIKit.Button(Root, "LIST", new Vector2(1, 1), new Vector2(-400, -24), new Vector2(90, 72), UIKit.ButtonStyle.Ghost, () => ScoreboardOpen = !ScoreboardOpen, 20);
         }
 
+        private UnityEngine.UI.Button _scope;
+
         private ActionButton Btn(string name, Sprite icon, Vector2 pos, float size, Color c, bool hold, Buttons b)
         {
             var rt = UIKit.At(Root, "Btn_" + name, new Vector2(1, 0), pos, new Vector2(size, size));
@@ -82,7 +87,12 @@ namespace Veil.UI
             _dash.SetCooldown(me.DashCd / GameConfig.DashCooldown, me.Energy >= GameConfig.DashCost);
             _pulse.SetCooldown(me.PulseCd / GameConfig.PulseCooldown, me.Energy >= GameConfig.PulseCost);
             _decoy.SetCooldown(me.DecoyCd / GameConfig.DecoyCooldown, me.Energy >= GameConfig.DecoyCost);
-            _fire.SetCooldown(0, true);
+            var ws = GameConfig.Weapon(me.Look.Weapon);
+            _fire.SetCooldown(me.FireCd / ws.Cooldown, true);
+            bool sniper = me.Look.Weapon == 1 && me.Alive;
+            if (_scope.gameObject.activeSelf != sniper) _scope.gameObject.SetActive(sniper);
+            if (!sniper) VirtualInput.ScopeOn = false;
+            UIKit.ButtonLabel(_scope).text = VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE";
             bool market = me.Alive && me.ZoneId >= 0 && _m.Map.Zones[me.ZoneId].Type == ZoneType.Market;
             if (_market.gameObject.activeSelf != market) _market.gameObject.SetActive(market);
             Root.gameObject.SetActive(!_m.Ended && !_m.Paused);

@@ -317,7 +317,8 @@ namespace Veil.View
                 var start = new Vec2(pos.x, pos.z) + dir * 0.6f;
                 float hitR = GameConfig.HitRadius + GameConfig.ProjectileRadius, d = 0;
                 ShotHitsAvatar = false;
-                for (; d < GameConfig.ProjectileRange && !ShotHitsAvatar; d += 0.4f)
+                float range = GameConfig.Weapon(p.Look.Weapon).Range;
+                for (; d < range && !ShotHitsAvatar; d += 0.4f)
                 {
                     var sp = start + dir * d;
                     if (Match.Map.BlocksShotAt(sp, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
@@ -330,7 +331,7 @@ namespace Veil.View
                     }
                     if (ShotHitsAvatar) break;
                 }
-                d = Mathf.Min(d, GameConfig.ProjectileRange);
+                d = Mathf.Min(d, range);
                 var end = start + dir * d;
                 ShotImpact = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
                 _aimMarker.gameObject.SetActive(true);
@@ -444,9 +445,10 @@ namespace Veil.View
                 var dir = Vec2.FromYaw(av.Yaw);
                 var start = new Vec2(av.Pos.x, av.Pos.z) + dir * 0.6f;
                 float d = 0;
-                for (; d < GameConfig.ProjectileRange; d += 0.4f)
+                float range = GameConfig.Weapon(av.Rig.Look.Weapon).Range;
+                for (; d < range; d += 0.4f)
                     if (Match.Map.BlocksShotAt(start + dir * d, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
-                var end = start + dir * Mathf.Min(d, GameConfig.ProjectileRange);
+                var end = start + dir * Mathf.Min(d, range);
                 to = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
             }
             var c = Palette.AccentColors[av.Rig.Look.Color % 8];

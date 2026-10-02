@@ -13,6 +13,7 @@ namespace Veil.Match
         public static Vector2 Move;             // joystick, camera-relative (x right, y forward), |v| <= 1
         public static Vector2 LookDelta;        // pixels this frame (consumed by the camera)
         public static bool FireHeld, JumpHeld, TalkHeld;
+        public static bool ScopeOn;             // sniper scope (toggle button)
         private static Buttons _latched;
 
         public static void Press(Buttons b) => _latched |= b;
@@ -34,7 +35,7 @@ namespace Veil.Match
 
         public static void Reset()
         {
-            Move = Vector2.zero; LookDelta = Vector2.zero; FireHeld = JumpHeld = TalkHeld = false; _latched = Buttons.None;
+            Move = Vector2.zero; LookDelta = Vector2.zero; FireHeld = JumpHeld = TalkHeld = ScopeOn = false; _latched = Buttons.None;
         }
     }
 

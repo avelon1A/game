@@ -1,3 +1,4 @@
+using System;
 namespace Veil.Sim
 {
     /// <summary>
@@ -6,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 10;
+        public const int ProtocolVersion = 11;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -102,6 +103,17 @@ namespace Veil.Sim
         public const float ProjectileRange = 30f;
         public const float ProjectileDamage = 11f;          // quicker fire rate, similar time-to-kill
         public const float ProjectileRadius = 0.22f;
+
+        // ---- weapons (chosen in Characters → WEAPON, stored in Appearance.Weapon) ----
+        public static readonly string[] WeaponNames = { "RIFLE", "SNIPER" };
+        public struct WeaponStats { public float Cooldown, Damage, Range, Speed; }
+        public static readonly WeaponStats[] Weapons =
+        {
+            new WeaponStats { Cooldown = FireCooldown, Damage = ProjectileDamage, Range = ProjectileRange, Speed = ProjectileSpeed },
+            new WeaponStats { Cooldown = 1.25f, Damage = 48f, Range = 75f, Speed = 1500f },   // sniper: 3 hits kill, slow, long reach
+        };
+        public static WeaponStats Weapon(int w) => Weapons[Math.Clamp(w, 0, Weapons.Length - 1)];
+        public const float ScopeFov = 26f;
         public const float ProjectileHeight = 1.0f;
         public const float HitRadius = 0.55f;
         public const float Knockback = 7f;

@@ -55,6 +55,7 @@ namespace Veil.Sim
         public byte HairColor;
         public byte Accessory;  // goggles, headphones, visor, hood...
         public byte Color;      // accent colour
+        public byte Weapon;     // 0 rifle, 1 sniper (GameConfig.Weapons)
 
         public static Appearance Preset(int i)
         {
@@ -215,6 +216,7 @@ namespace Veil.Sim
         public Vec2 Pos, Vel;
         public float Travelled;
         public bool Dead;
+        public float Damage = GameConfig.ProjectileDamage, Range = GameConfig.ProjectileRange;
     }
 
     public sealed class Decoy

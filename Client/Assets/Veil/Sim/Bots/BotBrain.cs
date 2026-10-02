@@ -489,10 +489,10 @@ namespace Veil.Sim
             {
                 var t = target.Value;
                 float d = Vec2.Dist(t.Pos, _p.Pos);
-                if (d < 27f && _sim.Map.HasLineOfSight(_p.Pos, t.Pos))
+                if (d < GameConfig.Weapon(_p.Look.Weapon).Range - 3f && _sim.Map.HasLineOfSight(_p.Pos, t.Pos))
                 {
                     fighting = true;
-                    float lead = d / GameConfig.ProjectileSpeed;
+                    float lead = d / GameConfig.Weapon(_p.Look.Weapon).Speed;
                     Vec2 aimAt = t.Pos + t.Vel * lead * _skill;
                     float err = (1.2f - _skill) * 14f;
                     float desired = (aimAt - _p.Pos).Yaw + _rng.Range(-err, err);

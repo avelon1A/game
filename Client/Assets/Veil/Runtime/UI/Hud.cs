@@ -99,6 +99,16 @@ namespace Veil.UI
             BuildObjectives();
             if (GameConfig.ExtractionMode) _hack = new HackPanel(Root, _m.LocalSquad);
             _compass = new CompassBar(Root);
+            // sniper scope overlay: dark vignette ring + fine cross lines
+            _scope = UIKit.Fill(Root, "Scope");
+            var ring = UIKit.At(_scope, "Ring", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2600, 2600));
+            UIKit.Image(ring, UIKit.Ring, new Color(0, 0, 0, 0.88f));
+            var inner = UIKit.At(_scope, "Inner", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760, 760));
+            UIKit.Image(inner, UIKit.Ring, new Color(0, 0, 0, 0.9f));
+            var h = UIKit.At(_scope, "H", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700, 2)); UIKit.Image(h, UIKit.Square, new Color(0, 0, 0, 0.7f));
+            var v = UIKit.At(_scope, "V", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2, 700)); UIKit.Image(v, UIKit.Square, new Color(0, 0, 0, 0.7f));
+            var dot = UIKit.At(_scope, "Dot", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 8)); UIKit.Image(dot, UIKit.Circle, new Color(1f, 0.25f, 0.3f, 0.95f));
+            _scope.gameObject.SetActive(false);
             BuildSquad();
             BuildVitals();
             BuildAbilities();
@@ -623,6 +633,7 @@ namespace Veil.UI
             if (Keyboard.current != null && Keyboard.current.mKey.wasPressedThisFrame) _mapScreen?.Toggle();
             _mapScreen?.Update(_view);
             _compass.Update(s, me, cameraYaw);
+            if (_scope.gameObject.activeSelf != GameApp.Scoped) _scope.gameObject.SetActive(GameApp.Scoped);
 
             // phase
             if (s.Phase != _lastPhase)
@@ -669,7 +680,7 @@ namespace Veil.UI
             _cores.text = me.CoresCollected.ToString();
 
             // abilities
-            SetAbility(_abilities[0], me.FireCd, GameConfig.FireCooldown, 0, me);
+            SetAbility(_abilities[0], me.FireCd, GameConfig.Weapon(me.Look.Weapon).Cooldown, 0, me);
             SetAbility(_abilities[1], me.DashCd, GameConfig.DashCooldown, GameConfig.DashCost, me);
             SetAbility(_abilities[2], me.PulseCd, GameConfig.PulseCooldown, GameConfig.PulseCost, me);
             SetAbility(_abilities[3], me.DecoyCd, GameConfig.DecoyCooldown, GameConfig.DecoyCost, me);
@@ -949,6 +960,7 @@ namespace Veil.UI
         private Text _wpSite, _wpExtract, _wpCentre;
         private HackPanel _hack;
         private CompassBar _compass;
+        private RectTransform _scope;
         private MapScreen _mapScreen;
         public bool MapOpen => _mapScreen != null && _mapScreen.Open;
         private readonly Text[] _wpNodes = new Text[GameConfig.HackNodes];

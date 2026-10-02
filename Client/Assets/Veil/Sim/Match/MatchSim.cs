@@ -111,6 +111,7 @@ namespace Veil.Sim
                 var look = Appearance.Preset(Players.Count);
                 look.Color = (byte)((Players.Count * 3) % 8);
                 look.HairColor = (byte)((Players.Count * 5 + 1) % 8);
+                look.Weapon = (byte)(Players.Count % 4 == 3 ? 1 : 0);   // about one bot in four carries a sniper
                 AddPlayer(name, look, true, kinds[i % kinds.Length]);
                 i++;
             }

@@ -38,8 +38,9 @@ namespace Veil.View
         /// <summary>Gameplay follow. lookDelta in pixels, scroll in notches.</summary>
         public void Follow(Vector3 target, Vector2 lookDelta, float scroll, float dt)
         {
-            Yaw += lookDelta.x * Sensitivity;
-            Pitch = Mathf.Clamp(Pitch - lookDelta.y * Sensitivity, -8f, 65f);
+            float sens = Sensitivity * (Veil.App.GameApp.Scoped ? 0.4f : 1f);   // finer aim while scoped
+            Yaw += lookDelta.x * sens;
+            Pitch = Mathf.Clamp(Pitch - lookDelta.y * sens, -8f, 65f);
             Distance = Mathf.Clamp(Distance - scroll * 0.9f, 2.6f, 14f);
 
             var rot = Quaternion.Euler(Pitch, Yaw, 0);

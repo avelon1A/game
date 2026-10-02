@@ -85,6 +85,7 @@ namespace Veil.App
                 HairColor = (byte)PlayerPrefs.GetInt("hairColor", 0),
                 Accessory = (byte)PlayerPrefs.GetInt("accessory", 0),
                 Color = (byte)PlayerPrefs.GetInt("color", 0),
+                Weapon = (byte)PlayerPrefs.GetInt("weapon", 0),
             };
             return p;
         }
@@ -119,6 +120,7 @@ namespace Veil.App
             PlayerPrefs.SetInt("hairColor", Look.HairColor);
             PlayerPrefs.SetInt("accessory", Look.Accessory);
             PlayerPrefs.SetInt("color", Look.Color);
+            PlayerPrefs.SetInt("weapon", Look.Weapon);
             PlayerPrefs.Save();
         }
 
@@ -165,6 +167,6 @@ namespace Veil.App
 
         public string ServerAddress => ServerUdp ? $"udp://{ServerHost}:{HttpPort}" : HttpPort == 5080 ? ServerHost : $"{ServerHost}:{HttpPort}";
 
-        public string AppearanceString => $"{Look.Outfit},{Look.Hair},{Look.HairColor},{Look.Accessory},{Look.Color}";
+        public string AppearanceString => $"{Look.Outfit},{Look.Hair},{Look.HairColor},{Look.Accessory},{Look.Color},{Look.Weapon}";
     }
 }

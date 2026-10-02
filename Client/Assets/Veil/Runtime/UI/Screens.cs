@@ -302,6 +302,10 @@ namespace Veil.UI
                 foreach (var n in new[] { "Chips_HAIR", "Swatches_HAIR COLOR", "Chips_ACCESSORY" }) { var t = p.Find(n); if (t) t.gameObject.SetActive(false); }
                 var glowRow = p.Find("Swatches_GLOW COLOR") as RectTransform;
                 if (glowRow) glowRow.anchoredPosition = new Vector2(glowRow.anchoredPosition.x, -300);
+                var wr = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -390), "WEAPON", new[] { "RIFLE", "SNIPER" }, prof.Look.Weapon, i => { var l = prof.Look; l.Weapon = (byte)i; prof.Look = l; Changed(); }, 150);
+                wr.Root.pivot = new Vector2(0, 0.5f);
+                var wdesc = UIKit.LabelAt(p, "RIFLE: fast, 30 m  ·  SNIPER: 48 dmg, slow, 75 m, scope", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(210, -432), new Vector2(760, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                wdesc.rectTransform.pivot = new Vector2(0, 0.5f);
                 presetsT.gameObject.SetActive(false);
                 foreach (var b in presetButtons) b.SetActive(false);
             }

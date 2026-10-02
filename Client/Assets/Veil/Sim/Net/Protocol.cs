@@ -54,8 +54,8 @@ namespace Veil.Sim
     public static class Protocol
     {
         // ---------------- helpers ----------------
-        private static void Look(ByteWriter w, Appearance a) { w.U8(a.Outfit); w.U8(a.Hair); w.U8(a.HairColor); w.U8(a.Accessory); w.U8(a.Color); }
-        private static Appearance Look(ByteReader r) => new Appearance { Outfit = r.U8(), Hair = r.U8(), HairColor = r.U8(), Accessory = r.U8(), Color = r.U8() };
+        private static void Look(ByteWriter w, Appearance a) { w.U8(a.Outfit); w.U8(a.Hair); w.U8(a.HairColor); w.U8(a.Accessory); w.U8(a.Color); w.U8(a.Weapon); }
+        private static Appearance Look(ByteReader r) => new Appearance { Outfit = r.U8(), Hair = r.U8(), HairColor = r.U8(), Accessory = r.U8(), Color = r.U8(), Weapon = r.U8() };
 
         // ---------------- Hello / Welcome / Reject ----------------
         public static void WriteHello(ByteWriter w, HelloMsg m)

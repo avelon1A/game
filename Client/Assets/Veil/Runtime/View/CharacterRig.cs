@@ -78,7 +78,8 @@ namespace Veil.View
         public static bool UseModels = true;
         public static readonly string[] ModelNames = { "vanguard", "volt", "lyra", "nova", "sol" };
         /// <summary>Each hero's blaster (Kenney Blaster Kit, CC0) in Resources/Weapons, same order as ModelNames.</summary>
-        public static readonly string[] WeaponNames = { "blaster-m", "blaster-e", "blaster-n", "blaster-j", "blaster-g" };
+        public const string SniperModel = "blaster-e";   // long-barrel Kenney blaster
+        public static readonly string[] WeaponNames = { "blaster-m", "blaster-a", "blaster-n", "blaster-j", "blaster-g" };
         private static Material _weaponMat;
 
         private static Material WeaponMaterial()
@@ -145,7 +146,7 @@ namespace Veil.View
             var dark = M(Palette.Hex("#1f1d26"), 0.25f, 0.4f);
             var rbox = MeshGen.RoundBox(0.4f);
             _gun = Build.Node(_body, "Blaster", Vector3.zero);
-            var weapon = Resources.Load<GameObject>("Weapons/" + WeaponNames[Look.Outfit % WeaponNames.Length]);
+            var weapon = Resources.Load<GameObject>("Weapons/" + (Look.Weapon == 1 ? SniperModel : WeaponNames[Look.Outfit % WeaponNames.Length]));
             if (weapon != null)
             {
                 // Kenney Blaster Kit gun (CC0), re-centred on import: grip at the pivot, barrel along +Y (Editor/WeaponImport.cs)

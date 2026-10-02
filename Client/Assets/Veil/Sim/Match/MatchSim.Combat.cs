@@ -12,7 +12,8 @@ namespace Veil.Sim
             // Blaster (LMB)
             if (cmd.Has(Buttons.Fire) && p.FireCd <= 0 && p.DashT <= 0)
             {
-                p.FireCd = GameConfig.FireCooldown;
+                var ws = GameConfig.Weapon(p.Look.Weapon);
+                p.FireCd = ws.Cooldown;
                 p.FireSeq++;
                 p.NoiseT = GameConfig.FireNoiseTime;
                 p.SpawnProtT = 0;
@@ -22,7 +23,7 @@ namespace Veil.Sim
                 {
                     Projectiles.Add(new Projectile
                     {
-                        Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = dir * GameConfig.ProjectileSpeed,
+                        Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = dir * ws.Speed, Damage = ws.Damage, Range = ws.Range,
                     });
                 }
                 Events.Add(new SimEvent(EventType.Fire, p.Id, 0, 0, p.Pos));
@@ -119,7 +120,7 @@ namespace Veil.Sim
                 {
                     pr.Pos += step;
                     pr.Travelled += len / steps;
-                    if (pr.Travelled > GameConfig.ProjectileRange) { pr.Dead = true; break; }
+                    if (pr.Travelled > pr.Range) { pr.Dead = true; break; }
                     if (Map.BlocksShotAt(pr.Pos, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius))
                     {
                         pr.Dead = true;
@@ -133,7 +134,7 @@ namespace Veil.Sim
                     {
                         if (p.Id == pr.Owner || Allies(p, shooter) || !p.Alive) continue;   // no friendly fire
                         if (Vec2.DistSq(p.Pos, pr.Pos) > hitR2) continue;
-                        Damage(p, pr.Owner, GameConfig.ProjectileDamage, pr.Vel.Normalized);
+                        Damage(p, pr.Owner, pr.Damage, pr.Vel.Normalized);
                         pr.Dead = true;
                         break;
                     }

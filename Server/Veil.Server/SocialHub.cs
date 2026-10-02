@@ -776,7 +776,7 @@ namespace Veil.Server
             var a = new Appearance();
             var f = (s ?? "").Split(',');
             if (f.Length >= 5 && byte.TryParse(f[0], out var o) && byte.TryParse(f[1], out var h) && byte.TryParse(f[2], out var hc) && byte.TryParse(f[3], out var ac) && byte.TryParse(f[4], out var c))
-                a = new Appearance { Outfit = o, Hair = h, HairColor = hc, Accessory = ac, Color = c };
+                a = new Appearance { Outfit = o, Hair = h, HairColor = hc, Accessory = ac, Color = c, Weapon = f.Length >= 6 && byte.TryParse(f[5], out var wp) ? wp : (byte)0 };
             return a;
         }
     }
