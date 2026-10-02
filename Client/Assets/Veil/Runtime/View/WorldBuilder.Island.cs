@@ -290,19 +290,6 @@ namespace Veil.View
         private bool TryProp(Obstacle o, Vector3 c)
         {
             if (o.Kind == ObstacleKind.Solid) return true;   // landmark collision: drawn by the landmark model
-            // about half of the city blocks use the textured Meshy buildings (fitted inside the block's footprint)
-            if (o.Kind == ObstacleKind.CityBlock && Mathf.Abs(o.Variant) % 2 == 0)
-            {
-                int v2 = Mathf.Abs(o.Variant) / 2;
-                string bn = o.Height > 17f ? (v2 % 3 == 0 ? "bld2" : v2 % 3 == 1 ? "bld3" : "bld4") : "bld1";
-                var bb = Big(bn);
-                if (bb != null)
-                {
-                    float fit = Mathf.Min(o.Half.X * 2 / Mathf.Max(bb.Size.x, 0.01f), o.Half.Y * 2 / Mathf.Max(bb.Size.z, 0.01f));
-                    AddProp(bb, c, (v2 % 4) * 90f, fit);
-                    return true;
-                }
-            }
             if (o.Kind == ObstacleKind.Decor)
             {
                 var dl = Props(IslandMap.DecorCats[Mathf.Clamp(o.Variant / 1000, 0, IslandMap.DecorCats.Length - 1)]);

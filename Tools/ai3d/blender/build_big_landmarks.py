@@ -24,13 +24,6 @@ for name in NAMES:
     xs = [v.co.x for v in vs]; ys = [v.co.y for v in vs]; zs = [v.co.z for v in vs]
     cx, cy, z0 = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, min(zs)
     for v in vs: v.co.x -= cx; v.co.y -= cy; v.co.z -= z0
-    # phone budget: decimate anything above ~40k triangles (keeps the texture UVs)
-    faces = len(o.data.polygons)
-    budget = 110000 if name == "bld4" else 40000
-    if faces > budget:
-        bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); bpy.context.view_layer.objects.active = o
-        mod = o.modifiers.new("dec", 'DECIMATE'); mod.ratio = budget / faces
-        bpy.ops.object.modifier_apply(modifier="dec")
     o.name = "big_" + name
     for img in bpy.data.images:
         if img.size[0] == 0: continue
