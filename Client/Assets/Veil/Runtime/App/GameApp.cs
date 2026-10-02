@@ -572,7 +572,7 @@ namespace Veil.App
             _paused = false;
             CamRig.Map = Map;
             CamRig.Pitch = 18f;
-            CamRig.Distance = 7.5f;
+            CamRig.Distance = Platform.IsMobile ? 5.2f : 7.5f;   // phones: closer over-the-shoulder view
             // face the arena centre from the spawn
             _match.Driver.Poll();
             if (_match.Latest != null)
@@ -753,7 +753,7 @@ namespace Veil.App
                         CamRig.Yaw = Mathf.LerpAngle(CamRig.Yaw, _match.Predicted.Yaw, 1 - Mathf.Exp(-2f * dt));
                     }
                     var me = _match.Predicted;
-                    float fov = 62f + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);
+                    float fov = (Platform.IsMobile ? 55f : 62f) + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);   // wide phone screens: narrower FOV so the world looks closer
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
                     if (!_match.Predicted.Alive)
@@ -927,10 +927,18 @@ namespace Veil.App
             yield return Shot("map_oblique");
             Pose(new Vector3(0, 70, -150), new Vector3(0, 10, 0), false, 0);
             yield return Shot("map_city");
+            // collision debug: red boxes on every landmark solid
+            var dbg = Veil.View.MaterialLib.Unlit(new Color(1f, 0.1f, 0.1f, 0.35f), Veil.View.MaterialLib.Blend.Alpha);
+            foreach (var o in Map.Obstacles)
+            {
+                if (o.Kind != ObstacleKind.Solid) continue;
+                var size = o.Shape == ShapeKind.Box ? new Vector3(o.Half.X * 2, o.Height, o.Half.Y * 2) : new Vector3(o.Radius * 2, o.Height, o.Radius * 2);
+                Veil.View.Build.Part(World.Root, o.Shape == ShapeKind.Box ? Veil.View.MeshGen.Box : Veil.View.MeshGen.Cylinder(12), dbg, new Vector3(o.Center.X, o.Height / 2, o.Center.Y), size, Quaternion.Euler(0, o.Rot, 0), "DebugSolid", false);
+            }
             void Near(Vector3 at, float yaw, float dist, float h) => Pose(at + Quaternion.Euler(0, yaw, 0) * new Vector3(0, h, -dist), at + Vector3.up * 3f, false, 0);
             Near(new Vector3(0, 0, 42), 180, 26, 14); yield return Shot("lm_market");
             Near(new Vector3(-138, 0, 0), 90, 26, 14); yield return Shot("lm_reactor");
-            Near(new Vector3(140, 0, 0), 270, 34, 16); yield return Shot("lm_ruins");
+            Near(new Vector3(138, 0, 0), 270, 36, 18); yield return Shot("lm_ruins");
             Near(new Vector3(21, 0, 160), 0, 28, 12); yield return Shot("lm_vault");
             yield return new WaitForSeconds(1f);
             Application.Quit();

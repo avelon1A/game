@@ -68,7 +68,7 @@ namespace Veil.Sim
 
             // ---------------- zones (old systems keep working) ----------------
             AddZone(m, ZoneType.Tower, "Rilo Plaza", Vec2.Zero, 10f);
-            AddZone(m, ZoneType.Ruins, "Ruins", Vec2.FromYaw(90) * 140f, 13f);
+            AddZone(m, ZoneType.Ruins, "Ruins", Vec2.FromYaw(90) * 125f, 13f);   // in front of the temple (RuinsLandmark)
             AddZone(m, ZoneType.Market, "Market", Vec2.FromYaw(0) * 42f, 9f);
             AddZone(m, ZoneType.Reactor, "Hydro Reactor", Vec2.FromYaw(270) * 138f, 9f);
             AddZone(m, ZoneType.Vault, "Snow Vault", Vec2.FromYaw(8) * 152f, 5.5f);
@@ -195,6 +195,21 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ helpers
 
+        /// <summary>Invisible collision for a big landmark model (footprint from LandmarkShapes, model space -> world).</summary>
+        public static void LandmarkSolids(MapData m, (float x0, float x1, float y0, float y1, float h)[] rects, float width, Vec2 at, float yaw)
+        {
+            foreach (var r in rects)
+            {
+                // Blender model space (x, y) faces the game as (-x, -y), then the landmark's yaw
+                var local = new Vec2(-(r.x0 + r.x1) * 0.5f, -(r.y0 + r.y1) * 0.5f) * width;
+                var o = Box(m, ObstacleKind.Solid, at + Vec2.RotateYaw(local, yaw), new Vec2((r.x1 - r.x0) * 0.5f * width, (r.y1 - r.y0) * 0.5f * width), yaw, r.h);
+                o.BlocksShots = r.h > 1.0f;
+            }
+        }
+
+        public static readonly Vec2 RuinsLandmark = Vec2.FromYaw(90) * 138f;
+        public static readonly Vec2 VaultLandmark = Vec2.FromYaw(8) * 152f + new Vec2(0, 10f);
+
         private static void WaterBox(MapData m, Vec2 c, Vec2 half, float rot)
         {
             var o = Box(m, ObstacleKind.Water, c, half, rot, 99f);
@@ -262,13 +277,14 @@ namespace Veil.Sim
                     var o = Box(m, ObstacleKind.CityBlock, c, new Vec2(rng.Range(4.2f, 5.6f), rng.Range(4.2f, 5.6f)), 0, rng.Range(10f, 26f));
                     o.Variant = rng.Int(10000);
                 }
-            // market stalls
-            for (int i = 0; i < 5; i++)
-            {
-                float yaw = i * 72f + 10f;
-                var o = Box(m, ObstacleKind.Stall, Vec2.FromYaw(0) * 42f + Vec2.FromYaw(yaw) * 6.5f, new Vec2(1.6f, 1.0f), yaw + 90, 2.2f);
-                o.Variant = i;
-            }
+            // market hall (big Meshy landmark): roof posts + stall counters, open in the middle and at both ends
+            var mk = Vec2.FromYaw(0) * 42f;
+            foreach (float x in new[] { -10.45f, -5.2f, 0f, 5.2f, 10.45f })
+                foreach (float y in new[] { -9.35f, 9.35f })
+                    Circle(m, ObstacleKind.Solid, mk + new Vec2(x, y), 0.35f, 6f);
+            foreach (float y in new[] { -7.4f, 7.4f })
+                foreach (var (x0, x1) in new[] { (-9.6f, -5.8f), (-4.1f, -1.4f), (1.4f, 4.1f), (5.8f, 9.6f) })
+                    Box(m, ObstacleKind.Solid, mk + new Vec2((x0 + x1) * 0.5f, y), new Vec2((x1 - x0) * 0.5f, 0.6f), 0, 1.0f);
             // street cover: low walls and crates on the avenues
             for (int i = 0; i < 8; i++)
             {
@@ -283,7 +299,7 @@ namespace Veil.Sim
         private static void BuildSnow(MapData m, Rng rng, List<Vec2> reserved)
         {
             const int k = 0;
-            Box(m, ObstacleKind.VaultBuilding, Vec2.FromYaw(8) * 152f + new Vec2(0, 10f), new Vec2(8.5f, 4.5f), 0, 10f);   // big vault landmark, door facing the zone
+            LandmarkSolids(m, LandmarkShapes.Vault, LandmarkShapes.VaultWidth, VaultLandmark, 180f);   // big vault landmark, door facing the zone
             for (int i = 0; i < 5; i++)
             {
                 var hp = Local(k, 125f + i % 2 * 22f, -14f + i * 7f);
@@ -320,14 +336,8 @@ namespace Veil.Sim
         {
             const int k = 2;
             var c = m.Zone(ZoneType.Ruins).Center;
-            // temple ruins landmark: a ring of broken columns (cover) around a raised centre, two fallen wall pieces
-            for (int i = 0; i < 10; i++)
-            {
-                if (i == 2 || i == 7) continue;   // entrances
-                Circle(m, ObstacleKind.Pillar, c + Vec2.FromYaw(i * 36f + 90f) * 11f, 0.9f, i % 3 == 0 ? 1.2f : 4f);
-            }
-            Box(m, ObstacleKind.LowWall, c + Vec2.FromYaw(150f) * 5f, new Vec2(2.4f, 0.6f), 60f, 1.0f);
-            Box(m, ObstacleKind.LowWall, c + Vec2.FromYaw(330f) * 5f, new Vec2(2.4f, 0.6f), 60f, 1.0f);
+            // temple ruins landmark: the raised temple + colonnade block, the lower stairs stay walkable
+            LandmarkSolids(m, LandmarkShapes.Ruins, LandmarkShapes.RuinsWidth, RuinsLandmark, 90f);
             Scatter(m, rng, reserved, k, 30, 80f, 182f, p => Tree(m, p));
             Scatter(m, rng, reserved, k, 14, 80f, 180f, p => Circle(m, ObstacleKind.Rock, p, rng.Range(1f, 2.2f), rng.Range(1.4f, 3f)));
             Scatter(m, rng, reserved, k, 8, 90f, 175f, p => Circle(m, ObstacleKind.Pillar, p, 0.7f, rng.Range(1f, 3.6f)));
@@ -362,8 +372,12 @@ namespace Veil.Sim
         {
             const int k = 6;
             var rc = m.Zone(ZoneType.Reactor).Center;
-            Circle(m, ObstacleKind.ReactorCore, rc, 2.2f, 5f);
-            for (int i = 0; i < 4; i++) Circle(m, ObstacleKind.Pylon, rc + Vec2.FromYaw(45 + 90 * i) * 6.2f, 0.5f, 4f);
+            // reactor landmark: the energy ball and its 4 pylons are solid; the deck is walkable
+            Circle(m, ObstacleKind.Solid, rc, 3.6f, 7f);
+            for (int i = 0; i < 4; i++)
+            {
+                Circle(m, ObstacleKind.Solid, rc + Vec2.FromYaw(45 + 90 * i) * 7.4f, 0.6f, 9f);
+            }
             for (int i = 0; i < 4; i++) Circle(m, ObstacleKind.Tank, Local(k, 108f + (i % 2) * 14f, i < 2 ? -12f : 12f), 3.2f, 7f);
             // the dam: a long wall towards the coast with gaps
             Box(m, ObstacleKind.Wall, Local(k, 170f, -8f), new Vec2(9f, 1.2f), k * 45f + 90f, 9f);

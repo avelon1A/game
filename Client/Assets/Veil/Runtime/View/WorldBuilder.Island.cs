@@ -157,7 +157,9 @@ namespace Veil.View
             // big textured landmarks that stand on open ground (the market hall and the temple ruins)
             var market = _map.Zone(ZoneType.Market).Center;
             PutBig("market", Build.V(market), 0f, 22f);
-            PutBig("ruins", Build.V(_map.Zone(ZoneType.Ruins).Center), 90f, 30f);
+            PutBig("ruins", Build.V(IslandMap.RuinsLandmark), 90f, LandmarkShapes.RuinsWidth, LandmarkShapes.RuinsSink);
+            PutBig("reactor", Build.V(_map.Zone(ZoneType.Reactor).Center), 0f, LandmarkShapes.ReactorWidth, LandmarkShapes.ReactorSink);
+            PutBig("vault", Build.V(IslandMap.VaultLandmark), 180f, LandmarkShapes.VaultWidth, LandmarkShapes.VaultSink);
             // market square + beach parasols
             for (int i = 0; i < 4; i++)
             {
@@ -305,11 +307,11 @@ namespace Veil.View
         }
 
         /// <summary>Big textured Meshy landmark, scaled so its widest side is `width` metres.</summary>
-        private bool PutBig(string name, Vector3 at, float yaw, float width)
+        private bool PutBig(string name, Vector3 at, float yaw, float width, float sink = 0f)
         {
             var b = Big(name);
             if (b == null) return false;
-            AddProp(b, at, yaw, width / Mathf.Max(Mathf.Max(b.Size.x, b.Size.z), 0.01f));
+            AddProp(b, at + Vector3.down * sink, yaw, width / Mathf.Max(Mathf.Max(b.Size.x, b.Size.z), 0.01f));
             return true;
         }
 
@@ -317,12 +319,7 @@ namespace Veil.View
 
         private bool TryProp(Obstacle o, Vector3 c)
         {
-            // big Meshy landmarks replace the small pieces inside their areas
-            if (o.Kind == ObstacleKind.Stall && InZone(o, ZoneType.Market, 14f) && Big("market") != null) return true;
-            if ((o.Kind == ObstacleKind.Pylon) && InZone(o, ZoneType.Reactor, 10f) && Big("reactor") != null) return true;
-            if (o.Kind == ObstacleKind.ReactorCore && PutBig("reactor", c, 0f, 22f)) return true;
-            if (o.Kind == ObstacleKind.VaultBuilding && PutBig("vault", c, 180f, 19f)) return true;
-            if ((o.Kind == ObstacleKind.Pillar || o.Kind == ObstacleKind.LowWall) && InZone(o, ZoneType.Ruins, 14f) && Big("ruins") != null) return true;
+            if (o.Kind == ObstacleKind.Solid) return true;   // landmark collision: drawn by the landmark model
             if (o.Kind == ObstacleKind.Console && Landmark("terminal") is PropInfo term)
             {
                 AddProp(term, c, o.Rot + 180f, 1.6f / Mathf.Max(term.Size.y, 0.01f));
