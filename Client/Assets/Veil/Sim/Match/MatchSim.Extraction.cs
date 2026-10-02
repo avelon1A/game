@@ -37,7 +37,8 @@ namespace Veil.Sim
 
         private Vec2 SiteFor(SquadState sq, int stage)
         {
-            if (TaskOf(stage) == ChainTask.Vault) return Map.Zones[TowerZone].Center;
+            // the Hack Terminal and the Vault are shared: the central plaza (cover, low walls, pillars, 4 bridges)
+            if (TaskOf(stage) == ChainTask.Vault || TaskOf(stage) == ChainTask.Hack) return Map.Zones[TowerZone].Center;
             if (stage >= SiteLayout.Length) return Vec2.Zero;
             var (r, deg) = SiteLayout[stage];
             Vec2 c = Vec2.FromYaw(sq.Spawn.Yaw + deg) * r;
@@ -45,15 +46,101 @@ namespace Veil.Sim
             return c;
         }
 
-        private void SpawnGlitch(SquadState sq)
+        // ------------------------------------------------------------------ Hack Terminal
+
+        private void UpdateHack(SquadState sq, float dt)
+        {
+            float r2 = GameConfig.HackRadius * GameConfig.HackRadius;
+            int mine = 0; bool enemy = false;
+            foreach (var p in Players)
+            {
+                if (!Standing(p) || Vec2.DistSq(p.Pos, sq.Site) > r2) continue;
+                if (p.Squad == sq.Id) mine++; else enemy = true;
+            }
+            bool wasContested = sq.Contested;
+            sq.Hackers = mine;
+            sq.Contested = enemy && mine > 0;
+            if (sq.Contested && !wasContested) Events.Add(new SimEvent(EventType.HackContested, sq.Id, 0, 0, sq.Site));
+
+            if (sq.Nodes.Count > 0) { UpdateNodes(sq, dt); return; }      // instability: no progress until stabilized
+            if (mine == 0 || enemy) return;                                 // contest stops progress, never removes it
+
+            // starting (or resuming) a hack is an information event for everyone — not a live position
+            if (Time - sq.LastActivity > GameConfig.HackActivityCooldown)
+                Events.Add(new SimEvent(EventType.HackActivity, sq.Id, 0, 0, sq.Site));
+            sq.LastActivity = Time;
+
+            float before = sq.StageProg;
+            float rate = GameConfig.HackSpeed[Math.Min(mine, GameConfig.HackSpeed.Length - 1)];
+            sq.StageProg = MathF.Min(1f, sq.StageProg + dt / GameConfig.HackTime * rate);
+            if (sq.Glitches < GameConfig.HackInstability.Length)
+            {
+                float at = GameConfig.HackInstability[sq.Glitches];
+                if (before < at && sq.StageProg >= at) { sq.StageProg = at; SpawnInstability(sq); }
+            }
+        }
+
+        private void UpdateNodes(SquadState sq, float dt)
+        {
+            float s2 = GameConfig.NodeStandRadius * GameConfig.NodeStandRadius;
+            for (int i = sq.Nodes.Count - 1; i >= 0; i--)
+            {
+                var n = sq.Nodes[i];
+                if (n.Kind == NodeKind.Destroy) continue;   // projectiles handle it
+                bool mine = false, enemy = false;
+                foreach (var p in Players)
+                {
+                    if (!Standing(p) || Vec2.DistSq(p.Pos, n.Pos) > s2) continue;
+                    if (p.Squad == sq.Id) mine = true; else enemy = true;
+                }
+                n.Contested = mine && enemy;
+                float time = n.Kind == NodeKind.Stabilize ? GameConfig.StabilizeTime : GameConfig.OverrideTime;
+                if (mine && !enemy) n.Prog += dt / time;
+                else if (!mine && n.Kind == NodeKind.Override) n.Prog = MathF.Max(0, n.Prog - dt / time * 0.5f);
+                if (n.Prog >= 1f) ResolveNode(sq, i, -1);
+            }
+        }
+
+        internal void ResolveNode(SquadState sq, int index, int by)
+        {
+            var n = sq.Nodes[index];
+            sq.Nodes.RemoveAt(index);
+            Events.Add(new SimEvent(EventType.NodeDestroyed, by >= 0 ? by : -1 - sq.Id, sq.Nodes.Count, (int)n.Kind, n.Pos));
+        }
+
+        /// <summary>Damage a Destroy node (called by projectiles). Returns true when the bolt was absorbed.</summary>
+        internal bool HitNode(PlayerState shooter, Vec2 at)
+        {
+            var sq = Squads[shooter.Squad];
+            float r2 = GameConfig.HackNodeRadius * GameConfig.HackNodeRadius;
+            for (int i = 0; i < sq.Nodes.Count; i++)
+            {
+                var n = sq.Nodes[i];
+                if (n.Kind != NodeKind.Destroy || Vec2.DistSq(n.Pos, at) > r2) continue;
+                n.Hp--;
+                n.Prog = 1f - n.Hp / (float)GameConfig.HackNodeHp;
+                if (n.Hp <= 0) ResolveNode(sq, i, shooter.Id);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Instability: one Destroy, one Stabilize and one Override node. The first wave sits inside the plaza
+        /// (between the low walls and the pillars), the second spreads to the moat bridges — the squad has to split up.</summary>
+        private void SpawnInstability(SquadState sq)
         {
             sq.Glitches++;
-            float baseYaw = Rng.Range(0, 360);
+            bool outer = sq.Glitches >= 2;
+            var kinds = new[] { NodeKind.Destroy, NodeKind.Stabilize, NodeKind.Override };
+            for (int i = kinds.Length - 1; i > 0; i--) { int j = Rng.Int(i + 1); (kinds[i], kinds[j]) = (kinds[j], kinds[i]); }
+            float baseYaw = outer ? Rng.Int(4) * 90f : Rng.Range(0, 360);
             for (int i = 0; i < GameConfig.HackNodes; i++)
             {
-                Vec2 c = sq.Site + Vec2.FromYaw(baseYaw + i * (360f / GameConfig.HackNodes) + Rng.Range(-25f, 25f)) * GameConfig.HackNodeDistance * Rng.Range(0.75f, 1.15f);
+                Vec2 c = outer
+                    ? sq.Site + Vec2.FromYaw(baseYaw + i * 90f + Rng.Range(-6f, 6f)) * Rng.Range(23f, 27f)    // past the bridges
+                    : sq.Site + Vec2.FromYaw(baseYaw + i * 120f + Rng.Range(-20f, 20f)) * Rng.Range(9f, 12f); // inside the plaza
                 if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
-                sq.Nodes.Add(c);
+                sq.Nodes.Add(new HackNode { Pos = c, Kind = kinds[i] });
             }
             Events.Add(new SimEvent(EventType.HackGlitch, sq.Id, sq.Glitches, 0, sq.Site));
         }
@@ -61,7 +148,7 @@ namespace Veil.Sim
         private void EnterStage(SquadState sq)
         {
             sq.Nodes.Clear();
-            sq.Glitches = 0;
+            sq.Glitches = 0; sq.Hackers = 0; sq.Contested = false;
             sq.StageProg = 0;
             sq.Site = SiteFor(sq, sq.Stage);
             sq.CoresAtStart = SquadCores(sq.Id);
@@ -87,10 +174,11 @@ namespace Veil.Sim
                 {
                     sq.StageProg = MathUtil.Clamp01((SquadCores(sq.Id) - sq.CoresAtStart) / (float)GameConfig.CollectCores);
                 }
+                else if (task == ChainTask.Hack) UpdateHack(sq, dt);
                 else
                 {
-                    float radius = task == ChainTask.Hack ? GameConfig.HackRadius : task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
-                    float time = task == ChainTask.Hack ? GameConfig.HackTime : task == ChainTask.Capture ? GameConfig.PadCaptureTime : GameConfig.VaultTime;
+                    float radius = task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
+                    float time = task == ChainTask.Capture ? GameConfig.PadCaptureTime : GameConfig.VaultTime;
                     int mine = 0; bool enemy = false;
                     float r2 = radius * radius, e2 = (radius + 2f) * (radius + 2f);
                     foreach (var p in Players)
@@ -100,19 +188,10 @@ namespace Veil.Sim
                         if (p.Squad == sq.Id) { if (d2 <= r2) mine++; }
                         else if (d2 <= e2) enemy = true;
                     }
-                    if (task == ChainTask.Hack && mine > 0)
-                        foreach (var p in Players) if (p.Squad == sq.Id && Standing(p) && Vec2.DistSq(p.Pos, sq.Site) <= r2) p.NoiseT = MathF.Max(p.NoiseT, 0.5f);   // hacking is loud
-                    if (mine > 0 && !enemy && sq.Nodes.Count == 0)
+                    if (mine > 0 && !enemy)
                     {
                         float rate = task == ChainTask.Capture ? 1f + 0.25f * (mine - 1) : 1f;
-                        float before = sq.StageProg;
                         sq.StageProg = MathF.Min(1f, sq.StageProg + dt / time * rate);
-                        // the terminal glitches at 1/3 and 2/3: glitch nodes pop up around it, shoot them all to resume
-                        if (task == ChainTask.Hack && sq.Glitches < GameConfig.HackGlitches)
-                        {
-                            float at = (sq.Glitches + 1f) / (GameConfig.HackGlitches + 1f);
-                            if (before < at && sq.StageProg >= at) { sq.StageProg = at; SpawnGlitch(sq); }
-                        }
                     }
                 }
                 if (sq.StageProg >= 1f) CompleteStage(sq);

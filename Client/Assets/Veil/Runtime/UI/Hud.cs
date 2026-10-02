@@ -97,6 +97,7 @@ namespace Veil.UI
             BuildTopLeft();
             BuildTopRight();
             BuildObjectives();
+            if (GameConfig.ExtractionMode) _hack = new HackPanel(Root, _m.LocalSquad);
             BuildSquad();
             BuildVitals();
             BuildAbilities();
@@ -508,6 +509,7 @@ namespace Veil.UI
                     string what = e.B < 3 ? $"objective {e.B + 1}/3" : "the <color=#ffc93a>Vault</color>";
                     if (e.A == _m.LocalSquad)
                     {
+                        if (e.B == 0) Popup("ENEMY ACTIVITY DETECTED · nearby squads revealed");
                         Banner(e.B < 3 ? $"OBJECTIVE {e.B + 1} COMPLETE" : "VAULT OPENED", e.B < 2 ? $"Next: {TaskTitle(MatchSim.TaskOf(e.B + 1))}" : e.B == 2 ? "Next: open the Central Vault" : "Get to the extraction!", 3f);
                         Sfx.Play(Sfx.Objective, 0.8f);
                     }
@@ -515,11 +517,23 @@ namespace Veil.UI
                     break;
                 }
                 case EventType.HackGlitch:
-                    Banner("TERMINAL GLITCH", $"Shoot the {GameConfig.HackNodes} red nodes around it to keep hacking", 2.5f);
+                    Banner(e.B <= 1 ? "TERMINAL INSTABILITY" : "SECONDARY SYSTEM FAILURE",
+                           e.B <= 1 ? "System requires stabilization — split up: destroy · stabilize · override" : "Nodes moved out past the bridges — split up!", 3.5f);
                     Sfx.Play(Sfx.HitMe, 0.6f);
                     break;
                 case EventType.NodeDestroyed:
-                    Popup(e.B > 0 ? $"NODE DOWN · {e.B} LEFT" : "TERMINAL RESTORED");
+                {
+                    string verb = (NodeKind)e.Value == NodeKind.Destroy ? "NODE DESTROYED" : (NodeKind)e.Value == NodeKind.Stabilize ? "NODE STABILIZED" : "NODE OVERRIDDEN";
+                    if (e.B > 0) Popup($"{verb} · {e.B} LEFT");
+                    else { Banner("TERMINAL STABILIZED", "Hack resumed", 2.2f); Sfx.Play(Sfx.Capture, 0.7f); }
+                    break;
+                }
+                case EventType.HackActivity:
+                    Feed("<color=#ffd84a>TERMINAL ACTIVITY DETECTED</color> — someone is hacking", Theme.Text);
+                    Sfx.Play(Sfx.Click, 0.5f);
+                    break;
+                case EventType.HackContested:
+                    Popup("TERMINAL CONTESTED");
                     break;
                 case EventType.ExtractRevealed:
                     Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
@@ -646,7 +660,12 @@ namespace Veil.UI
             SetAbility(_abilities[3], me.DecoyCd, GameConfig.DecoyCooldown, GameConfig.DecoyCost, me);
 
             // objectives
-            if (GameConfig.ExtractionMode) SetChain(s, me);
+            if (GameConfig.ExtractionMode)
+            {
+                SetChain(s, me);
+                _hack?.Update(s, dt);
+                if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK TERMINAL", "Everyone sees the terminal in the central plaza — each squad has its own progress", 4.5f); }
+            }
             else
             {
                 SetObjective(_objectives[0], me.Primary, me);
@@ -766,8 +785,8 @@ namespace Veil.UI
                 c.Title.text = s.Stage < 3 ? $"OBJ {s.Stage + 1}/3 · {TaskTitle(task)}" : "OPEN THE CENTRAL VAULT";
                 c.Desc.text = task switch
                 {
-                    ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>GLITCH! Shoot the {s.Nodes.Count} red nodes</color>",
-                    ChainTask.Hack => $"Stand at your terminal · {dist:0} m (hacking is loud)",
+                    ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>Instability: {s.Nodes.Count} node(s) to resolve</color>",
+                    ChainTask.Hack => $"Central plaza terminal · {dist:0} m",
                     ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
                     ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
                     _ => $"Channel at the Vault in the centre · {dist:0} m",
@@ -913,6 +932,9 @@ namespace Veil.UI
         }
 
         private Text _wpSite, _wpExtract;
+        private HackPanel _hack;
+        private readonly Text[] _wpNodes = new Text[GameConfig.HackNodes];
+        private bool _announced;
 
         /// <summary>Screen waypoint for a world point: follows it on screen, sticks to the screen edge when off-screen.</summary>
         private void Waypoint(ref Text t, bool show, Vec2 at, string label, Color c, PlayerState me)
@@ -951,7 +973,13 @@ namespace Veil.UI
         {
             if (GameConfig.ExtractionMode)
             {
-                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect, s.Site, s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0, s.Site, s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                for (int i = 0; i < _wpNodes.Length; i++)
+                {
+                    bool on = i < s.Nodes.Count;
+                    var nd = on ? s.Nodes[i] : null;
+                    Waypoint(ref _wpNodes[i], on, on ? nd.Pos : Vec2.Zero, on ? $"{HackPanel.KindName(nd.Kind)} {Mathf.RoundToInt(nd.Prog * 100)}%" : "", on ? HackPanel.KindColor(nd.Kind) : Color.white, me);
+                }
                 Waypoint(ref _wpExtract, s.ExtractRevealed, s.ExtractPos, "EXTRACTION",
                     s.ExtractContested || (s.ExtractController >= 0 && s.ExtractController != _m.LocalSquad) ? new Color(1f, 0.35f, 0.35f) : s.ExtractController == _m.LocalSquad ? new Color(0.45f, 1f, 0.55f) : Color.white, me);
             }

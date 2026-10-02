@@ -174,17 +174,29 @@ namespace Veil.View
         }
 
         private readonly List<Transform> _nodes = new List<Transform>();
-        private Material _nodeMat;
+        private Material[] _nodeGlow, _nodeLine;
 
+        /// <summary>Stabilization nodes: red crystal = Destroy (shoot), cyan ring = Stabilize (stand), purple pillar = Override (hold).
+        /// The ground disc fills with the node's progress.</summary>
         private void UpdateNodes(Snapshot s)
         {
-            if (_nodeMat == null) _nodeMat = MaterialLib.Glow(new Color(1f, 0.25f, 0.45f), 4f);
+            if (_nodeGlow == null)
+            {
+                _nodeGlow = new Material[3]; _nodeLine = new Material[3];
+                for (int k = 0; k < 3; k++)
+                {
+                    var c = Veil.UI.HackPanel.KindColor((NodeKind)k);
+                    _nodeGlow[k] = MaterialLib.Glow(c, 4f);
+                    _nodeLine[k] = MaterialLib.Unlit(new Color(c.r, c.g, c.b, 0.55f), MaterialLib.Blend.Additive);
+                }
+            }
             while (_nodes.Count < s.Nodes.Count)
             {
-                var n = Build.Node(Root, "GlitchNode", Vector3.zero);
-                Build.Part(n, MeshGen.Octahedron, _nodeMat, new Vector3(0, 1.2f, 0), new Vector3(0.7f, 1f, 0.7f), null, "Core", false);
-                Build.Part(n, MeshGen.Ring(0.8f, 1f, 32), _xRed, new Vector3(0, 0.06f, 0), Vector3.one * 0.9f, null, "Ring", false);
-                Build.Part(n, MeshGen.Cylinder(8), _xRed, new Vector3(0, 6f, 0), new Vector3(0.12f, 12f, 0.12f), null, "Beam", false);
+                var n = Build.Node(Root, "HackNode", Vector3.zero);
+                Build.Part(n, MeshGen.Octahedron, _nodeGlow[0], new Vector3(0, 1.3f, 0), new Vector3(0.7f, 1f, 0.7f), null, "Core", false);
+                Build.Part(n, MeshGen.Ring(0.9f, 1f, 48), _nodeLine[0], new Vector3(0, 0.06f, 0), Vector3.one * GameConfig.NodeStandRadius, null, "Ring", false);
+                Build.Part(n, MeshGen.Cylinder(8), _nodeLine[0], new Vector3(0, 7f, 0), new Vector3(0.14f, 14f, 0.14f), null, "Beam", false);
+                Build.Part(n, MeshGen.Disc(48), _nodeLine[0], new Vector3(0, 0.05f, 0), Vector3.zero, null, "Fill", false);
                 _nodes.Add(n);
             }
             for (int i = 0; i < _nodes.Count; i++)
@@ -192,10 +204,19 @@ namespace Veil.View
                 bool on = i < s.Nodes.Count;
                 _nodes[i].gameObject.SetActive(on);
                 if (!on) continue;
-                _nodes[i].position = new Vector3(s.Nodes[i].X, 0, s.Nodes[i].Y);
-                var core = _nodes[i].GetChild(0);
-                core.localRotation = Quaternion.Euler(0, Time.time * 160f + i * 40f, 0);
-                core.localPosition = new Vector3(0, 1.2f + Mathf.Sin(Time.time * 4f + i) * 0.15f, 0);
+                var nd = s.Nodes[i];
+                int k = (int)nd.Kind;
+                var t = _nodes[i];
+                t.position = new Vector3(nd.Pos.X, 0, nd.Pos.Y);
+                var core = t.GetChild(0);
+                core.GetComponent<Renderer>().sharedMaterial = _nodeGlow[k];
+                for (int c = 1; c < 4; c++) t.GetChild(c).GetComponent<Renderer>().sharedMaterial = _nodeLine[k];
+                float bob = Mathf.Sin(Time.time * 4f + i) * 0.15f;
+                if (nd.Kind == NodeKind.Override) { core.localScale = new Vector3(0.45f, 2.2f, 0.45f); core.localPosition = new Vector3(0, 1.2f, 0); core.localRotation = Quaternion.Euler(0, Time.time * 60f, 0); }
+                else { core.localScale = nd.Kind == NodeKind.Destroy ? new Vector3(0.7f, 1f, 0.7f) * (1f - nd.Prog * 0.4f) : new Vector3(0.6f, 0.6f, 0.6f); core.localPosition = new Vector3(0, 1.3f + bob, 0); core.localRotation = Quaternion.Euler(0, Time.time * 160f + i * 40f, 0); }
+                t.GetChild(1).gameObject.SetActive(nd.Kind != NodeKind.Destroy);   // stand ring only where standing matters
+                float f = nd.Kind == NodeKind.Destroy ? 0 : 2 * GameConfig.NodeStandRadius * nd.Prog;
+                t.GetChild(3).localScale = new Vector3(f, 1, f);
             }
         }
 

@@ -176,6 +176,13 @@ namespace Veil.UI
                     d.rectTransform.anchoredPosition = W(snap.Site);
                     d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
                 }
+                foreach (var nd in snap.Nodes)
+                {
+                    var d = Dot();
+                    d.sprite = UIKit.Circle; d.color = HackPanel.KindColor(nd.Kind);
+                    d.rectTransform.sizeDelta = new Vector2(16, 16);
+                    d.rectTransform.anchoredPosition = W(nd.Pos);
+                }
                 if (snap.ExtractRevealed)
                 {
                     var d = Dot();

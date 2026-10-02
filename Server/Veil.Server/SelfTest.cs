@@ -81,6 +81,7 @@ namespace Veil.Server
                     if (ticks > matchSeconds * GameConfig.TickRate + 100) { failures++; Console.WriteLine("  !! match did not end"); break; }
                 }
                 double avgMs = tickTicks * 1000.0 / Stopwatch.Frequency / Math.Max(1, ticks);
+                Console.WriteLine("nodes left: " + string.Join(" | ", sim.Squads.Select(q => string.Join(",", q.Nodes.Select(n => $"{n.Kind}@{n.Pos.Length:0}m walk={sim.Map.Nav.Walkable(n.Pos)} p={n.Prog:0.00}")))));
                 Console.WriteLine($"\nExtraction: winner {(sim.WinnerSquad >= 0 ? ((char)('A' + sim.WinnerSquad)).ToString() : "none")} at {sim.Time:0}s, revealed {sim.ExtractRevealed}, stages " + string.Join(" ", sim.Squads.Select(q => $"{(char)('A' + q.Id)}:{q.Stage}+{q.StageProg:0.00}/x{q.ExtractProg:0.00}")));
                 Console.WriteLine($"\nMatch {m + 1}: {ticks} ticks, avg tick {avgMs:0.000} ms (budget {1000.0 / GameConfig.TickRate:0.0} ms), max snapshot {maxSnap} bytes");
                 if (friendlyHits > 0) { failures++; Console.WriteLine($"  !! {friendlyHits} friendly-fire hits"); }

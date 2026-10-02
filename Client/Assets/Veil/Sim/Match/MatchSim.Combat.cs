@@ -127,15 +127,7 @@ namespace Veil.Sim
                         break;
                     }
                     var shooter = Players[pr.Owner];
-                    var nodes = Squads[shooter.Squad].Nodes;
-                    for (int n = 0; n < nodes.Count; n++)
-                    {
-                        if (Vec2.DistSq(nodes[n], pr.Pos) > GameConfig.HackNodeRadius * GameConfig.HackNodeRadius) continue;
-                        Events.Add(new SimEvent(EventType.NodeDestroyed, shooter.Id, nodes.Count - 1, 0, nodes[n]));
-                        nodes.RemoveAt(n);
-                        pr.Dead = true;
-                        break;
-                    }
+                    if (HitNode(shooter, pr.Pos)) { pr.Dead = true; break; }
                     if (pr.Dead) break;
                     foreach (var p in Players)
                     {

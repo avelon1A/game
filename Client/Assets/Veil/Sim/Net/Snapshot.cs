@@ -80,7 +80,10 @@ namespace Veil.Sim
         public readonly byte[] SquadStage = new byte[GameConfig.SquadCount];
         public readonly float[] SquadExtract = new float[GameConfig.SquadCount];
         public ChainTask Task => MatchSim.TaskOf(Stage);
-        public readonly List<Vec2> Nodes = new List<Vec2>();   // own squad's hack glitch nodes
+        public readonly List<HackNode> Nodes = new List<HackNode>();   // own squad's stabilization nodes
+        public int Hackers;
+        public bool HackContested;
+        public readonly float[] SquadProg = new float[GameConfig.SquadCount];   // every squad's progress on its current step (public)
     }
 
     public sealed class RosterEntry
@@ -168,7 +171,10 @@ namespace Veil.Sim
             }
 
             snap.Stage = squad.Stage; snap.StageProg = squad.StageProg; snap.Site = squad.Site;
-            snap.Nodes.Clear(); snap.Nodes.AddRange(squad.Nodes);
+            snap.Nodes.Clear();
+            foreach (var n in squad.Nodes) snap.Nodes.Add(new HackNode { Pos = n.Pos, Kind = n.Kind, Prog = n.Prog, Hp = n.Hp, Contested = n.Contested });
+            snap.Hackers = squad.Hackers; snap.HackContested = squad.Contested;
+            for (int i = 0; i < GameConfig.SquadCount; i++) snap.SquadProg[i] = sim.Squads[i].StageProg;
             snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
             for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
@@ -213,9 +219,12 @@ namespace Veil.Sim
                 case EventType.ExtractControl:
                     return true;
                 case EventType.HackGlitch:
+                case EventType.HackContested:
                     return e.A == viewer.Squad;
+                case EventType.HackActivity:
+                    return e.A != viewer.Squad;     // everyone else hears "terminal activity detected"
                 case EventType.NodeDestroyed:
-                    return Ally(sim, viewer, e.A);
+                    return e.A >= 0 ? Ally(sim, viewer, e.A) : -1 - e.A == viewer.Squad;
                 case EventType.StageComplete:
                     if (viewer.Squad != e.A) e.Pos = Vec2.Zero;   // rivals learn the progress, not where their site is
                     return true;

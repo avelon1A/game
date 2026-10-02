@@ -6,7 +6,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 7;
+        public const int ProtocolVersion = 8;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -45,12 +45,18 @@ namespace Veil.Sim
 
         // ---- extraction mode (Rilo v2): Objective 1 → 2 → 3 → central Vault → Extraction, one winning squad ----
         public const bool ExtractionMode = true;      // false = the old score-only match
-        public const float HackTime = 14f;             // stand at your squad's terminal...
-        public const int HackGlitches = 2;             // ...it glitches at 1/3 and 2/3: shoot all nodes to resume
-        public const int HackNodes = 3;
-        public const float HackNodeRadius = 0.9f;      // hit radius of a glitch node
-        public const float HackNodeDistance = 8f;      // nodes appear this far around the terminal
-        public const float HackRadius = 3f;
+        // Hack Terminal (docs/HACK_TERMINAL.md): one shared terminal in the central plaza, every squad has its own progress
+        public const float HackTime = 14f;             // base time for one hacker
+        public const float HackRadius = 6.5f;          // interaction zone around the terminal (the plaza ring inside the low walls)
+        public static readonly float[] HackSpeed = { 0f, 1f, 1.5f, 1.75f, 1.9f };   // by hackers in the zone: never linear
+        public static readonly float[] HackInstability = { 0.35f, 0.67f };          // progress where the terminal destabilises
+        public const int HackNodes = 3;                // nodes per instability: one Destroy, one Stabilize, one Override
+        public const float HackNodeRadius = 0.9f;      // hit radius of a Destroy node
+        public const int HackNodeHp = 4;               // hits to destroy
+        public const float NodeStandRadius = 2.4f;     // stand this close for Stabilize / Override
+        public const float StabilizeTime = 3f;
+        public const float OverrideTime = 5f;          // Override slips back when nobody holds it
+        public const float HackActivityCooldown = 12f; // "TERMINAL ACTIVITY DETECTED" at most this often per squad
         public const float PadCaptureTime = 12f;       // hold your squad's capture pad (more members = faster)
         public const float CaptureRadius = 5f;
         public const int CollectCores = 3;             // energy cores picked up by the squad
@@ -63,7 +69,7 @@ namespace Veil.Sim
         public const float ExtractCircleMin = 52f;     // the collapse never closes over the extraction points
         public const int StagePoints = 100;            // per member, per completed stage (tie-breaks)
         public const float StageRevealRadius = 30f;    // completing a stage reveals nearby enemies...
-        public const float StageRevealTime = 4f;       // ...for this long
+        public const float StageRevealTime = 3f;       // ...for this long
 
         // ---- downed & revive (Rilo v2, Milestone 1) — switched off: eliminated players respawn at their squad's spawn ----
         public const bool DownedEnabled = false;

@@ -12,7 +12,7 @@
 ### The route (every squad, same distances)
 | Step | Task | Rule |
 |---|---|---|
-| Objective 1 | **Hack Terminal** | stand at your terminal (3 m) for 14 s; at 1/3 and 2/3 it **glitches**: 3 red nodes appear ~8 m around it, shoot them all to resume. Hacking is loud (shows you on nearby minimaps) |
+| Objective 1 | **Hack Terminal** | one **shared** terminal in the central plaza, own progress per squad; 14 s base, 1/2/3/4 hackers = 100/150/175/190 %; instability at 35 % and 67 % spawns Destroy / Stabilize / Override nodes (see `docs/HACK_TERMINAL.md`) |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
 | Vault | **Central Vault** | channel at the centre (6 m) for 10 s |

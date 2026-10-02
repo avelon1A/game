@@ -211,6 +211,17 @@ namespace Veil.Sim
                     if (sq.VaultDone) Consider(Goal.Vault, 96 - de * 0.08f, _sim.ExtractPos);
                     else if (rival || Kind == BotKind.Hunter || Kind == BotKind.Opportunist) Consider(Goal.Vault, (rival ? 88 : 60) - de * 0.12f, _sim.ExtractPos);
                 }
+                if (sq.Nodes.Count > 0)
+                {
+                    // instability: squadmates split over the nodes (by id), the rest guard the terminal
+                    int slot = 0;
+                    foreach (var o in _sim.Players) if (o.Squad == _p.Squad && o.Id < _p.Id && o.IsBot && o.Alive) slot++;   // humans choose for themselves
+                    if (sq.Nodes.Count > 0)
+                    {
+                        var n = sq.Nodes[slot % sq.Nodes.Count];
+                        Consider(Goal.Vault, 160 - Vec2.Dist(n.Pos, _p.Pos) * 0.05f, n.Pos);   // above fighting / fleeing
+                    }
+                }
                 if (sq.Stage < 4)
                 {
                     float ds = Vec2.Dist(sq.Site, _p.Pos);
@@ -423,8 +434,10 @@ namespace Veil.Sim
                 target = s;
                 if (_goal != Goal.Flee) dest = s.Pos;
             }
-            else if (_goal != Goal.Flee && !_p.Downed)
+            bool selfDefense = false;
+            if (!target.HasValue && _goal != Goal.Flee && !_p.Downed)
             {
+                selfDefense = true;
                 // busy with an objective: still shoot back at the closest visible enemy
                 float bd = 24f;
                 foreach (var e in _seen.Values)
@@ -449,18 +462,18 @@ namespace Veil.Sim
                 if (!_sim.Map.Nav.Walkable(dest)) dest = _goalPos;
             }
 
-            // ---- hack glitch nodes: go near and shoot them ----
+            // ---- hack nodes: shoot Destroy nodes in sight ----
             Vec2? node = null;
             var myNodes = _sim.Squads[_p.Squad].Nodes;
-            if (!target.HasValue && myNodes.Count > 0 && !_p.Downed)
+            if (!target.HasValue && myNodes.Count > 0)
             {
                 float bn = 30f;
                 foreach (var n in myNodes)
                 {
-                    float d = Vec2.Dist(n, _p.Pos);
-                    if (d < bn && _sim.Map.HasLineOfSight(_p.Pos, n)) { bn = d; node = n; }
+                    if (n.Kind != NodeKind.Destroy) continue;
+                    float d = Vec2.Dist(n.Pos, _p.Pos);
+                    if (d < bn && _sim.Map.HasLineOfSight(_p.Pos, n.Pos)) { bn = d; node = n.Pos; }
                 }
-                if (!node.HasValue && myNodes.Count > 0 && Vec2.Dist(myNodes[0], _p.Pos) < 40f) dest = myNodes[0];
             }
 
             // ---- combat ----
@@ -480,6 +493,13 @@ namespace Veil.Sim
                     cmd.Yaw = _p.Yaw + MathUtil.Clamp(MathUtil.DeltaAngle(_p.Yaw, desired), -turn, turn);
                     if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 9f && _sim.Phase != MatchPhase.Ended) cmd.Buttons |= Buttons.Fire;
 
+                    // busy with an objective: keep walking to it while shooting
+                    if (selfDefense && Vec2.Dist(dest, _p.Pos) > 1.2f)
+                    {
+                        Vec2 go = Steer(dest, dt);
+                        cmd.MoveX = go.X; cmd.MoveY = go.Y;
+                        goto doneMove;
+                    }
                     // strafe + keep preferred range
                     _strafeT -= dt;
                     if (_strafeT <= 0) { _strafeDir = _rng.Chance(0.5f) ? 1 : -1; _strafeT = _rng.Range(0.6f, 1.6f); if (_rng.Chance(0.2f)) _wantJump = true; }
@@ -491,6 +511,7 @@ namespace Veil.Sim
                     Vec2 probe = _p.Pos + mv * 1.5f;
                     if (!_sim.Map.Nav.Walkable(probe)) mv = -mv;
                     cmd.MoveX = mv.X; cmd.MoveY = mv.Y;
+                    doneMove:;
                 }
             }
 

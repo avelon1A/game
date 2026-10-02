@@ -254,7 +254,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested,
     }
 
     public struct SimEvent
@@ -272,6 +272,18 @@ namespace Veil.Sim
     /// <summary>Extraction mode: what the squad must do next.</summary>
     public enum ChainTask : byte { Hack, Capture, Collect, Vault, Extract }
 
+    public enum NodeKind : byte { Destroy, Stabilize, Override }
+
+    /// <summary>A Hack Terminal stabilization node: Destroy = shoot it, Stabilize / Override = stand next to it.</summary>
+    public sealed class HackNode
+    {
+        public Vec2 Pos;
+        public NodeKind Kind;
+        public float Prog;      // 0..1 (Destroy: damage dealt)
+        public int Hp = GameConfig.HackNodeHp;
+        public bool Contested;
+    }
+
     public sealed class SquadState
     {
         public int Id;
@@ -283,8 +295,11 @@ namespace Veil.Sim
         public int CoresAtStart;
         public float ExtractProg;       // 0..1, first squad to 1 wins
         public bool VaultDone => Stage >= 4;
-        public readonly System.Collections.Generic.List<Vec2> Nodes = new System.Collections.Generic.List<Vec2>();   // live hack glitch nodes
-        public int Glitches;            // glitches already triggered this hack
+        public readonly System.Collections.Generic.List<HackNode> Nodes = new System.Collections.Generic.List<HackNode>();   // active stabilization nodes
+        public int Glitches;            // instabilities already triggered this hack
+        public int Hackers;             // squadmates in the terminal zone right now
+        public bool Contested;          // an enemy is in the zone (progress stops, nothing is lost)
+        public float LastActivity = -99f;
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;
         public int CapturedMask;
