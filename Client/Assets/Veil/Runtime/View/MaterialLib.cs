@@ -254,6 +254,13 @@ namespace Veil.View
                 Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#1d1a18"),
                 ShoulderPad = true,
             },
+            new Outfit // Meshy "Orange Vanguard" (rigged on Meshy, own walk / run / sprint)
+            {
+                Name = "Vanguard", Jacket = Hex("#ff7a1f"), Panel = Hex("#f4f1ea"), Inner = Hex("#26262e"), Collar = Hex("#f4f1ea"),
+                Pants = Hex("#34302e"), Cuff = Hex("#ff7a1f"), Glove = Hex("#24242b"), GloveAccent = Hex("#ff7a1f"),
+                Shoe = Hex("#2a2a31"), ShoeAccent = Hex("#ff7a1f"), Sole = Hex("#f4f4f6"), Belt = Hex("#e9e3d6"), Buckle = Hex("#2a2a31"), Sock = Hex("#f4f4f6"),
+                ShoulderPad = true,
+            },
         };
 
         public static readonly string[] HairNames = { "Spiky", "Ponytail", "Sleek", "Crest", "Hood" };

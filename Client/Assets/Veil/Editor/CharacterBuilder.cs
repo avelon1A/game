@@ -20,10 +20,10 @@ namespace Veil.EditorTools
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
         /// locomotion retargets onto them. The Ranger already shares the library's rig and stays generic.
         /// </summary>
-        public static readonly string[] HumanoidHeroes = { };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
+        public static readonly string[] HumanoidHeroes = { "vanguard" };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
         public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
 
-        public override uint GetVersion() => 2;   // bump → Unity re-imports every character with these rules
+        public override uint GetVersion() => 3;   // bump → Unity re-imports every character with these rules
 
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
         private bool IsLibrary => assetPath == LibraryFbx;
@@ -85,7 +85,8 @@ namespace Veil.EditorTools
                 if (IsHumanoid)
                 {
                     // in-place clips: bake the root into the pose so characters never drift, turn or sink
-                    c.lockRootRotation = true; c.keepOriginalOrientation = true;
+                    // library clips are authored facing the other way: orient by the body so retargeted heroes face forward
+                    c.lockRootRotation = true; c.keepOriginalOrientation = !IsLibrary;
                     c.lockRootHeightY = true; c.keepOriginalPositionY = true;
                     c.lockRootPositionXZ = true; c.keepOriginalPositionXZ = true;
                 }
@@ -128,7 +129,7 @@ namespace Veil.EditorTools
         private static void EnsureTPose(string fbx)
         {
             var mi = (ModelImporter)AssetImporter.GetAtPath(fbx);
-            if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v1") return;
+            if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v3") return;
             var hd = mi.humanDescription;
             if (hd.human == null || hd.human.Length == 0) { Debug.LogWarning($"[VEIL] {fbx}: humanoid mapping failed"); return; }
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
@@ -137,11 +138,18 @@ namespace Veil.EditorTools
             var map = hd.human.ToDictionary(h => h.humanName, h => h.boneName);
             Transform T(string human) => map.TryGetValue(human, out var b) ? all.FirstOrDefault(t => t.name == b) : null;
             void Align(Transform bone, Vector3 cur, Vector3 want) => bone.rotation = Quaternion.FromToRotation(cur, want) * bone.rotation;
+            // canonical T-pose: spine/neck/head straight up, legs straight down, arms straight out (Unity's humanoid reference)
+            var up = go.transform.up;
+            void Chain(string a, string b, Vector3 dir) { var ta = T(a); var tb = T(b); if (ta != null && tb != null) Align(ta, tb.position - ta.position, dir); }
+            Chain("Hips", "Spine", up); Chain("Spine", "Chest", up); Chain("Chest", "UpperChest", up);
+            Chain(T("UpperChest") != null ? "UpperChest" : "Chest", "Neck", up); Chain("Neck", "Head", up);
             foreach (var side in new[] { "Left", "Right" })
             {
+                Chain(side + "UpperLeg", side + "LowerLeg", -up);
+                Chain(side + "LowerLeg", side + "Foot", -up);
                 var ua = T(side + "UpperArm"); var la = T(side + "LowerArm"); var hand = T(side + "Hand");
                 if (ua == null || la == null) continue;
-                float sx = Mathf.Sign(go.transform.InverseTransformPoint(la.position).x - go.transform.InverseTransformPoint(ua.position).x);
+                float sx = Mathf.Sign(go.transform.InverseTransformPoint(ua.position).x - go.transform.InverseTransformPoint(T("Hips").position).x);
                 var want = go.transform.TransformDirection(new Vector3(sx, 0, 0));
                 Align(ua, la.position - ua.position, want);
                 if (hand != null) Align(la, hand.position - la.position, want);
@@ -152,7 +160,7 @@ namespace Veil.EditorTools
                 if (byName.TryGetValue(sk[i].name, out var t) && t != go.transform) { sk[i].rotation = t.localRotation; sk[i].position = t.localPosition; }
             hd.skeleton = sk;
             mi.humanDescription = hd;
-            mi.userData = "tpose-v1";
+            mi.userData = "tpose-v3";
             Object.DestroyImmediate(go);
             mi.SaveAndReimport();
             Debug.Log($"[VEIL] {fbx}: humanoid T-pose reference set");
@@ -173,8 +181,11 @@ namespace Veil.EditorTools
             if (humanoid && File.Exists(CharacterImport.LibraryFbx))
             {
                 var lib = ClipsOf(CharacterImport.LibraryFbx);
+                // the hero's own clips win (e.g. Meshy walk / run); the library fills whatever is missing
                 foreach (var (game, libName) in LibraryLocomotion)
-                    if (lib.TryGetValue(libName, out var lc)) clips[game] = lc;
+                    if (!clips.ContainsKey(game) && lib.TryGetValue(libName, out var lc)) clips[game] = lc;
+                foreach (var (game, libName) in new[] { ("shoot", "pistol_aim_neutral"), ("hit", "hit_chest"), ("death", "death01"), ("victory", "dance_loop") })
+                    if (!clips.ContainsKey(game) && lib.TryGetValue(libName, out var lc2)) clips[game] = lc2;
             }
             AnimationClip C(params string[] names) { foreach (var n in names) if (clips.TryGetValue(n, out var c)) return c; return null; }
 

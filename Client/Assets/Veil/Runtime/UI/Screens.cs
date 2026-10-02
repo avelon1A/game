@@ -265,7 +265,7 @@ namespace Veil.UI
             void Changed() { prof.Save(); App.Stage.UpdateLook(prof.Look); }
             var outfitNames = new string[Palette.Outfits.Length];
             for (int i = 0; i < outfitNames.Length; i++) outfitNames[i] = Palette.Outfits[i].Name.ToUpper();
-            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 86);
+            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 72);
             r1.Root.pivot = new Vector2(0, 0.5f);
             var hairNames = new string[Palette.HairNames.Length];
             for (int i = 0; i < hairNames.Length; i++) hairNames[i] = Palette.HairNames[i].ToUpper();
