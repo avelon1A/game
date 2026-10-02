@@ -98,23 +98,21 @@ namespace Veil.Sim
             }
 
             // ---------------- rivers between regions (2 bridges each) ----------------
+            // the river is built from 2.5 m segments; a bridge is exactly the run of skipped segments, so the wooden deck
+            // and the walkable gap always match
             for (int k = 0; k < 8; k++)
             {
                 float end = CoastRadius(22.5f + 45f * k) + 4f;
-                for (float r = MoatOut - 1f; r < end; r += 5f)
+                float gapStart = -1f;
+                for (float r = MoatOut - 1f; r < end; r += 2.5f)
                 {
-                    float mid = r + 2.5f;
+                    float mid = r + 1.25f;
                     bool bridge = false;
                     foreach (var (r0, r1) in RiverBridges) if (mid > r0 && mid < r1) bridge = true;
-                    if (bridge) continue;
+                    if (bridge) { if (gapStart < 0) gapStart = r; continue; }
+                    if (gapStart >= 0) { AddRiverBridge(m, k, gapStart, r); gapStart = -1f; }
                     float yaw = RiverYaw(k, mid);
-                    WaterBox(m, Vec2.FromYaw(yaw) * mid, new Vec2(RiverWidth * 0.5f, 2.9f), yaw);
-                }
-                foreach (var (r0, r1) in RiverBridges)
-                {
-                    float mid = (r0 + r1) * 0.5f, yaw = RiverYaw(k, mid);
-                    // bridge runs across the river (tangential)
-                    m.Decals.Add(new GroundDecal { Kind = 1, Center = Vec2.FromYaw(yaw) * mid, Half = new Vec2((r1 - r0) * 0.5f, RiverWidth * 0.5f + 2f), Rot = yaw + 90f });
+                    WaterBox(m, Vec2.FromYaw(yaw) * mid, new Vec2(RiverWidth * 0.5f, 1.65f), yaw);
                 }
             }
 
@@ -179,6 +177,9 @@ namespace Veil.Sim
             foreach (var t in m.HomeTerminals) for (int a = 0; a < 8; a++) reserved.Add(t + Vec2.FromYaw(a * 45f) * 5f);
             foreach (var t in m.HomeTerminals) reserved.Add(t);
 
+            // ---------------- street furniture (solid, so nobody walks through lamps and benches) ----------------
+            BuildFurniture(m, rng);
+
             // ---------------- regions ----------------
             BuildSnow(m, rng, reserved);
             BuildDock(m, rng, reserved);
@@ -194,6 +195,13 @@ namespace Veil.Sim
         }
 
         // ------------------------------------------------------------------ helpers
+
+        private static void AddRiverBridge(MapData m, int k, float g0, float g1)
+        {
+            float mid = (g0 + g1) * 0.5f, yaw = RiverYaw(k, mid);
+            // Half.X = along the river bank (the walkable width), Half.Y = across the water (+1.5 m onto each bank)
+            m.Decals.Add(new GroundDecal { Kind = 1, Center = Vec2.FromYaw(yaw) * mid, Half = new Vec2((g1 - g0) * 0.5f - 0.2f, RiverWidth * 0.5f + 1.5f), Rot = yaw + 90f });
+        }
 
         /// <summary>Invisible collision for a big landmark model (footprint from LandmarkShapes, model space -> world).</summary>
         public static void LandmarkSolids(MapData m, (float x0, float x1, float y0, float y1, float h)[] rects, float width, Vec2 at, float yaw)
@@ -248,6 +256,60 @@ namespace Veil.Sim
         }
 
         private static Obstacle Tree(MapData m, Vec2 p) => Circle(m, ObstacleKind.Tree, p, 0.55f, 7f);
+
+        // ------------------------------------------------------------------ street furniture
+
+        /// <summary>Decor obstacle categories (WorldBuilder draws Resources/Props/&lt;cat&gt;_N fitted to Height).</summary>
+        public static readonly string[] DecorCats = { "streetlight", "planter", "bench", "parasol", "dumpster", "cone" };
+
+        private static void Decor(MapData m, int cat, Vec2 p, float yaw, float r, float h, int v)
+        {
+            if (m.IsBlockedForStanding(p, r + 0.3f)) return;
+            foreach (var q in m.SpawnPoints) if (Vec2.Dist(p, q) < 4f) return;
+            foreach (var q in m.CoreSpots) if (Vec2.Dist(p, q) < 2.5f) return;
+            foreach (var q in m.KeySpots) if (Vec2.Dist(p, q) < 2.5f) return;
+            foreach (var q in m.HomeTerminals) if (Vec2.Dist(p, q) < 9f) return;
+            var o = Circle(m, ObstacleKind.Decor, p, r, h);
+            o.Rot = yaw; o.Variant = cat * 1000 + Math.Abs(v) % 1000;
+            o.BlocksShots = cat != 0 && cat != 3;   // thin lamp posts / parasol poles don't stop bolts
+        }
+
+        private static void BuildFurniture(MapData m, Rng rng)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                float yaw = i * 45f;
+                var dir = Vec2.FromYaw(yaw); var side = Vec2.FromYaw(yaw + 90f);
+                for (float r = 20f; r < MoatIn - 3f; r += 9f)
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        Decor(m, 0, dir * r + side * (s * 5.4f), yaw + (s > 0 ? 180 : 0), 0.25f, 4.6f, i);
+                        Decor(m, i % 2 == 0 ? 1 : 2, dir * (r + 4.5f) + side * (s * 5.6f), yaw + (s > 0 ? -90 : 90), 0.6f, 0.9f, i + (int)r);
+                    }
+            }
+            for (float yaw = 7.5f; yaw < 360; yaw += 15f) Decor(m, 0, Vec2.FromYaw(yaw) * (RingRoad + 4.8f), yaw + 180, 0.25f, 4.6f, (int)yaw);
+            for (int i = 0; i < 8; i++) Decor(m, 2, Vec2.FromYaw(i * 45f + 22.5f) * 17.5f, i * 45f + 22.5f, 0.6f, 0.9f, i);
+            for (int i = 0; i < 14; i++)
+            {
+                var p = Vec2.FromYaw(135f + rng.Range(-17f, 17f)) * rng.Range(140f, 178f);
+                if (BiomeAt(p) == Biome.Beach) Decor(m, 3, p, rng.Range(0, 360), 0.3f, 2.6f, i);
+            }
+            var blocks = new List<Obstacle>();
+            foreach (var o in m.Obstacles) if (o.Kind == ObstacleKind.CityBlock) blocks.Add(o);
+            foreach (var o in blocks)
+            {
+                if (o.Variant % 3 != 0) continue;
+                var p = o.Center + Vec2.FromYaw(o.Variant % 360) * (Math.Max(o.Half.X, o.Half.Y) + 1.4f);
+                bool bin = o.Variant % 2 == 0;
+                Decor(m, bin ? 4 : 5, p, o.Variant % 90, bin ? 0.75f : 0.35f, bin ? 1.4f : 0.8f, o.Variant);
+            }
+            // consoles around the Rilo tower (central terminal)
+            for (int i = 0; i < 4; i++)
+            {
+                float yaw = 45f + 90f * i;
+                Box(m, ObstacleKind.Solid, Vec2.FromYaw(yaw) * 5.9f, new Vec2(0.6f, 0.5f), yaw, 1.4f);
+            }
+        }
 
         // ------------------------------------------------------------------ Rilo City
 
@@ -326,8 +388,8 @@ namespace Veil.Sim
                     var o = Box(m, ObstacleKind.Container, c, new Vec2(1.3f, 3.1f), k * 45f + 90f, (row * 7 + col) % 2 == 0 ? 5.2f : 2.6f);
                     o.Variant = row * 4 + col;
                 }
-            Circle(m, ObstacleKind.Crane, Local(k, 168f, -9f), 1.6f, 22f);
-            Circle(m, ObstacleKind.Crane, Local(k, 168f, 9f), 1.6f, 22f);
+            Circle(m, ObstacleKind.Crane, Local(k, 168f, -9f), 4.8f, 22f);   // radius covers the crane leg frame
+            Circle(m, ObstacleKind.Crane, Local(k, 168f, 9f), 4.8f, 22f);
             Box(m, ObstacleKind.Building, Local(k, 136f, -13f), new Vec2(6f, 4.5f), k * 45f, 8f).Variant = 4;
             Box(m, ObstacleKind.Building, Local(k, 136f, 13f), new Vec2(6f, 4.5f), k * 45f, 8f).Variant = 6;
             Scatter(m, rng, reserved, k, 14, 80f, 180f, p => Box(m, ObstacleKind.Crate, p, new Vec2(0.8f, 0.8f), rng.Range(0, 90), 1.0f));

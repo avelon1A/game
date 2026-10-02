@@ -931,16 +931,23 @@ namespace Veil.App
             var dbg = Veil.View.MaterialLib.Unlit(new Color(1f, 0.1f, 0.1f, 0.35f), Veil.View.MaterialLib.Blend.Alpha);
             foreach (var o in Map.Obstacles)
             {
-                if (o.Kind != ObstacleKind.Solid && o.Kind != ObstacleKind.TowerCore) continue;
+                if (o.Kind == ObstacleKind.Water) continue;
                 var size = o.Shape == ShapeKind.Box ? new Vector3(o.Half.X * 2, o.Height, o.Half.Y * 2) : new Vector3(o.Radius * 2, o.Height, o.Radius * 2);
                 Veil.View.Build.Part(World.Root, o.Shape == ShapeKind.Box ? Veil.View.MeshGen.Box : Veil.View.MeshGen.Cylinder(12), dbg, new Vector3(o.Center.X, o.Height / 2, o.Center.Y), size, Quaternion.Euler(0, o.Rot, 0), "DebugSolid", false);
             }
             void Near(Vector3 at, float yaw, float dist, float h) => Pose(at + Quaternion.Euler(0, yaw, 0) * new Vector3(0, h, -dist), at + Vector3.up * 3f, false, 0);
             Near(new Vector3(0, 0, 42), 180, 26, 14); yield return Shot("lm_market");
             Near(new Vector3(0, 0, 0), 200, 22, 12); yield return Shot("lm_tower");
+            { var bp = Vec2.FromYaw(22.5f + 2f) * 118f; Near(new Vector3(bp.X, 0, bp.Y), 300, 14, 7); yield return Shot("lm_bridge"); }
+            Near(new Vector3(0, 0, 30), 180, 14, 6); yield return Shot("lm_street");
             Near(new Vector3(-138, 0, 0), 90, 26, 14); yield return Shot("lm_reactor");
             Near(new Vector3(138, 0, 0), 270, 36, 18); yield return Shot("lm_ruins");
             Near(new Vector3(21, 0, 160), 0, 28, 12); yield return Shot("lm_vault");
+            void Top(float x, float z, float size, string name) { Pose(new Vector3(x, 300, z), new Vector3(x, 0, z), true, size); go.transform.rotation = Quaternion.Euler(90, 0, 0); }
+            Top(0, 0, 70, "audit_city"); yield return Shot("audit_city");
+            { var dk = Vec2.FromYaw(45) * 135f; Top(dk.X, dk.Y, 45, "a"); yield return Shot("audit_dock"); }
+            { var bc = Vec2.FromYaw(135) * 140f; Top(bc.X, bc.Y, 45, "a"); yield return Shot("audit_beach"); }
+            { var sn = Vec2.FromYaw(0) * 140f; Top(sn.X, sn.Y, 45, "a"); yield return Shot("audit_snow"); }
             yield return new WaitForSeconds(1f);
             Application.Quit();
         }

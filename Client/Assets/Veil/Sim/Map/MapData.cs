@@ -6,7 +6,7 @@ namespace Veil.Sim
     public enum ObstacleKind : byte
     {
         Wall, LowWall, Pillar, Tree, Rock, Water, Building, Crate, Cliff, Stall, TowerCore, ReactorCore, VaultBuilding, Pylon,
-        CityBlock, Container, Crane, Hut, Palm, Pine, Mesa, Tank, Watchtower, Console, Solid
+        CityBlock, Container, Crane, Hut, Palm, Pine, Mesa, Tank, Watchtower, Console, Solid, Decor
     }
 
     public enum ShapeKind : byte { Circle, Box }

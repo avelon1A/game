@@ -143,58 +143,12 @@ namespace Veil.View
                 var p = l[Mathf.Abs(v) % l.Count];
                 AddProp(p, Build.V(at), yaw, height / Mathf.Max(p.Size.y, 0.01f));
             }
-            bool Free(Vec2 p, float r) => !_map.IsBlockedForStanding(p, r);
-            // street lights + planters along the city avenues, both sides
-            for (int i = 0; i < 8; i++)
-            {
-                float yaw = i * 45f;
-                var dir = Vec2.FromYaw(yaw); var side = Vec2.FromYaw(yaw + 90f);
-                for (float r = 20f; r < IslandMap.MoatIn - 3f; r += 9f)
-                    for (int s = -1; s <= 1; s += 2)
-                    {
-                        var p = dir * r + side * (s * 5.4f);
-                        if (Free(p, 0.4f)) Put("streetlight", p, yaw + (s > 0 ? 180 : 0), 4.6f, i);
-                        var q = dir * (r + 4.5f) + side * (s * 5.6f);
-                        if (Free(q, 0.6f)) Put(i % 2 == 0 ? "planter" : "bench", q, yaw + (s > 0 ? -90 : 90), 0.9f, i + (int)r);
-                    }
-            }
-            // ring road lights
-            for (float yaw = 7.5f; yaw < 360; yaw += 15f)
-            {
-                var p = Vec2.FromYaw(yaw) * (IslandMap.RingRoad + 4.8f);
-                if (Free(p, 0.4f)) Put("streetlight", p, yaw + 180, 4.6f, (int)yaw);
-            }
-            // plaza benches facing the tower
-            for (int i = 0; i < 8; i++)
-            {
-                var p = Vec2.FromYaw(i * 45f + 22.5f) * 17.5f;
-                if (Free(p, 0.6f)) Put("bench", p, i * 45f + 22.5f, 0.9f, i);
-            }
             // big textured landmarks that stand on open ground (the market hall and the temple ruins)
             var market = _map.Zone(ZoneType.Market).Center;
             PutBig("market", Build.V(market), 0f, 22f);
             PutBig("ruins", Build.V(IslandMap.RuinsLandmark), 90f, LandmarkShapes.RuinsWidth, LandmarkShapes.RuinsSink);
             PutBig("reactor", Build.V(_map.Zone(ZoneType.Reactor).Center), 0f, LandmarkShapes.ReactorWidth, LandmarkShapes.ReactorSink);
             PutBig("vault", Build.V(IslandMap.VaultLandmark), 180f, LandmarkShapes.VaultWidth, LandmarkShapes.VaultSink);
-            // market square + beach parasols
-            for (int i = 0; i < 4; i++)
-            {
-                var p = market + Vec2.FromYaw(i * 90f + 45f) * 3.2f;
-                if (Free(p, 0.5f)) Put("parasol", p, i * 37f, 2.6f, i);
-            }
-            var rnd = new System.Random(77);
-            for (int i = 0; i < 14; i++)
-            {
-                var p = Vec2.FromYaw(135f + (float)(rnd.NextDouble() * 34 - 17)) * (float)(140 + rnd.NextDouble() * 38);
-                if (IslandMap.BiomeAt(p) == Biome.Beach && Free(p, 1f)) Put("parasol", p, (float)rnd.NextDouble() * 360, 2.6f, i);
-            }
-            // bins and cones near city blocks
-            foreach (var o in _map.Obstacles)
-            {
-                if (o.Kind != ObstacleKind.CityBlock) continue;
-                var p = o.Center + Vec2.FromYaw(o.Variant % 360) * (Mathf.Max(o.Half.X, o.Half.Y) + 1.4f);
-                if (o.Variant % 3 == 0 && Free(p, 0.6f)) Put(o.Variant % 2 == 0 ? "dumpster" : "cone", p, o.Variant % 90, o.Variant % 2 == 0 ? 1.4f : 0.8f, o.Variant);
-            }
             // the hydro dam (Meshy landmark) across the two dam walls
             var dam = Landmark("dam");
             if (dam != null) AddProp(dam, Build.V(DamCenter), 270f + 90f, 22f / Mathf.Max(Mathf.Max(dam.Size.x, dam.Size.z), 0.01f));
@@ -336,6 +290,17 @@ namespace Veil.View
         private bool TryProp(Obstacle o, Vector3 c)
         {
             if (o.Kind == ObstacleKind.Solid) return true;   // landmark collision: drawn by the landmark model
+            if (o.Kind == ObstacleKind.Decor)
+            {
+                var dl = Props(IslandMap.DecorCats[Mathf.Clamp(o.Variant / 1000, 0, IslandMap.DecorCats.Length - 1)]);
+                if (dl.Count == 0) return true;
+                var dp = dl[(o.Variant % 1000) % dl.Count];
+                // fit height, but never wider than the collision circle (+ a little for thin parts)
+                float sc = Mathf.Min(o.Height / Mathf.Max(dp.Size.y, 0.01f), (o.Radius * 2f + 0.6f) / Mathf.Max(Mathf.Max(dp.Size.x, dp.Size.z), 0.01f));
+                if (o.Variant / 1000 == 0 || o.Variant / 1000 == 3) sc = o.Height / Mathf.Max(dp.Size.y, 0.01f);   // lamps / parasols: arms & canopy overhang
+                AddProp(dp, c, o.Rot, sc);
+                return true;
+            }
             if (o.Kind == ObstacleKind.Console && Landmark("terminal") is PropInfo term)
             {
                 AddProp(term, c, o.Rot + 180f, 1.6f / Mathf.Max(term.Size.y, 0.01f));
@@ -376,14 +341,15 @@ namespace Veil.View
                 if (boxLongY != modelLongZ) yaw += 90f;
                 float bw = Mathf.Max(o.Half.X, o.Half.Y) * 2, bd = Mathf.Min(o.Half.X, o.Half.Y) * 2;
                 float mw = Mathf.Max(p.Size.x, p.Size.z), md = Mathf.Min(p.Size.x, p.Size.z);
-                scale = Mathf.Min(bw / Mathf.Max(mw, 0.01f), bd / Mathf.Max(md, 0.01f)) * 1.04f;
+                scale = Mathf.Min(bw / Mathf.Max(mw, 0.01f), bd / Mathf.Max(md, 0.01f));   // model never bigger than its collision box
                 if (o.Kind == ObstacleKind.CityBlock || o.Kind == ObstacleKind.Hut) yaw += (v % 4) * 90f;
             }
             else
             {
                 bool byHeight = o.Kind == ObstacleKind.Tree || o.Kind == ObstacleKind.Palm || o.Kind == ObstacleKind.Pine || o.Kind == ObstacleKind.Watchtower || o.Kind == ObstacleKind.Mesa;
-                scale = byHeight ? o.Height * (0.85f + (v % 7) * 0.05f) / Mathf.Max(p.Size.y, 0.01f)
-                                 : o.Radius * 2.15f / Mathf.Max(Mathf.Max(p.Size.x, p.Size.z), 0.01f);
+                float fitW = o.Radius * 2.05f / Mathf.Max(Mathf.Max(p.Size.x, p.Size.z), 0.01f);
+                scale = byHeight ? o.Height * (0.85f + (v % 7) * 0.05f) / Mathf.Max(p.Size.y, 0.01f) : fitW;
+                if (o.Kind == ObstacleKind.Watchtower) scale = Mathf.Min(scale, o.Radius * 2.4f / Mathf.Max(Mathf.Max(p.Size.x, p.Size.z), 0.01f));
                 yaw = v % 360;
             }
             if (o.Kind == ObstacleKind.Mesa)

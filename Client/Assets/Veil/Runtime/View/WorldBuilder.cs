@@ -107,7 +107,8 @@ namespace Veil.View
                     var woodD = MaterialLib.Toon(Palette.WoodDark, 0.2f);
                     bool alongZ = d.Half.Y > d.Half.X;
                     var br = Quaternion.Euler(0, d.Rot, 0);
-                    Vector3 c = Build.V(d.Center, 0.18f);
+                    // deck top sits at ground level (players walk at y = 0); the beams hang below into the water
+                    Vector3 c = Build.V(d.Center, -0.13f);
                     Add(MeshGen.Box, wood, c, new Vector3(d.Half.X * 2, 0.3f, d.Half.Y * 2), br);
                     int planks = 9;
                     for (int i = 0; i < planks; i++)
