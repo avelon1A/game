@@ -52,6 +52,7 @@ namespace Veil.Voice
             public readonly float[] Ring = new float[VoiceWire.SampleRate];   // 1 s
             public int Write, Read, Count;
             public bool Playing;
+            public float Last;
             public float LastPacket = -10;
             public AudioSource Source;
             public ushort LastSeq;
@@ -91,7 +92,7 @@ namespace Veil.Voice
         private int _micRate, _micPos;
         private bool _micWanted, _permissionAsked;
         private readonly List<float> _pcm16k = new List<float>(4096);
-        private float _resamplePhase;
+        private float _resamplePhase, _prevSample;
         private float[] _micBuf = new float[4096];
         private OpusEncoder _encoder;
         private readonly short[] _frame = new short[VoiceWire.FrameSamples];
@@ -216,10 +217,34 @@ namespace Veil.Voice
                     sp.LastPacket = Time.unscaledTime;
                     if (Deafened || IsMuted(sp.ProfileId)) return;
                     if ((short)(seq - sp.LastSeq) <= 0 && sp.LastSeq != 0) return;   // late / duplicate
+                    int gap = sp.LastSeq == 0 ? 0 : (short)(seq - sp.LastSeq) - 1;
                     sp.LastSeq = seq;
+                    // lost packets: rebuild them instead of leaving holes (older ones by concealment, the last one from
+                    // the in-band FEC copy inside this packet)
+                    if (gap > 0 && gap <= 5)
+                        for (int g = 0; g < gap; g++)
+                        {
+                            int pn;
+                            try
+                            {
+                                pn = g == gap - 1
+                                    ? sp.Decoder.Decode(d, r.Position, r.Remaining, _decodeBuf, 0, VoiceWire.FrameSamples, true)
+                                    : sp.Decoder.Decode(null, 0, 0, _decodeBuf, 0, VoiceWire.FrameSamples, false);
+                            }
+                            catch { break; }
+                            Push(sp, pn);
+                        }
                     int n;
                     try { n = sp.Decoder.Decode(d, r.Position, r.Remaining, _decodeBuf, 0, VoiceWire.FrameSamples, false); }
                     catch { return; }
+                    Push(sp, n);
+                    break;
+                }
+            }
+        }
+
+        private void Push(Speaker sp, int n)
+        {
                     lock (sp.Lock)
                     {
                         for (int i = 0; i < n; i++)
@@ -229,13 +254,10 @@ namespace Veil.Voice
                             sp.Write = (sp.Write + 1) % sp.Ring.Length;
                             sp.Count++;
                         }
-                        // keep latency bounded: if more than 300 ms buffered, skip ahead
-                        int max = VoiceWire.SampleRate * 3 / 10;
-                        if (sp.Count > max) { int drop = sp.Count - max / 2; sp.Read = (sp.Read + drop) % sp.Ring.Length; sp.Count -= drop; }
+                        // keep latency bounded: above 400 ms buffered, trim back to 200 ms (rare: only after a long stall)
+                        int max = VoiceWire.SampleRate * 4 / 10;
+                        if (sp.Count > max) { int drop = sp.Count - VoiceWire.SampleRate / 5; sp.Read = (sp.Read + drop) % sp.Ring.Length; sp.Count -= drop; }
                     }
-                    break;
-                }
-            }
         }
 
         private readonly short[] _decodeBuf = new short[VoiceWire.FrameSamples * 3];
@@ -260,16 +282,24 @@ namespace Veil.Voice
         {
             lock (sp.Lock)
             {
-                if (!sp.Playing && sp.Count >= VoiceWire.SampleRate * 6 / 100) sp.Playing = true;
+                // start once 120 ms are buffered: absorbs normal mobile network jitter
+                if (!sp.Playing && sp.Count >= VoiceWire.SampleRate * 12 / 100) sp.Playing = true;
                 for (int i = 0; i < data.Length; i++)
                 {
                     if (sp.Playing && sp.Count > 0)
                     {
-                        data[i] = sp.Ring[sp.Read];
+                        sp.Last = sp.Ring[sp.Read];
+                        data[i] = sp.Last;
                         sp.Read = (sp.Read + 1) % sp.Ring.Length;
                         sp.Count--;
                     }
-                    else { data[i] = 0; sp.Playing = false; }
+                    else
+                    {
+                        // underrun: fade the last sample to silence (no click), then re-buffer
+                        sp.Last *= 0.995f;
+                        data[i] = sp.Last;
+                        sp.Playing = false;
+                    }
                 }
             }
         }
@@ -303,20 +333,24 @@ namespace Veil.Voice
             }
             _micPos = pos;
 
-            // resample to 16 kHz (linear)
+            // resample to 16 kHz (linear). Sample index -1 = the last sample of the previous chunk, so the
+            // interpolation is continuous across chunk boundaries (no clicks / dropped samples)
             float step = _micRate / (float)VoiceWire.SampleRate;
             float peak = 0;
             while (_resamplePhase < avail - 1)
             {
-                int i = (int)_resamplePhase;
-                float f = _resamplePhase - i;
-                float v = _micBuf[i] * (1 - f) + _micBuf[i + 1] * f;
+                float ph = _resamplePhase;
+                int i = Mathf.FloorToInt(ph);
+                float f = ph - i;
+                float a = i < 0 ? _prevSample : _micBuf[i];
+                float b = _micBuf[i + 1];
+                float v = a * (1 - f) + b * f;
                 _pcm16k.Add(v);
                 peak = Mathf.Max(peak, Mathf.Abs(v));
                 _resamplePhase += step;
             }
+            _prevSample = _micBuf[avail - 1];
             _resamplePhase -= avail;
-            if (_resamplePhase < 0) _resamplePhase = 0;
             InputLevel = Mathf.Lerp(InputLevel, Mathf.Clamp01(peak * 3f), 0.5f);
 
             while (_pcm16k.Count >= VoiceWire.FrameSamples)
@@ -350,16 +384,18 @@ namespace Veil.Voice
             _micDevice = null;   // default device
             Microphone.GetDeviceCaps(_micDevice, out int minF, out int maxF);
             _micRate = (minF == 0 && maxF == 0) ? 16000 : Mathf.Clamp(16000, minF, maxF);
-            _mic = Microphone.Start(_micDevice, true, 1, _micRate);
+            _mic = Microphone.Start(_micDevice, true, 2, _micRate);
             if (_mic == null) { Error = "Microphone unavailable"; return; }
             _micRate = _mic.frequency;
             _micPos = 0;
-            _resamplePhase = 0;
+            _resamplePhase = 0; _prevSample = 0;
             _pcm16k.Clear();
             if (_encoder == null)
             {
                 _encoder = OpusEncoder.Create(VoiceWire.SampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
-                _encoder.Bitrate = 20000;
+                _encoder.Bitrate = 24000;
+                _encoder.UseInbandFEC = true;        // each packet carries a low-rate copy of the previous one
+                _encoder.PacketLossPercent = 10;
                 _encoder.Complexity = Application.isMobilePlatform ? 3 : 6;
                 _encoder.UseVBR = true;
             }
