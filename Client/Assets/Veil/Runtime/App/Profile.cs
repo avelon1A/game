@@ -26,6 +26,7 @@ namespace Veil.App
         // settings
         public float Sensitivity;
         public float Music, SfxVolume;
+        public bool MusicOn = true;
         public int MatchMinutes;
         public int Bots;
         public int Quality;   // 0 low, 1 high
@@ -50,6 +51,7 @@ namespace Veil.App
                 BackendToken = PlayerPrefs.GetString("btok", ""),
                 Sensitivity = PlayerPrefs.GetFloat("sens", 0.12f),
                 Music = PlayerPrefs.GetFloat("music", 0.35f),
+                MusicOn = PlayerPrefs.GetInt("musicOn", 1) == 1,
                 SfxVolume = PlayerPrefs.GetFloat("sfx", 0.8f),
                 MatchMinutes = PlayerPrefs.GetInt("minutes", 5),
                 Bots = PlayerPrefs.GetInt("bots", 14),
@@ -93,6 +95,7 @@ namespace Veil.App
             PlayerPrefs.SetString("btok", BackendToken ?? "");
             PlayerPrefs.SetFloat("sens", Sensitivity);
             PlayerPrefs.SetFloat("music", Music);
+            PlayerPrefs.SetInt("musicOn", MusicOn ? 1 : 0);
             PlayerPrefs.SetFloat("sfx", SfxVolume);
             PlayerPrefs.SetInt("minutes", MatchMinutes);
             PlayerPrefs.SetInt("bots", Bots);

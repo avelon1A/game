@@ -203,6 +203,7 @@ namespace Veil.Sim
             w.U8((byte)s.Stage); w.Unit(s.StageProg, 1f); w.Vec(s.Site);
             w.U8((byte)s.Nodes.Count); foreach (var n in s.Nodes) { w.Vec(n.Pos); w.U8((byte)n.Kind); w.Unit(n.Prog, 1f); w.Bool(n.Contested); }
             w.U8((byte)s.Hackers); w.Bool(s.HackContested);
+            w.Vec(s.HomePos); w.Unit(s.HomeProg, 1f); w.Unit(s.CenterProg, 1f); w.U8((byte)s.HomeHackers); w.Bool(s.HomeContested); w.Bool(s.NodesHome);
             for (int i = 0; i < GameConfig.SquadCount; i++) w.Unit(s.SquadProg[i], 1f);
             w.Bool(s.ExtractRevealed); w.Bool(s.ExtractContested); w.Vec(s.ExtractPos); w.U8((byte)(s.ExtractController + 1)); w.U8((byte)(s.Winner + 1));
             for (int i = 0; i < GameConfig.SquadCount; i++) { w.U8(s.SquadStage[i]); w.U16((ushort)MathF.Round(s.SquadExtract[i] * 65535f)); }
@@ -267,6 +268,7 @@ namespace Veil.Sim
             s.Stage = r.U8(); s.StageProg = r.Unit(1f); s.Site = r.Vec();
             int nn = r.U8(); for (int i = 0; i < nn; i++) s.Nodes.Add(new HackNode { Pos = r.Vec(), Kind = (NodeKind)r.U8(), Prog = r.Unit(1f), Contested = r.Bool() });
             s.Hackers = r.U8(); s.HackContested = r.Bool();
+            s.HomePos = r.Vec(); s.HomeProg = r.Unit(1f); s.CenterProg = r.Unit(1f); s.HomeHackers = r.U8(); s.HomeContested = r.Bool(); s.NodesHome = r.Bool();
             for (int i = 0; i < GameConfig.SquadCount; i++) s.SquadProg[i] = r.Unit(1f);
             s.ExtractRevealed = r.Bool(); s.ExtractContested = r.Bool(); s.ExtractPos = r.Vec(); s.ExtractController = r.U8() - 1; s.Winner = r.U8() - 1;
             for (int i = 0; i < GameConfig.SquadCount; i++) { s.SquadStage[i] = r.U8(); s.SquadExtract[i] = r.U16() / 65535f; }

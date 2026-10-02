@@ -382,6 +382,13 @@ namespace Veil.UI
             App.Gateway.Changed += RefreshAccount;
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -130), "MOUSE SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; Save(); }, v => (v * 10).ToString("0.0"));
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -200), "MUSIC", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
+            // one-tap music pause next to the volume slider
+            UnityEngine.UI.Button mt = null;
+            mt = UIKit.Button(p, prof.MusicOn ? "MUSIC ON" : "MUSIC OFF", new Vector2(0.5f, 1), new Vector2(380, -200), new Vector2(150, 44), UIKit.ButtonStyle.Secondary, () =>
+            {
+                prof.MusicOn = !prof.MusicOn; Save();
+                UIKit.ButtonLabel(mt).text = prof.MusicOn ? "MUSIC ON" : "MUSIC OFF";
+            }, 18);
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
             var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
@@ -596,6 +603,8 @@ namespace Veil.UI
             var t = UIKit.LabelAt(p, "PAUSED", 48, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(500, 60), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Button(p, "RESUME", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(420, 76), UIKit.ButtonStyle.Primary, () => App.SetPaused(false), 36);
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(60, -250), "SENSITIVITY", 0.03f, 0.4f, app.Profile.Sensitivity, v => { app.Profile.Sensitivity = v; app.Profile.Save(); app.ApplySettings(); }, v => (v * 10).ToString("0.0"));
+            new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -410), "MUSIC", new[] { "ON", "OFF" }, app.Profile.MusicOn ? 0 : 1,
+                i => { app.Profile.MusicOn = i == 0; app.Profile.Save(); app.ApplySettings(); }, 120);
             new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -330), "GYRO", new[] { "OFF", "FIRING", "ALWAYS" }, app.Profile.GyroMode,
                 i => { app.Profile.GyroMode = i; app.Profile.Save(); }, 120);
             UIKit.Button(p, "LEAVE MATCH", new Vector2(0.5f, 0), new Vector2(0, 50), new Vector2(420, 64), UIKit.ButtonStyle.Secondary, () => { App.SetPaused(false); App.LeaveMatch(); }, 26);

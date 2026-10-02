@@ -254,7 +254,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested, CenterBonus,
     }
 
     public struct SimEvent
@@ -297,8 +297,12 @@ namespace Veil.Sim
         public bool VaultDone => Stage >= 4;
         public readonly System.Collections.Generic.List<HackNode> Nodes = new System.Collections.Generic.List<HackNode>();   // active stabilization nodes
         public int Glitches;            // instabilities already triggered this hack
-        public int Hackers;             // squadmates in the terminal zone right now
-        public bool Contested;          // an enemy is in the zone (progress stops, nothing is lost)
+        public int Hackers;             // squadmates in the CENTRAL terminal zone right now
+        public bool Contested;          // an enemy is in the central zone (progress stops, nothing is lost)
+        public Vec2 Home;               // this squad's home terminal
+        public float HomeProg, CenterProg;
+        public int HomeGlitches, HomeHackers;
+        public bool HomeContested, NodesHome;   // NodesHome: the active nodes belong to the home terminal
         public float LastActivity = -99f;
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;

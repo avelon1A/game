@@ -253,6 +253,7 @@ namespace Veil.App
         {
             Sfx.Volume = Profile.SfxVolume;
             Sfx.SetMusic(Profile.Music);
+            Sfx.SetMusicOn(Profile.MusicOn);
             if (CamRig != null) CamRig.Sensitivity = Profile.Sensitivity;
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
             {
@@ -629,9 +630,17 @@ namespace Veil.App
 
         // ------------------------------------------------------------------ loop
 
+        private float _fpsT; private int _fpsN; private float _fpsWorst;
+
         private void Update()
         {
             float dt = Time.deltaTime;
+            // performance log (logcat / player log): average fps + worst frame every 5 s while in a match
+            if (State == AppState.Match)
+            {
+                _fpsT += Time.unscaledDeltaTime; _fpsN++; _fpsWorst = Mathf.Max(_fpsWorst, Time.unscaledDeltaTime);
+                if (_fpsT >= 5f) { Debug.Log($"[VEIL] perf {_fpsN / _fpsT:0} fps, worst {_fpsWorst * 1000:0} ms"); _fpsT = 0; _fpsN = 0; _fpsWorst = 0; }
+            }
             Net.Poll();
             GoogleSignIn.Pump();
             UpdateSocial(Time.unscaledDeltaTime);
@@ -918,12 +927,11 @@ namespace Veil.App
             yield return Shot("map_oblique");
             Pose(new Vector3(0, 70, -150), new Vector3(0, 10, 0), false, 0);
             yield return Shot("map_city");
-            Pose(Quaternion.Euler(0, 45, 0) * new Vector3(0, 45, 105), Quaternion.Euler(0, 45, 0) * new Vector3(0, 0, 150), false, 0);
-            yield return Shot("map_dockyard");
-            Pose(Quaternion.Euler(0, 225, 0) * new Vector3(0, 45, 105), Quaternion.Euler(0, 225, 0) * new Vector3(0, 0, 150), false, 0);
-            yield return Shot("map_canyon");
-            Pose(Quaternion.Euler(0, 0, 0) * new Vector3(0, 45, 105), new Vector3(0, 0, 150), false, 0);
-            yield return Shot("map_snow");
+            void Near(Vector3 at, float yaw, float dist, float h) => Pose(at + Quaternion.Euler(0, yaw, 0) * new Vector3(0, h, -dist), at + Vector3.up * 3f, false, 0);
+            Near(new Vector3(0, 0, 42), 180, 26, 14); yield return Shot("lm_market");
+            Near(new Vector3(-138, 0, 0), 90, 26, 14); yield return Shot("lm_reactor");
+            Near(new Vector3(140, 0, 0), 270, 34, 16); yield return Shot("lm_ruins");
+            Near(new Vector3(21, 0, 160), 0, 28, 12); yield return Shot("lm_vault");
             yield return new WaitForSeconds(1f);
             Application.Quit();
         }

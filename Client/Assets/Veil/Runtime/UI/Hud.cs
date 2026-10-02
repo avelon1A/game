@@ -518,7 +518,7 @@ namespace Veil.UI
                     break;
                 }
                 case EventType.HackGlitch:
-                    Banner(e.B <= 1 ? "TERMINAL INSTABILITY" : "SECONDARY SYSTEM FAILURE",
+                    Banner((e.Value == 1 ? "HOME " : "CENTRAL ") + (e.B <= 1 ? "TERMINAL INSTABILITY" : "SYSTEM FAILURE"),
                            e.B <= 1 ? "System requires stabilization — split up: destroy · stabilize · override" : "Nodes moved out past the bridges — split up!", 3.5f);
                     Sfx.Play(Sfx.HitMe, 0.6f);
                     break;
@@ -533,8 +533,12 @@ namespace Veil.UI
                     Feed("<color=#ffd84a>TERMINAL ACTIVITY DETECTED</color> — someone is hacking", Theme.Text);
                     Sfx.Play(Sfx.Click, 0.5f);
                     break;
+                case EventType.CenterBonus:
+                    if (e.A == _m.LocalSquad) { Banner("CENTRAL TERMINAL HACKED", $"Bonus: all enemies revealed {GameConfig.CenterBonusReveal:0}s · +{GameConfig.CenterBonusEnergy:0} energy", 4f); Sfx.Play(Sfx.Objective, 0.9f); }
+                    else Feed($"<color=#ffb057>Squad {(char)('A' + e.A)} hacked the CENTRAL terminal</color> — they can see you", Theme.Text);
+                    break;
                 case EventType.HackContested:
-                    Popup("TERMINAL CONTESTED");
+                    Popup(e.B == 1 ? "HOME TERMINAL CONTESTED" : "CENTRAL TERMINAL CONTESTED");
                     break;
                 case EventType.ExtractRevealed:
                     Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
@@ -674,8 +678,8 @@ namespace Veil.UI
             if (GameConfig.ExtractionMode)
             {
                 SetChain(s, me);
-                _hack?.Update(s, dt);
-                if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK TERMINAL", "Everyone sees the terminal in the central plaza — each squad has its own progress", 4.5f); }
+                _hack?.Update(s, me, dt);
+                if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK A TERMINAL", "Your HOME terminal (safe, slower) or the CENTRAL one (fast + bonus, contested)", 5f); }
             }
             else
             {
@@ -797,7 +801,7 @@ namespace Veil.UI
                 c.Desc.text = task switch
                 {
                     ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>Instability: {s.Nodes.Count} node(s) to resolve</color>",
-                    ChainTask.Hack => $"Central plaza terminal · {dist:0} m",
+                    ChainTask.Hack => $"Home {Mathf.RoundToInt(s.HomeProg * 100)}% · {dist:0} m  |  Centre {Mathf.RoundToInt(s.CenterProg * 100)}% · {me.Pos.Length:0} m",
                     ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
                     ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
                     _ => $"Channel at the Vault in the centre · {dist:0} m",
@@ -942,7 +946,7 @@ namespace Veil.UI
             _crosshair.color = _view.ShotHitsAvatar ? new Color(1f, 0.35f, 0.35f, 0.95f) : new Color(1, 1, 1, 0.85f);
         }
 
-        private Text _wpSite, _wpExtract;
+        private Text _wpSite, _wpExtract, _wpCentre;
         private HackPanel _hack;
         private CompassBar _compass;
         private MapScreen _mapScreen;
@@ -987,7 +991,8 @@ namespace Veil.UI
         {
             if (GameConfig.ExtractionMode)
             {
-                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0, s.Site, s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0, s.Site, s.Stage == 0 ? "HOME TERMINAL" : s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                Waypoint(ref _wpCentre, s.Stage == 0 && s.Nodes.Count == 0, Vec2.Zero, "CENTRAL TERMINAL +BONUS", new Color(0.8f, 0.55f, 1f), me);
                 for (int i = 0; i < _wpNodes.Length; i++)
                 {
                     bool on = i < s.Nodes.Count;

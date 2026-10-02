@@ -6,7 +6,7 @@ namespace Veil.Sim
     public enum ObstacleKind : byte
     {
         Wall, LowWall, Pillar, Tree, Rock, Water, Building, Crate, Cliff, Stall, TowerCore, ReactorCore, VaultBuilding, Pylon,
-        CityBlock, Container, Crane, Hut, Palm, Pine, Mesa, Tank, Watchtower
+        CityBlock, Container, Crane, Hut, Palm, Pine, Mesa, Tank, Watchtower, Console
     }
 
     public enum ShapeKind : byte { Circle, Box }
@@ -125,6 +125,7 @@ namespace Veil.Sim
         public readonly List<Vec2> CoreSpots = new List<Vec2>();
         public readonly List<GroundDecal> Decals = new List<GroundDecal>();
         public readonly List<RegionDef> Regions = new List<RegionDef>();
+        public readonly List<Vec2> HomeTerminals = new List<Vec2>();   // one per spawn region (Objective 1, home option)
         public bool Island;
         public NavGrid Nav;
 

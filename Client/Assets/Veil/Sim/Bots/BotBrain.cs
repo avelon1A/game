@@ -230,6 +230,13 @@ namespace Veil.Sim
                         var core = NearestPickup(PickupType.Core, 200f);
                         if (core != null) Consider(Goal.Pickup, drive - Vec2.Dist(core.Pos, _p.Pos) * 0.2f, core.Pos);
                     }
+                    else if (MatchSim.TaskOf(sq.Stage) == ChainTask.Hack)
+                    {
+                        // home terminal (quiet) or the central one (fast + bonus): aggressive bots and squads already ahead at the centre go there
+                        bool centre = Kind == BotKind.Hunter || Kind == BotKind.Opportunist || sq.CenterProg > sq.HomeProg + 0.1f;
+                        var t = centre ? _sim.CenterTerminal : sq.Home;
+                        Consider(Goal.Vault, drive - Vec2.Dist(t, _p.Pos) * 0.12f, t);
+                    }
                     else Consider(Goal.Vault, drive + (sq.Stage == 3 ? 8 : 0) - ds * 0.12f, sq.Site);
                 }
             }

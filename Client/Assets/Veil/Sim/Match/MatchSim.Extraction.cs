@@ -30,15 +30,27 @@ namespace Veil.Sim
             {
                 var sq = Squads[s];
                 sq.Spawn = anchors[s % anchors.Length];
+                sq.Home = HomeTerminalFor(sq.Spawn);
                 sq.Stage = 0;
                 EnterStage(sq);
             }
         }
 
+        public Vec2 CenterTerminal => Map.Zones[TowerZone].Center;
+
+        private Vec2 HomeTerminalFor(Vec2 spawn)
+        {
+            Vec2 best = spawn * 0.85f; float bd = float.MaxValue;
+            foreach (var t in Map.HomeTerminals) { float d = Vec2.DistSq(t, spawn); if (d < bd) { bd = d; best = t; } }
+            return best;
+        }
+
         private Vec2 SiteFor(SquadState sq, int stage)
         {
-            // the Hack Terminal and the Vault are shared: the central plaza (cover, low walls, pillars, 4 bridges)
-            if (TaskOf(stage) == ChainTask.Vault || TaskOf(stage) == ChainTask.Hack) return Map.Zones[TowerZone].Center;
+            // Objective 1: the squad's home terminal is the default waypoint (the central one is the risky alternative)
+            if (TaskOf(stage) == ChainTask.Hack) return sq.Home;
+            // the Vault is shared: the central plaza (cover, low walls, pillars, bridges)
+            if (TaskOf(stage) == ChainTask.Vault) return CenterTerminal;
             if (stage >= SiteLayout.Length) return Vec2.Zero;
             var (r, deg) = SiteLayout[stage];
             if (Map.Island && TaskOf(stage) == ChainTask.Capture) { r = 100f; deg = 45f; }   // island: the neighbouring cardinal region, inside the ring road
@@ -49,36 +61,69 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ Hack Terminal
 
+        /// <summary>Objective 1 runs on two terminals at once: the squad's HOME terminal (slow, quiet) and the shared CENTRAL one
+        /// (fast, contested, bonus). Finishing either completes the objective.</summary>
         private void UpdateHack(SquadState sq, float dt)
         {
-            float r2 = GameConfig.HackRadius * GameConfig.HackRadius;
+            UpdateTerminal(sq, dt, true);
+            UpdateTerminal(sq, dt, false);
+            if (sq.CenterProg >= 1f)
+            {
+                // central bonus: every enemy revealed to the squad + energy
+                foreach (var p in Players)
+                {
+                    if (p.Squad != sq.Id) continue;
+                    p.Energy = MathF.Min(GameConfig.MaxEnergy, p.Energy + GameConfig.CenterBonusEnergy);
+                    foreach (var o in Players) if (o.Squad != sq.Id) o.RevealedTo[p.Id] = MathF.Max(o.RevealedTo[p.Id], GameConfig.CenterBonusReveal);
+                }
+                Events.Add(new SimEvent(EventType.CenterBonus, sq.Id, 0, 0, CenterTerminal));
+                sq.StageProg = 1f;
+            }
+            else sq.StageProg = MathF.Max(sq.HomeProg, sq.CenterProg);
+        }
+
+        private void UpdateTerminal(SquadState sq, float dt, bool home)
+        {
+            Vec2 at = home ? sq.Home : CenterTerminal;
+            float radius = home ? GameConfig.HomeHackRadius : GameConfig.HackRadius;
+            float r2 = radius * radius;
             int mine = 0; bool enemy = false;
             foreach (var p in Players)
             {
-                if (!Standing(p) || Vec2.DistSq(p.Pos, sq.Site) > r2) continue;
+                if (!Standing(p) || Vec2.DistSq(p.Pos, at) > r2) continue;
                 if (p.Squad == sq.Id) mine++; else enemy = true;
             }
-            bool wasContested = sq.Contested;
-            sq.Hackers = mine;
-            sq.Contested = enemy && mine > 0;
-            if (sq.Contested && !wasContested) Events.Add(new SimEvent(EventType.HackContested, sq.Id, 0, 0, sq.Site));
+            bool contested = enemy && mine > 0;
+            bool was = home ? sq.HomeContested : sq.Contested;
+            if (home) { sq.HomeHackers = mine; sq.HomeContested = contested; } else { sq.Hackers = mine; sq.Contested = contested; }
+            if (contested && !was) Events.Add(new SimEvent(EventType.HackContested, sq.Id, home ? 1 : 0, 0, at));
 
-            if (sq.Nodes.Count > 0) { UpdateNodes(sq, dt); return; }      // instability: no progress until stabilized
-            if (mine == 0 || enemy) return;                                 // contest stops progress, never removes it
+            if (sq.Nodes.Count > 0 && sq.NodesHome == home) { UpdateNodes(sq, dt); return; }   // this terminal is unstable
+            if (mine == 0 || enemy) return;                                                     // contest pauses, never removes
 
-            // starting (or resuming) a hack is an information event for everyone — not a live position
-            if (Time - sq.LastActivity > GameConfig.HackActivityCooldown)
-                Events.Add(new SimEvent(EventType.HackActivity, sq.Id, 0, 0, sq.Site));
-            sq.LastActivity = Time;
-
-            float before = sq.StageProg;
-            float rate = GameConfig.HackSpeed[Math.Min(mine, GameConfig.HackSpeed.Length - 1)];
-            sq.StageProg = MathF.Min(1f, sq.StageProg + dt / GameConfig.HackTime * rate);
-            if (sq.Glitches < GameConfig.HackInstability.Length)
+            if (!home)
             {
-                float at = GameConfig.HackInstability[sq.Glitches];
-                if (before < at && sq.StageProg >= at) { sq.StageProg = at; SpawnInstability(sq); }
+                // the central terminal is public: starting it is an information event for everyone else
+                if (Time - sq.LastActivity > GameConfig.HackActivityCooldown) Events.Add(new SimEvent(EventType.HackActivity, sq.Id, 0, 0, at));
+                sq.LastActivity = Time;
             }
+
+            float rate = GameConfig.HackSpeed[Math.Min(mine, GameConfig.HackSpeed.Length - 1)];
+            float time = home ? GameConfig.HackTime : GameConfig.CenterHackTime;
+            var marks = home ? GameConfig.HackInstability : GameConfig.CenterInstability;
+            int glitches = home ? sq.HomeGlitches : sq.Glitches;
+            float prog = (home ? sq.HomeProg : sq.CenterProg) + dt / time * rate;
+            if (glitches < marks.Length && prog >= marks[glitches])
+            {
+                prog = marks[glitches];
+                if (sq.Nodes.Count == 0)
+                {
+                    if (home) sq.HomeGlitches++; else sq.Glitches++;
+                    SpawnInstability(sq, home, home ? sq.HomeGlitches : sq.Glitches);
+                }
+            }
+            prog = MathF.Min(1f, prog);
+            if (home) sq.HomeProg = prog; else sq.CenterProg = prog;
         }
 
         private void UpdateNodes(SquadState sq, float dt)
@@ -128,28 +173,32 @@ namespace Veil.Sim
 
         /// <summary>Instability: one Destroy, one Stabilize and one Override node. The first wave sits inside the plaza
         /// (between the low walls and the pillars), the second spreads to the moat bridges — the squad has to split up.</summary>
-        private void SpawnInstability(SquadState sq)
+        /// <summary>Instability: one Destroy, one Stabilize and one Override node. First wave close to the terminal, second wave
+        /// further out (centre: past the moat bridges) — the squad has to split up.</summary>
+        private void SpawnInstability(SquadState sq, bool home, int wave)
         {
-            sq.Glitches++;
-            bool outer = sq.Glitches >= 2;
+            Vec2 at = home ? sq.Home : CenterTerminal;
+            sq.NodesHome = home;
+            bool outer = wave >= 2;
             var kinds = new[] { NodeKind.Destroy, NodeKind.Stabilize, NodeKind.Override };
             for (int i = kinds.Length - 1; i > 0; i--) { int j = Rng.Int(i + 1); (kinds[i], kinds[j]) = (kinds[j], kinds[i]); }
-            float baseYaw = outer ? Rng.Int(4) * 90f : Rng.Range(0, 360);
+            float baseYaw = outer && !home ? Rng.Int(4) * 90f : Rng.Range(0, 360);
             for (int i = 0; i < GameConfig.HackNodes; i++)
             {
-                Vec2 c = outer
-                    ? sq.Site + Vec2.FromYaw(baseYaw + i * 90f + Rng.Range(-6f, 6f)) * Rng.Range(23f, 27f)    // past the bridges
-                    : sq.Site + Vec2.FromYaw(baseYaw + i * 120f + Rng.Range(-20f, 20f)) * Rng.Range(9f, 12f); // inside the plaza
+                float dist = home ? (outer ? Rng.Range(13f, 17f) : Rng.Range(8f, 11f)) : (outer ? Rng.Range(23f, 27f) : Rng.Range(9f, 12f));
+                float yaw = outer && !home ? baseYaw + i * 90f + Rng.Range(-6f, 6f) : baseYaw + i * 120f + Rng.Range(-20f, 20f);
+                Vec2 c = at + Vec2.FromYaw(yaw) * dist;
                 if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
                 sq.Nodes.Add(new HackNode { Pos = c, Kind = kinds[i] });
             }
-            Events.Add(new SimEvent(EventType.HackGlitch, sq.Id, sq.Glitches, 0, sq.Site));
+            Events.Add(new SimEvent(EventType.HackGlitch, sq.Id, wave, home ? 1 : 0, at));
         }
 
         private void EnterStage(SquadState sq)
         {
             sq.Nodes.Clear();
             sq.Glitches = 0; sq.Hackers = 0; sq.Contested = false;
+            sq.HomeProg = 0; sq.CenterProg = 0; sq.HomeGlitches = 0; sq.HomeHackers = 0; sq.HomeContested = false; sq.NodesHome = false;
             sq.StageProg = 0;
             sq.Site = SiteFor(sq, sq.Stage);
             sq.CoresAtStart = SquadCores(sq.Id);

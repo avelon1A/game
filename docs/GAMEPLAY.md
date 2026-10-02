@@ -6,6 +6,8 @@
 
 - **16 players**: 4 squads × 4. Empty seats are filled by bots (Explorer, Collector, Hunter, Defender, Opportunist).
 - **Map: Rilo Island** (400 m × 400 m): **Rilo City** in the centre (Rilo tower + Hack Terminal plaza, moat with 8 bridges), surrounded by **Snow Base, Dockyard, Ruins, Beach, Forest, Canyon, Hydro Plant, Outpost**, split by rivers (bridges are chokepoints) and linked by a ring road. Squads spawn in Outpost / Dockyard / Beach / Canyon at the same distance from the centre. Props: Kenney CC0 + Meshy landmarks (`Tools/ai3d/blender/build_props.py`, `build_landmarks.py`).
+- **Landmarks** (textured Meshy): Rilo tower, market hall, hydro reactor, temple ruins, snow vault, dam, cranes.
+- **Music**: MUSIC ON/OFF button in Settings and in the pause menu.
 - **HUD**: compass bar (objective / extraction / node markers), minimap (tap or **M** = full map screen with region names and legend), terminal-style hack screen.
 - **Length**: 5, 10 or 15 minutes, chosen in the lobby by the squad leader.
 - **Winning (extraction mode, default)**: the **first squad to complete the extraction wins** and the match ends immediately. If time runs out, squads rank by extraction progress, then route progress, then score.
@@ -13,7 +15,7 @@
 ### The route (every squad, same distances)
 | Step | Task | Rule |
 |---|---|---|
-| Objective 1 | **Hack Terminal** | one **shared** terminal in the central plaza, own progress per squad; 14 s base, 1/2/3/4 hackers = 100/150/175/190 %; instability at 35 % and 67 % spawns Destroy / Stabilize / Override nodes (see `docs/HACK_TERMINAL.md`) |
+| Objective 1 | **Hack a Terminal** | **your HOME terminal** (compound on your spawn road: 20 s, faults at 35 % / 67 %, quiet) **or the CENTRAL one** (Rilo plaza: 12 s, fault at 50 %, contested by everyone; bonus: all enemies revealed 10 s + 40 energy). 1/2/3/4 hackers = 100/150/175/190 %. Faults spawn Destroy / Stabilize / Override nodes (`docs/HACK_TERMINAL.md`) |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
 | Vault | **Central Vault** | channel at the centre (6 m) for 10 s |

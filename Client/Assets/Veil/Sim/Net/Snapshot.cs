@@ -81,8 +81,12 @@ namespace Veil.Sim
         public readonly float[] SquadExtract = new float[GameConfig.SquadCount];
         public ChainTask Task => MatchSim.TaskOf(Stage);
         public readonly List<HackNode> Nodes = new List<HackNode>();   // own squad's stabilization nodes
-        public int Hackers;
+        public int Hackers;                 // central terminal
         public bool HackContested;
+        public Vec2 HomePos;                // own home terminal
+        public float HomeProg, CenterProg;
+        public int HomeHackers;
+        public bool HomeContested, NodesHome;
         public readonly float[] SquadProg = new float[GameConfig.SquadCount];   // every squad's progress on its current step (public)
     }
 
@@ -174,6 +178,8 @@ namespace Veil.Sim
             snap.Nodes.Clear();
             foreach (var n in squad.Nodes) snap.Nodes.Add(new HackNode { Pos = n.Pos, Kind = n.Kind, Prog = n.Prog, Hp = n.Hp, Contested = n.Contested });
             snap.Hackers = squad.Hackers; snap.HackContested = squad.Contested;
+            snap.HomePos = squad.Home; snap.HomeProg = squad.HomeProg; snap.CenterProg = squad.CenterProg;
+            snap.HomeHackers = squad.HomeHackers; snap.HomeContested = squad.HomeContested; snap.NodesHome = squad.NodesHome;
             for (int i = 0; i < GameConfig.SquadCount; i++) snap.SquadProg[i] = sim.Squads[i].StageProg;
             snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
@@ -221,6 +227,8 @@ namespace Veil.Sim
                 case EventType.HackGlitch:
                 case EventType.HackContested:
                     return e.A == viewer.Squad;
+                case EventType.CenterBonus:
+                    return true;
                 case EventType.HackActivity:
                     return e.A != viewer.Squad;     // everyone else hears "terminal activity detected"
                 case EventType.NodeDestroyed:

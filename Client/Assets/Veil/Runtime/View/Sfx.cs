@@ -94,6 +94,15 @@ namespace Veil.Audio
             if (_music) _music.volume = v;
         }
 
+        /// <summary>Pause / resume the background music (keeps its position).</summary>
+        public static void SetMusicOn(bool on)
+        {
+            if (!_music) return;
+            if (on && !_music.isPlaying) _music.UnPause();
+            if (on && !_music.isPlaying) _music.Play();
+            if (!on) _music.Pause();
+        }
+
         private static AudioSource Free()
         {
             foreach (var s in Pool) if (!s.isPlaying) return s;

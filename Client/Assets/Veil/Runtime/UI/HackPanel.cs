@@ -71,11 +71,11 @@ namespace Veil.UI
         public static Color KindColor(NodeKind k) => k == NodeKind.Destroy ? new Color(1f, 0.3f, 0.45f) : k == NodeKind.Stabilize ? new Color(0.25f, 0.9f, 1f) : new Color(0.75f, 0.45f, 1f);
 
         /// <summary>Stability drains from 100% towards the next instability, refills after it (purely a readout of progress).</summary>
-        public static float Stability(float prog, int nodesLeft)
+        public static float Stability(float prog, int nodesLeft, float[] marks = null)
         {
             if (nodesLeft > 0) return 0f;
             float prev = 0f;
-            foreach (float at in GameConfig.HackInstability)
+            foreach (float at in marks ?? GameConfig.HackInstability)
             {
                 if (prog < at - 1e-4f) return 1f - (prog - prev) / (at - prev) * 0.85f;
                 prev = at;
@@ -84,38 +84,45 @@ namespace Veil.UI
         }
 
         /// <summary>Fake console log that follows the real hack state.</summary>
-        private static string Log(Snapshot s)
+        private static string Log(Snapshot s, float p, int hackers, bool contested, float[] marks, bool unstable)
         {
-            float p = s.StageProg;
             var sb = new System.Text.StringBuilder();
             void L(string t, bool done) => sb.Append($"> {t} {(done ? "<color=#c9ffe6>DONE</color>" : "<color=#c9ffe6>RUNNING</color>")}\n");
             sb.Append("> connect 10.7.0.1 :: <color=#c9ffe6>OK</color>\n");
             L("breach firewall.layer[1] .......", p >= 0.2f);
-            if (p >= 0.2f) L("breach firewall.layer[2] .......", p >= GameConfig.HackInstability[0]);
-            if (p >= GameConfig.HackInstability[0]) L("inject payload rilo.core .......", p >= GameConfig.HackInstability[1]);
-            if (p >= GameConfig.HackInstability[1]) L("upload keys -> squad uplink ....", p >= 1f);
-            if (s.Nodes.Count > 0) sb.Append("> <color=#ff6b7a>FAULT: core unstable — stabilization required</color>\n");
-            else if (s.HackContested) sb.Append("> <color=#ffb057>WARN: hostile signal in zone — paused</color>\n");
-            else if (s.Hackers > 0) sb.Append($"> {s.Hackers} operator(s) linked · speed x{GameConfig.HackSpeed[Mathf.Min(s.Hackers, GameConfig.HackSpeed.Length - 1)]:0.##}_\n");
+            if (p >= 0.2f) L("breach firewall.layer[2] .......", p >= marks[0]);
+            if (p >= marks[0]) L("inject payload rilo.core .......", p >= (marks.Length > 1 ? marks[1] : 1f));
+            if (marks.Length > 1 && p >= marks[1]) L("upload keys -> squad uplink ....", p >= 1f);
+            if (unstable) sb.Append("> <color=#ff6b7a>FAULT: core unstable — stabilization required</color>\n");
+            else if (contested) sb.Append("> <color=#ffb057>WARN: hostile signal in zone — paused</color>\n");
+            else if (hackers > 0) sb.Append($"> {hackers} operator(s) linked · speed x{GameConfig.HackSpeed[Mathf.Min(hackers, GameConfig.HackSpeed.Length - 1)]:0.##}_\n");
             else sb.Append("> waiting for operator in range_\n");
             var lines = sb.ToString().TrimEnd('\n').Split('\n');
             int from = Mathf.Max(0, lines.Length - 4);
             return string.Join("\n", lines, from, lines.Length - from);
         }
 
-        public void Update(Snapshot s, float dt)
+        public void Update(Snapshot s, PlayerState me, float dt)
         {
+            // show the terminal you are closer to: your HOME terminal or the CENTRAL one
+            Vec2 centre = Vec2.Zero;
+            bool home = Vec2.Dist(me.Pos, s.HomePos) <= Vec2.Dist(me.Pos, centre);
+            float prog = home ? s.HomeProg : s.CenterProg;
+            int hackers = home ? s.HomeHackers : s.Hackers;
+            bool contested = home ? s.HomeContested : s.HackContested;
+            var marks = home ? GameConfig.HackInstability : GameConfig.CenterInstability;
             bool show = GameConfig.ExtractionMode && s.Stage == 0;
             _root.gameObject.SetActive(show);
             if (!show) return;
 
-            bool unstable = s.Nodes.Count > 0;
-            _progress.Set(s.StageProg, dt);
-            _progress.SetColor(unstable ? new Color(1f, 0.35f, 0.4f) : s.HackContested ? new Color(1f, 0.55f, 0.2f) : Term);
-            _pct.text = $"{Mathf.FloorToInt(s.StageProg * 100)}%";
-            _pct.color = unstable ? new Color(1f, 0.4f, 0.45f) : s.HackContested ? new Color(1f, 0.6f, 0.25f) : Term;
-            _log.text = Log(s);
-            float st = Stability(s.StageProg, s.Nodes.Count);
+            bool unstable = s.Nodes.Count > 0 && s.NodesHome == home;
+            _progress.Set(prog, dt);
+            _progress.SetColor(unstable ? new Color(1f, 0.35f, 0.4f) : contested ? new Color(1f, 0.55f, 0.2f) : Term);
+            _pct.text = $"{Mathf.FloorToInt(prog * 100)}%";
+            _pct.color = unstable ? new Color(1f, 0.4f, 0.45f) : contested ? new Color(1f, 0.6f, 0.25f) : Term;
+            _log.text = Log(s, prog, hackers, contested, marks, unstable);
+            _header.text = home ? "RILO//OS  ·  HOME TERMINAL  ·  SLOW + SAFE" : "RILO//OS  ·  CENTRAL TERMINAL  ·  FAST + BONUS  ·  CONTESTED";
+            float st = Stability(prog, unstable ? 1 : 0, marks);
             _stability.Set(st, dt);
             _stability.SetColor(st < 0.3f ? new Color(1f, 0.35f, 0.4f) : Theme.Cyan);
 
@@ -126,23 +133,23 @@ namespace Veil.UI
                 _state.text = "STABILIZATION REQUIRED";
                 _back.color = new Color(0.16f, 0.02f, 0.05f, 0.92f);
             }
-            else if (s.HackContested)
+            else if (contested)
             {
                 _title.text = $"<color=#ffa040>TERMINAL CONTESTED</color>";
                 _state.text = "<color=#ffa040>progress paused · clear the zone</color>";
                 _back.color = new Color(0.14f, 0.07f, 0.01f, 0.92f);
             }
-            else if (s.Hackers > 0)
+            else if (hackers > 0)
             {
-                int pct = Mathf.RoundToInt(GameConfig.HackSpeed[Mathf.Min(s.Hackers, GameConfig.HackSpeed.Length - 1)] * 100);
-                _title.text = "HACKING TERMINAL";
-                _state.text = $"{s.Hackers} hacking · <color=#ffd84a>{pct}% speed</color>";
+                int pct = Mathf.RoundToInt(GameConfig.HackSpeed[Mathf.Min(hackers, GameConfig.HackSpeed.Length - 1)] * 100);
+                _title.text = home ? "HACKING HOME TERMINAL" : "HACKING CENTRAL TERMINAL";
+                _state.text = $"{hackers} hacking · <color=#ffd84a>{pct}% speed</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
             else
             {
-                _title.text = "HACK TERMINAL";
-                _state.text = "<color=#aab0d8>enter the plaza ring to hack</color>";
+                _title.text = home ? "HOME TERMINAL" : "CENTRAL TERMINAL";
+                _state.text = home ? "<color=#aab0d8>step into the ring to hack</color>" : "<color=#aab0d8>enter the plaza ring · +bonus</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
 
@@ -152,8 +159,8 @@ namespace Veil.UI
                 foreach (var n in s.Nodes)
                 {
                     var c = ColorUtility.ToHtmlStringRGB(KindColor(n.Kind));
-                    string prog = n.Contested ? "<color=#ffa040>contested</color>" : $"{Mathf.RoundToInt(n.Prog * 100)}%";
-                    sb.Append($"<color=#{c}>● {KindName(n.Kind)}</color> {prog}    ");
+                    string np = n.Contested ? "<color=#ffa040>contested</color>" : $"{Mathf.RoundToInt(n.Prog * 100)}%";
+                    sb.Append($"<color=#{c}>● {KindName(n.Kind)}</color> {np}    ");
                 }
                 sb.Append($"\n<size=13><color=#aab0d8>Split up: destroy = shoot · stabilize = stand · override = hold</color></size>");
                 _nodes.text = sb.ToString();
@@ -161,9 +168,9 @@ namespace Veil.UI
             }
             else
             {
-                _nodes.text = s.Hackers == 0 && !s.HackContested
-                    ? "<color=#aab0d8>More hackers = faster · keep someone on the bridges</color>"
-                    : "<color=#aab0d8>Instability at 35% and 67% · progress is never lost</color>";
+                _nodes.text = hackers == 0 && !contested
+                    ? home ? "<color=#aab0d8>Home: 20 s, 2 faults, quiet · Centre: 12 s, 1 fault, +reveal +energy</color>" : "<color=#aab0d8>Centre: 12 s + bonus · everyone can contest it</color>"
+                    : home ? "<color=#aab0d8>Faults at 35% and 67% · progress is never lost</color>" : "<color=#aab0d8>Fault at 50% · progress is never lost</color>";
                 _nodes.color = Color.white;
             }
 
@@ -172,8 +179,8 @@ namespace Veil.UI
             for (int q = 0; q < GameConfig.SquadCount; q++)
             {
                 string pr = s.SquadStage[q] > 0 ? "DONE" : $"{Mathf.FloorToInt(s.SquadProg[q] * 100)}%";
-                bool me = q == _localSquad;
-                sq.Append(me ? $"<color=#7dff9a>YOU {pr}</color>" : $"SQUAD {(char)('A' + q)} <color=#ffffff>{pr}</color>");
+                bool mine = q == _localSquad;
+                sq.Append(mine ? $"<color=#7dff9a>YOU {pr}</color>" : $"SQUAD {(char)('A' + q)} <color=#ffffff>{pr}</color>");
                 if (q < GameConfig.SquadCount - 1) sq.Append("   ·   ");
             }
             _squads.text = sq.ToString();

@@ -184,6 +184,14 @@ namespace Veil.UI
                     d.rectTransform.anchoredPosition = W(snap.Site);
                     d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
                 }
+                if (snap.Stage == 0)
+                {
+                    var d = Dot();
+                    d.sprite = Icons.Target; d.color = new Color(0.8f, 0.55f, 1f, 0.9f);
+                    d.rectTransform.sizeDelta = new Vector2(24, 24);
+                    d.rectTransform.anchoredPosition = W(Vec2.Zero);
+                    d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
+                }
                 foreach (var nd in snap.Nodes)
                 {
                     var d = Dot();

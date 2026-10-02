@@ -220,14 +220,23 @@ namespace Veil.View
             }
         }
 
+        private Transform _centreMark;
+
         private void UpdateChainMarkers(Snapshot s)
         {
             UpdateNodes(s);
+            if (_centreMark == null)
+            {
+                _centreMark = Build.Node(Root, "CentreTerminalMark", Vector3.zero);
+                var violet = MaterialLib.Unlit(new Color(0.75f, 0.5f, 1f, 0.5f), MaterialLib.Blend.Additive);
+                Build.Part(_centreMark, MeshGen.Ring(0.92f, 1f, 64), violet, new Vector3(0, 0.07f, 0), Vector3.one * GameConfig.HackRadius, null, "Ring", false);
+            }
+            _centreMark.gameObject.SetActive(s.Stage == 0);
             bool showSite = s.Stage < 4 && s.Task != ChainTask.Collect;
             _site.gameObject.SetActive(showSite);
             if (showSite)
             {
-                float r = s.Task == ChainTask.Hack ? GameConfig.HackRadius : s.Task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
+                float r = s.Task == ChainTask.Hack ? GameConfig.HomeHackRadius : s.Task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
                 _site.position = new Vector3(s.Site.X, 0, s.Site.Y);
                 _siteRing.localScale = Vector3.one * r * (1f + Mathf.Sin(Time.time * 3f) * 0.03f);
                 _site.GetChild(2).localRotation = Quaternion.Euler(0, Time.time * 90f, 0);

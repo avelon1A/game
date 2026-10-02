@@ -154,8 +154,11 @@ namespace Veil.View
                 var p = Vec2.FromYaw(i * 45f + 22.5f) * 17.5f;
                 if (Free(p, 0.6f)) Put("bench", p, i * 45f + 22.5f, 0.9f, i);
             }
-            // market square + beach parasols
+            // big textured landmarks that stand on open ground (the market hall and the temple ruins)
             var market = _map.Zone(ZoneType.Market).Center;
+            PutBig("market", Build.V(market), 0f, 22f);
+            PutBig("ruins", Build.V(_map.Zone(ZoneType.Ruins).Center), 90f, 30f);
+            // market square + beach parasols
             for (int i = 0; i < 4; i++)
             {
                 var p = market + Vec2.FromYaw(i * 90f + 45f) * 3.2f;
@@ -280,8 +283,51 @@ namespace Veil.View
         }
 
         /// <summary>Real model for an obstacle, fitted to its collision shape. False = no prop, use the coded look.</summary>
+        private PropInfo Big(string name)
+        {
+            var l = Props("big_" + name);
+            if (l.Count > 0) return l[0];
+            var go = Resources.Load<GameObject>("Props/big_" + name);
+            if (go == null) return null;
+            var b = new Bounds(); bool first = true;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var mb = mf.sharedMesh.bounds; var m = mf.transform.localToWorldMatrix;
+                for (int c = 0; c < 8; c++)
+                {
+                    var p = m.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1)));
+                    if (first) { b = new Bounds(p, Vector3.zero); first = false; } else b.Encapsulate(p);
+                }
+            }
+            var info = new PropInfo { Prefab = go, Size = b.size };
+            l.Add(info);
+            return info;
+        }
+
+        /// <summary>Big textured Meshy landmark, scaled so its widest side is `width` metres.</summary>
+        private bool PutBig(string name, Vector3 at, float yaw, float width)
+        {
+            var b = Big(name);
+            if (b == null) return false;
+            AddProp(b, at, yaw, width / Mathf.Max(Mathf.Max(b.Size.x, b.Size.z), 0.01f));
+            return true;
+        }
+
+        private bool InZone(Obstacle o, ZoneType t, float r) { var z = _map.Zone(t); return z != null && Vec2.Dist(o.Center, z.Center) < r; }
+
         private bool TryProp(Obstacle o, Vector3 c)
         {
+            // big Meshy landmarks replace the small pieces inside their areas
+            if (o.Kind == ObstacleKind.Stall && InZone(o, ZoneType.Market, 14f) && Big("market") != null) return true;
+            if ((o.Kind == ObstacleKind.Pylon) && InZone(o, ZoneType.Reactor, 10f) && Big("reactor") != null) return true;
+            if (o.Kind == ObstacleKind.ReactorCore && PutBig("reactor", c, 0f, 22f)) return true;
+            if (o.Kind == ObstacleKind.VaultBuilding && PutBig("vault", c, 180f, 19f)) return true;
+            if ((o.Kind == ObstacleKind.Pillar || o.Kind == ObstacleKind.LowWall) && InZone(o, ZoneType.Ruins, 14f) && Big("ruins") != null) return true;
+            if (o.Kind == ObstacleKind.Console && Landmark("terminal") is PropInfo term)
+            {
+                AddProp(term, c, o.Rot + 180f, 1.6f / Mathf.Max(term.Size.y, 0.01f));
+                return true;
+            }
             if (o.Kind == ObstacleKind.Crane && Landmark("crane") is PropInfo crane)
             {
                 AddProp(crane, c, Mathf.Atan2(c.x, c.z) * Mathf.Rad2Deg + 90f, o.Height / Mathf.Max(crane.Size.y, 0.01f));

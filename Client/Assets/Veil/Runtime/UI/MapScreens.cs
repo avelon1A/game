@@ -18,7 +18,8 @@ namespace Veil.UI
 
         public CompassBar(Transform parent)
         {
-            _root = UIKit.At(parent, "Compass", new Vector2(0.5f, 1), new Vector2(0, -14), new Vector2(Width, 46));
+            // phones: the vitals box sits at the top centre, so the compass goes just under it
+            _root = UIKit.At(parent, "Compass", new Vector2(0.5f, 1), new Vector2(0, Application.isMobilePlatform ? -126 : -14), new Vector2(Width, 46));
             _root.pivot = new Vector2(0.5f, 1);
             UIKit.Image(_root, UIKit.Rounded, new Color(0.04f, 0.05f, 0.12f, 0.55f));
             _strip = UIKit.At(_root, "Strip", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(Width, 46));
@@ -68,6 +69,7 @@ namespace Veil.UI
             {
                 bool site = s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0;
                 Mark(k++, site, (s.Site - me.Pos).Yaw, cameraYaw, $"● {Vec2.Dist(me.Pos, s.Site):0}m", new Color(1f, 0.82f, 0.3f));
+                Mark(k++, s.Stage == 0 && s.Nodes.Count == 0, (-me.Pos).Yaw, cameraYaw, $"● {me.Pos.Length:0}m", new Color(0.8f, 0.55f, 1f));
                 Mark(k++, s.ExtractRevealed, (s.ExtractPos - me.Pos).Yaw, cameraYaw, $"● {Vec2.Dist(me.Pos, s.ExtractPos):0}m", s.ExtractController == -1 ? Color.white : new Color(1f, 0.4f, 0.4f));
                 for (int i = 0; i < GameConfig.HackNodes; i++)
                 {
@@ -127,7 +129,7 @@ namespace Veil.UI
             var hint = UIKit.LabelAt(_root, "M / tap to close", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(42, -74), new Vector2(400, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
             hint.rectTransform.pivot = new Vector2(0, 1);
             var legend = UIKit.LabelAt(_root,
-                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective\n<color=#ffffff>●</color> Extraction\n<color=#ff4d6d>●</color><color=#38d6ff>●</color><color=#b06bff>●</color> Hack nodes\n<color=#e8d7a8>●</color> Roads   <color=#b88a52>●</color> Bridges",
+                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective / home terminal\n<color=#c08cff>●</color> Central terminal (+bonus)\n<color=#ffffff>●</color> Extraction\n<color=#ff4d6d>●</color><color=#38d6ff>●</color><color=#b06bff>●</color> Hack nodes\n<color=#e8d7a8>●</color> Roads   <color=#b88a52>●</color> Bridges",
                 18, Theme.Text, new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(300, 260), TextAnchor.MiddleLeft, UIKit.BoldFont);
             legend.rectTransform.pivot = new Vector2(1, 0.5f);
             legend.supportRichText = true; legend.lineSpacing = 1.4f;
@@ -172,6 +174,7 @@ namespace Veil.UI
             if (GameConfig.ExtractionMode)
             {
                 if (s.Stage < 4 && s.Task != ChainTask.Collect) Dot(Icons.Target, new Color(1f, 0.82f, 0.25f), s.Site, 30);
+                if (s.Stage == 0) Dot(Icons.Target, new Color(0.8f, 0.55f, 1f), Vec2.Zero, 34);
                 if (s.ExtractRevealed) Dot(Icons.Trophy, Color.white, s.ExtractPos, 34);
                 foreach (var n in s.Nodes) Dot(UIKit.Diamond, HackPanel.KindColor(n.Kind), n.Pos, 16);
             }

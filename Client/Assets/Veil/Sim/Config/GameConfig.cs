@@ -6,7 +6,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 9;
+        public const int ProtocolVersion = 10;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -47,7 +47,13 @@ namespace Veil.Sim
         // ---- extraction mode (Rilo v2): Objective 1 → 2 → 3 → central Vault → Extraction, one winning squad ----
         public const bool ExtractionMode = true;      // false = the old score-only match
         // Hack Terminal (docs/HACK_TERMINAL.md): one shared terminal in the central plaza, every squad has its own progress
-        public const float HackTime = 14f;             // base time for one hacker
+        // Objective 1 can be done at your squad's HOME terminal (slower, quiet) or the CENTRAL one (faster + bonus, contested)
+        public const float HackTime = 20f;             // home terminal, one hacker
+        public const float CenterHackTime = 12f;       // central terminal, one hacker
+        public const float HomeHackRadius = 4.5f;
+        public static readonly float[] CenterInstability = { 0.5f };
+        public const float CenterBonusReveal = 10f;    // finishing at the centre: all enemies revealed to the squad
+        public const float CenterBonusEnergy = 40f;    // ...and energy for every squadmate
         public const float HackRadius = 6.5f;          // interaction zone around the terminal (the plaza ring inside the low walls)
         public static readonly float[] HackSpeed = { 0f, 1f, 1.5f, 1.75f, 1.9f };   // by hackers in the zone: never linear
         public static readonly float[] HackInstability = { 0.35f, 0.67f };          // progress where the terminal destabilises

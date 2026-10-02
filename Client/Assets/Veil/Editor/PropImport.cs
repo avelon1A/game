@@ -11,7 +11,7 @@ namespace Veil.EditorTools
     {
         private bool IsProp => assetPath.StartsWith("Assets/Veil/Resources/Props/");
 
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 2;
 
         private void OnPreprocessModel()
         {
@@ -29,6 +29,15 @@ namespace Veil.EditorTools
         {
             if (!IsProp) return;
             var ti = (TextureImporter)assetImporter;
+            if (System.IO.Path.GetFileName(assetPath).StartsWith("big_"))
+            {
+                // textured Meshy landmarks: smooth, mipmapped, phone-sized
+                ti.filterMode = FilterMode.Bilinear;
+                ti.mipmapEnabled = true;
+                ti.maxTextureSize = 1024;
+                ti.textureCompression = TextureImporterCompression.Compressed;
+                return;
+            }
             ti.filterMode = FilterMode.Point;       // Kenney colour palettes: keep the flat colours crisp
             ti.mipmapEnabled = false;
         }

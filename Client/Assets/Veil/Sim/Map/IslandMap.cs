@@ -145,6 +145,20 @@ namespace Veil.Sim
                 m.SpawnPoints.Add(home);
                 m.Decals.Add(new GroundDecal { Kind = 2, Center = home, Radius = 7f });
             }
+            // home terminals: a small compound on each spawn region's road towards the centre (same distance for everyone)
+            for (int s = 0; s < 4; s++)
+            {
+                float yaw = 45f + 90f * s;
+                var t = Vec2.FromYaw(yaw) * 128f;
+                m.HomeTerminals.Add(t);
+                m.Decals.Add(new GroundDecal { Kind = 2, Center = t, Radius = 6.5f });
+                Box(m, ObstacleKind.Console, t + Vec2.FromYaw(yaw + 90f) * 1.6f, new Vec2(0.7f, 0.5f), yaw, 1.4f);
+                for (int w = 0; w < 3; w++)
+                {
+                    float wy = yaw + 60f + w * 120f;   // three cover walls, three open entrances between them
+                    Box(m, ObstacleKind.LowWall, t + Vec2.FromYaw(wy) * 7.5f, new Vec2(2.4f, 0.45f), wy + 90f, 1.0f);
+                }
+            }
             for (int s = 0; s < 4; s++)
                 for (int j = 0; j < 3; j++)
                     m.SpawnPoints.Add(FreeSpot(m, m.SpawnPoints[s] + Vec2.FromYaw(j * 120f + 30f) * 4f, 1.2f));
@@ -162,6 +176,8 @@ namespace Veil.Sim
 
             var reserved = new List<Vec2>();
             reserved.AddRange(m.SpawnPoints); reserved.AddRange(m.KeySpots); reserved.AddRange(m.CoreSpots);
+            foreach (var t in m.HomeTerminals) for (int a = 0; a < 8; a++) reserved.Add(t + Vec2.FromYaw(a * 45f) * 5f);
+            foreach (var t in m.HomeTerminals) reserved.Add(t);
 
             // ---------------- regions ----------------
             BuildSnow(m, rng, reserved);
@@ -242,7 +258,7 @@ namespace Veil.Sim
                     if (r < 24f || r > CityRadius - 7f) continue;
                     float bearing = ((c.Yaw % 45f) + 45f) % 45f;
                     if (MathF.Min(bearing, 45f - bearing) * MathUtil.Deg2Rad * r < 7.5f) continue;   // avenue
-                    if (Vec2.Dist(c, Vec2.FromYaw(0) * 42f) < 12f) continue;                         // market square
+                    if (Vec2.Dist(c, Vec2.FromYaw(0) * 42f) < 17f) continue;                         // market square (big market landmark)
                     var o = Box(m, ObstacleKind.CityBlock, c, new Vec2(rng.Range(4.2f, 5.6f), rng.Range(4.2f, 5.6f)), 0, rng.Range(10f, 26f));
                     o.Variant = rng.Int(10000);
                 }
@@ -267,8 +283,13 @@ namespace Veil.Sim
         private static void BuildSnow(MapData m, Rng rng, List<Vec2> reserved)
         {
             const int k = 0;
-            Box(m, ObstacleKind.VaultBuilding, Vec2.FromYaw(8) * 152f + new Vec2(0, 6.5f), new Vec2(6, 3.5f), 0, 8f);
-            for (int i = 0; i < 5; i++) Box(m, ObstacleKind.Hut, Local(k, 125f + i % 2 * 22f, -14f + i * 7f), new Vec2(3.2f, 2.4f), rng.Range(0, 90), 4f).Variant = i;
+            Box(m, ObstacleKind.VaultBuilding, Vec2.FromYaw(8) * 152f + new Vec2(0, 10f), new Vec2(8.5f, 4.5f), 0, 10f);   // big vault landmark, door facing the zone
+            for (int i = 0; i < 5; i++)
+            {
+                var hp = Local(k, 125f + i % 2 * 22f, -14f + i * 7f);
+                if (Vec2.Dist(hp, m.Zone(ZoneType.Vault).Center) < 16f) continue;   // keep the vault square clear
+                Box(m, ObstacleKind.Hut, hp, new Vec2(3.2f, 2.4f), rng.Range(0, 90), 4f).Variant = i;
+            }
             Circle(m, ObstacleKind.Watchtower, Local(k, 108f, 10f), 1.6f, 12f);
             Box(m, ObstacleKind.LowWall, Local(k, 140f, 0f), new Vec2(3f, 0.5f), 90, 1.1f);
             Scatter(m, rng, reserved, k, 55, 80f, 182f, p => Circle(m, ObstacleKind.Pine, p, 0.6f, 8f));
@@ -299,16 +320,14 @@ namespace Veil.Sim
         {
             const int k = 2;
             var c = m.Zone(ZoneType.Ruins).Center;
-            Vec2 R(float x, float y) => c + Vec2.RotateYaw(new Vec2(x, y), 90f);
-            Box(m, ObstacleKind.Wall, R(-4, 9), new Vec2(4, 0.5f), 90, 3.2f);
-            Box(m, ObstacleKind.LowWall, R(5.5f, 9), new Vec2(2.5f, 0.5f), 90, 1.0f);
-            Box(m, ObstacleKind.LowWall, R(-6, -9), new Vec2(3, 0.5f), 90, 1.0f);
-            Box(m, ObstacleKind.Wall, R(6.5f, -9), new Vec2(2.5f, 0.5f), 90, 3.2f);
-            Box(m, ObstacleKind.Wall, R(-9, 3), new Vec2(0.5f, 4), 90, 3.2f);
-            Box(m, ObstacleKind.Wall, R(9, 5), new Vec2(0.5f, 3), 90, 3.2f);
-            Box(m, ObstacleKind.Wall, R(-2.5f, 2.5f), new Vec2(2.2f, 0.45f), 0, 2.8f);
-            Box(m, ObstacleKind.Wall, R(3.5f, -3.5f), new Vec2(2f, 0.45f), 90, 2.8f);
-            for (int i = 0; i < 6; i++) Circle(m, ObstacleKind.Pillar, R(rng.Range(-12, 12), rng.Range(-12, 12)), 0.7f, rng.Chance(0.5f) ? 3.6f : 1.0f);
+            // temple ruins landmark: a ring of broken columns (cover) around a raised centre, two fallen wall pieces
+            for (int i = 0; i < 10; i++)
+            {
+                if (i == 2 || i == 7) continue;   // entrances
+                Circle(m, ObstacleKind.Pillar, c + Vec2.FromYaw(i * 36f + 90f) * 11f, 0.9f, i % 3 == 0 ? 1.2f : 4f);
+            }
+            Box(m, ObstacleKind.LowWall, c + Vec2.FromYaw(150f) * 5f, new Vec2(2.4f, 0.6f), 60f, 1.0f);
+            Box(m, ObstacleKind.LowWall, c + Vec2.FromYaw(330f) * 5f, new Vec2(2.4f, 0.6f), 60f, 1.0f);
             Scatter(m, rng, reserved, k, 30, 80f, 182f, p => Tree(m, p));
             Scatter(m, rng, reserved, k, 14, 80f, 180f, p => Circle(m, ObstacleKind.Rock, p, rng.Range(1f, 2.2f), rng.Range(1.4f, 3f)));
             Scatter(m, rng, reserved, k, 8, 90f, 175f, p => Circle(m, ObstacleKind.Pillar, p, 0.7f, rng.Range(1f, 3.6f)));
