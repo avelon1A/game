@@ -45,8 +45,23 @@ namespace Veil.Sim
             return c;
         }
 
+        private void SpawnGlitch(SquadState sq)
+        {
+            sq.Glitches++;
+            float baseYaw = Rng.Range(0, 360);
+            for (int i = 0; i < GameConfig.HackNodes; i++)
+            {
+                Vec2 c = sq.Site + Vec2.FromYaw(baseYaw + i * (360f / GameConfig.HackNodes) + Rng.Range(-25f, 25f)) * GameConfig.HackNodeDistance * Rng.Range(0.75f, 1.15f);
+                if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
+                sq.Nodes.Add(c);
+            }
+            Events.Add(new SimEvent(EventType.HackGlitch, sq.Id, sq.Glitches, 0, sq.Site));
+        }
+
         private void EnterStage(SquadState sq)
         {
+            sq.Nodes.Clear();
+            sq.Glitches = 0;
             sq.StageProg = 0;
             sq.Site = SiteFor(sq, sq.Stage);
             sq.CoresAtStart = SquadCores(sq.Id);
@@ -85,10 +100,19 @@ namespace Veil.Sim
                         if (p.Squad == sq.Id) { if (d2 <= r2) mine++; }
                         else if (d2 <= e2) enemy = true;
                     }
-                    if (mine > 0 && !enemy)
+                    if (task == ChainTask.Hack && mine > 0)
+                        foreach (var p in Players) if (p.Squad == sq.Id && Standing(p) && Vec2.DistSq(p.Pos, sq.Site) <= r2) p.NoiseT = MathF.Max(p.NoiseT, 0.5f);   // hacking is loud
+                    if (mine > 0 && !enemy && sq.Nodes.Count == 0)
                     {
                         float rate = task == ChainTask.Capture ? 1f + 0.25f * (mine - 1) : 1f;
+                        float before = sq.StageProg;
                         sq.StageProg = MathF.Min(1f, sq.StageProg + dt / time * rate);
+                        // the terminal glitches at 1/3 and 2/3: glitch nodes pop up around it, shoot them all to resume
+                        if (task == ChainTask.Hack && sq.Glitches < GameConfig.HackGlitches)
+                        {
+                            float at = (sq.Glitches + 1f) / (GameConfig.HackGlitches + 1f);
+                            if (before < at && sq.StageProg >= at) { sq.StageProg = at; SpawnGlitch(sq); }
+                        }
                     }
                 }
                 if (sq.StageProg >= 1f) CompleteStage(sq);

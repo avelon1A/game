@@ -6,7 +6,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 6;
+        public const int ProtocolVersion = 7;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -45,7 +45,11 @@ namespace Veil.Sim
 
         // ---- extraction mode (Rilo v2): Objective 1 → 2 → 3 → central Vault → Extraction, one winning squad ----
         public const bool ExtractionMode = true;      // false = the old score-only match
-        public const float HackTime = 8f;              // stand at your squad's terminal
+        public const float HackTime = 14f;             // stand at your squad's terminal...
+        public const int HackGlitches = 2;             // ...it glitches at 1/3 and 2/3: shoot all nodes to resume
+        public const int HackNodes = 3;
+        public const float HackNodeRadius = 0.9f;      // hit radius of a glitch node
+        public const float HackNodeDistance = 8f;      // nodes appear this far around the terminal
         public const float HackRadius = 3f;
         public const float PadCaptureTime = 12f;       // hold your squad's capture pad (more members = faster)
         public const float CaptureRadius = 5f;
@@ -61,7 +65,8 @@ namespace Veil.Sim
         public const float StageRevealRadius = 30f;    // completing a stage reveals nearby enemies...
         public const float StageRevealTime = 4f;       // ...for this long
 
-        // ---- downed & revive (Rilo v2, Milestone 1) ----
+        // ---- downed & revive (Rilo v2, Milestone 1) — switched off: eliminated players respawn at their squad's spawn ----
+        public const bool DownedEnabled = false;
         public const float DownedHealth = 60f;        // "bleed HP": enemies must deal this much more to finish a downed player
         public const float DownedBleedTime = 25f;     // downed this long without a revive = eliminated
         public const float DownedSpeed = 1.4f;        // crawl speed

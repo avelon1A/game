@@ -254,7 +254,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed,
     }
 
     public struct SimEvent
@@ -283,6 +283,8 @@ namespace Veil.Sim
         public int CoresAtStart;
         public float ExtractProg;       // 0..1, first squad to 1 wins
         public bool VaultDone => Stage >= 4;
+        public readonly System.Collections.Generic.List<Vec2> Nodes = new System.Collections.Generic.List<Vec2>();   // live hack glitch nodes
+        public int Glitches;            // glitches already triggered this hack
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;
         public int CapturedMask;

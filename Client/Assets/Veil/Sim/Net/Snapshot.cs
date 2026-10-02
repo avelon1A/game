@@ -80,6 +80,7 @@ namespace Veil.Sim
         public readonly byte[] SquadStage = new byte[GameConfig.SquadCount];
         public readonly float[] SquadExtract = new float[GameConfig.SquadCount];
         public ChainTask Task => MatchSim.TaskOf(Stage);
+        public readonly List<Vec2> Nodes = new List<Vec2>();   // own squad's hack glitch nodes
     }
 
     public sealed class RosterEntry
@@ -167,6 +168,7 @@ namespace Veil.Sim
             }
 
             snap.Stage = squad.Stage; snap.StageProg = squad.StageProg; snap.Site = squad.Site;
+            snap.Nodes.Clear(); snap.Nodes.AddRange(squad.Nodes);
             snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
             for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
@@ -210,6 +212,10 @@ namespace Veil.Sim
                 case EventType.ExtractRevealed:
                 case EventType.ExtractControl:
                     return true;
+                case EventType.HackGlitch:
+                    return e.A == viewer.Squad;
+                case EventType.NodeDestroyed:
+                    return Ally(sim, viewer, e.A);
                 case EventType.StageComplete:
                     if (viewer.Squad != e.A) e.Pos = Vec2.Zero;   // rivals learn the progress, not where their site is
                     return true;

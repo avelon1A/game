@@ -127,6 +127,16 @@ namespace Veil.Sim
                         break;
                     }
                     var shooter = Players[pr.Owner];
+                    var nodes = Squads[shooter.Squad].Nodes;
+                    for (int n = 0; n < nodes.Count; n++)
+                    {
+                        if (Vec2.DistSq(nodes[n], pr.Pos) > GameConfig.HackNodeRadius * GameConfig.HackNodeRadius) continue;
+                        Events.Add(new SimEvent(EventType.NodeDestroyed, shooter.Id, nodes.Count - 1, 0, nodes[n]));
+                        nodes.RemoveAt(n);
+                        pr.Dead = true;
+                        break;
+                    }
+                    if (pr.Dead) break;
                     foreach (var p in Players)
                     {
                         if (p.Id == pr.Owner || Allies(p, shooter) || !p.Alive) continue;   // no friendly fire
@@ -207,7 +217,7 @@ namespace Veil.Sim
         /// <summary>Out of health: knocked down while a squadmate is still standing, otherwise eliminated.</summary>
         private void HealthGone(PlayerState v, int attacker)
         {
-            if (v.Downed || !HasStandingMate(v)) { Eliminate(v, v.Downed && attacker < 0 ? v.DownedBy : attacker); return; }
+            if (!GameConfig.DownedEnabled || v.Downed || !HasStandingMate(v)) { Eliminate(v, v.Downed && attacker < 0 ? v.DownedBy : attacker); return; }
             v.Downed = true;
             v.Health = GameConfig.DownedHealth;
             v.Shield = 0;
@@ -333,6 +343,17 @@ namespace Veil.Sim
         /// <summary>Far from enemies, preferably close to a living squadmate (squads regroup after a death).</summary>
         private Vec2 PickRespawnPoint(PlayerState who)
         {
+            if (GameConfig.ExtractionMode)
+            {
+                // back to your squad's spawn site
+                Vec2 home = Squads[who.Squad].Spawn;
+                for (int i = 0; i < 12; i++)
+                {
+                    Vec2 c = home + Vec2.FromYaw(Rng.Range(0, 360)) * Rng.Range(0f, 3f);
+                    if (Map.Nav.Walkable(c)) return c;
+                }
+                return home;
+            }
             Vec2 best = Vec2.Zero;
             float bestScore = float.MinValue;
             float limit = CircleRadius * 0.85f;

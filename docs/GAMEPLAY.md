@@ -12,7 +12,7 @@
 ### The route (every squad, same distances)
 | Step | Task | Rule |
 |---|---|---|
-| Objective 1 | **Hack Terminal** | a squadmate stands at your terminal (3 m) for 8 s |
+| Objective 1 | **Hack Terminal** | stand at your terminal (3 m) for 14 s; at 1/3 and 2/3 it **glitches**: 3 red nodes appear ~8 m around it, shoot them all to resume. Hacking is loud (shows you on nearby minimaps) |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
 | Vault | **Central Vault** | channel at the centre (6 m) for 10 s |
@@ -69,10 +69,7 @@ Pick in **Characters → HERO** plus a **glow colour**; bots get random heroes. 
 | Health | 100, regenerates 7/s after 5 s without damage |
 | Blaster | 11 damage per hit, 0.3 s between shots, instant hit (bolts cross the 30 m range in one tick) |
 | Knockback | small push on hit |
-| Downed | at 0 HP you are **knocked down** (if a squadmate is still standing): crawl, can't shoot; 60 bleed-HP, bleed out in 25 s |
-| Revive | a squadmate stands within 2.3 m without shooting for 4 s → back up with 30 HP (+50 for the reviver) |
-| Squad wipe | nobody in the squad standing → all downed members are eliminated |
-| Respawn | 5 s after elimination, then 2 s spawn protection, near your squad. While dead you **spectate** squadmates (1–4 / click / tap to switch) |
+| Respawn | 5 s after elimination (15 s once extraction is revealed) at **your squad's spawn**, then 2 s spawn protection. While dead you **spectate** squadmates (1–4 / click / tap to switch) |
 | Assists | damaging an enemy within 8 s before their elimination: +30 |
 | On death | you keep 60 % of your energy |
 | Friendly fire | **off**: squadmates can't hurt each other |

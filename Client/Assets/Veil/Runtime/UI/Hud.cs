@@ -514,6 +514,13 @@ namespace Veil.UI
                     else Feed($"{sq} completed {what}", e.B >= 3 ? Theme.Red : Theme.TextDim);
                     break;
                 }
+                case EventType.HackGlitch:
+                    Banner("TERMINAL GLITCH", $"Shoot the {GameConfig.HackNodes} red nodes around it to keep hacking", 2.5f);
+                    Sfx.Play(Sfx.HitMe, 0.6f);
+                    break;
+                case EventType.NodeDestroyed:
+                    Popup(e.B > 0 ? $"NODE DOWN · {e.B} LEFT" : "TERMINAL RESTORED");
+                    break;
                 case EventType.ExtractRevealed:
                     Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
                     Sfx.Play(Sfx.Capture, 0.9f);
@@ -759,7 +766,8 @@ namespace Veil.UI
                 c.Title.text = s.Stage < 3 ? $"OBJ {s.Stage + 1}/3 · {TaskTitle(task)}" : "OPEN THE CENTRAL VAULT";
                 c.Desc.text = task switch
                 {
-                    ChainTask.Hack => $"Stand at your terminal · {dist:0} m",
+                    ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>GLITCH! Shoot the {s.Nodes.Count} red nodes</color>",
+                    ChainTask.Hack => $"Stand at your terminal · {dist:0} m (hacking is loud)",
                     ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
                     ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
                     _ => $"Channel at the Vault in the centre · {dist:0} m",
@@ -772,6 +780,7 @@ namespace Veil.UI
                 c.Desc.text = "Reach the extraction and hold it";
                 c.Progress.text = "DONE";
             }
+            c.Desc.supportRichText = true;
             c.Icon.sprite = TaskIcon(task);
             c.Bar.Set(s.Stage < 4 ? s.StageProg : 1, Time.deltaTime);
             c.Check.gameObject.SetActive(s.Stage >= 4);

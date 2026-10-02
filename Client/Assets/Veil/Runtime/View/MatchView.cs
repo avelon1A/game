@@ -173,8 +173,35 @@ namespace Veil.View
             _extract.gameObject.SetActive(false);
         }
 
+        private readonly List<Transform> _nodes = new List<Transform>();
+        private Material _nodeMat;
+
+        private void UpdateNodes(Snapshot s)
+        {
+            if (_nodeMat == null) _nodeMat = MaterialLib.Glow(new Color(1f, 0.25f, 0.45f), 4f);
+            while (_nodes.Count < s.Nodes.Count)
+            {
+                var n = Build.Node(Root, "GlitchNode", Vector3.zero);
+                Build.Part(n, MeshGen.Octahedron, _nodeMat, new Vector3(0, 1.2f, 0), new Vector3(0.7f, 1f, 0.7f), null, "Core", false);
+                Build.Part(n, MeshGen.Ring(0.8f, 1f, 32), _xRed, new Vector3(0, 0.06f, 0), Vector3.one * 0.9f, null, "Ring", false);
+                Build.Part(n, MeshGen.Cylinder(8), _xRed, new Vector3(0, 6f, 0), new Vector3(0.12f, 12f, 0.12f), null, "Beam", false);
+                _nodes.Add(n);
+            }
+            for (int i = 0; i < _nodes.Count; i++)
+            {
+                bool on = i < s.Nodes.Count;
+                _nodes[i].gameObject.SetActive(on);
+                if (!on) continue;
+                _nodes[i].position = new Vector3(s.Nodes[i].X, 0, s.Nodes[i].Y);
+                var core = _nodes[i].GetChild(0);
+                core.localRotation = Quaternion.Euler(0, Time.time * 160f + i * 40f, 0);
+                core.localPosition = new Vector3(0, 1.2f + Mathf.Sin(Time.time * 4f + i) * 0.15f, 0);
+            }
+        }
+
         private void UpdateChainMarkers(Snapshot s)
         {
+            UpdateNodes(s);
             bool showSite = s.Stage < 4 && s.Task != ChainTask.Collect;
             _site.gameObject.SetActive(showSite);
             if (showSite)

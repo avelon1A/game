@@ -449,6 +449,20 @@ namespace Veil.Sim
                 if (!_sim.Map.Nav.Walkable(dest)) dest = _goalPos;
             }
 
+            // ---- hack glitch nodes: go near and shoot them ----
+            Vec2? node = null;
+            var myNodes = _sim.Squads[_p.Squad].Nodes;
+            if (!target.HasValue && myNodes.Count > 0 && !_p.Downed)
+            {
+                float bn = 30f;
+                foreach (var n in myNodes)
+                {
+                    float d = Vec2.Dist(n, _p.Pos);
+                    if (d < bn && _sim.Map.HasLineOfSight(_p.Pos, n)) { bn = d; node = n; }
+                }
+                if (!node.HasValue && myNodes.Count > 0 && Vec2.Dist(myNodes[0], _p.Pos) < 40f) dest = myNodes[0];
+            }
+
             // ---- combat ----
             bool fighting = false;
             if (target.HasValue && VisibleNow(target.Value) && _goal != Goal.Flee)
@@ -493,6 +507,14 @@ namespace Veil.Sim
                 if (remaining > 12f && _goal != Goal.HoldZone) cmd.Buttons |= Buttons.Sprint;
                 if (_goal == Goal.Flee || _goal == Goal.Center) cmd.Buttons |= Buttons.Sprint;
                 if (remaining > 35f && _p.Energy > 75 && _p.DashCd <= 0 && _rng.Chance(0.01f)) _wantDash = true;
+            }
+            if (!fighting && node.HasValue)
+            {
+                float desired = (node.Value - _p.Pos).Yaw + _rng.Range(-(1.2f - _skill) * 6f, (1.2f - _skill) * 6f);
+                float turn = 540f * dt * (0.6f + _skill);
+                cmd.Yaw = _p.Yaw + MathUtil.Clamp(MathUtil.DeltaAngle(_p.Yaw, desired), -turn, turn);
+                cmd.Buttons &= ~Buttons.Sprint;
+                if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 6f) cmd.Buttons |= Buttons.Fire;
             }
 
             if (_wantDash) { cmd.Buttons |= Buttons.Dash; _wantDash = false; }
