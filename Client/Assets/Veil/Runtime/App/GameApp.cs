@@ -943,6 +943,7 @@ namespace Veil.App
             void Near(Vector3 at, float yaw, float dist, float h) => Pose(at + Quaternion.Euler(0, yaw, 0) * new Vector3(0, h, -dist), at + Vector3.up * 3f, false, 0);
             Near(new Vector3(0, 0, 42), 180, 26, 14); yield return Shot("lm_market");
             Near(new Vector3(0, 0, 0), 200, 22, 12); yield return Shot("lm_tower");
+            Near(new Vector3(18, 0, 30), 200, 30, 14); yield return Shot("lm_buildings");
             { var bp = Vec2.FromYaw(22.5f + 2f) * 118f; Near(new Vector3(bp.X, 0, bp.Y), 300, 14, 7); yield return Shot("lm_bridge"); }
             Near(new Vector3(0, 0, 30), 180, 14, 6); yield return Shot("lm_street");
             Near(new Vector3(-138, 0, 0), 90, 26, 14); yield return Shot("lm_reactor");
