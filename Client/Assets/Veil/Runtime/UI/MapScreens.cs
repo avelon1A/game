@@ -129,7 +129,7 @@ namespace Veil.UI
             var hint = UIKit.LabelAt(_root, "M / tap to close", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(42, -74), new Vector2(400, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
             hint.rectTransform.pivot = new Vector2(0, 1);
             var legend = UIKit.LabelAt(_root,
-                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective / home terminal\n<color=#c08cff>●</color> Central terminal (+bonus)\n<color=#ffffff>●</color> Extraction\n<color=#ff4d6d>●</color><color=#38d6ff>●</color><color=#b06bff>●</color> Hack nodes\n<color=#e8d7a8>●</color> Roads   <color=#b88a52>●</color> Bridges",
+                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective / enemy terminal to raid\n<color=#c08cff>●</color> Central terminal (+bonus)\n<color=#ffffff>●</color> Extraction\n<color=#ff4d6d>●</color><color=#38d6ff>●</color><color=#b06bff>●</color> Hack nodes\n<color=#e8d7a8>●</color> Roads   <color=#b88a52>●</color> Bridges",
                 18, Theme.Text, new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(300, 260), TextAnchor.MiddleLeft, UIKit.BoldFont);
             legend.rectTransform.pivot = new Vector2(1, 0.5f);
             legend.supportRichText = true; legend.lineSpacing = 1.4f;

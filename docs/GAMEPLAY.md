@@ -15,7 +15,7 @@
 ### The route (every squad, same distances)
 | Step | Task | Rule |
 |---|---|---|
-| Objective 1 | **Hack a Terminal** | **your HOME terminal** (compound on your spawn road: 20 s, faults at 35 % / 67 %, quiet) **or the CENTRAL one** (Rilo plaza: 12 s, fault at 50 %, contested by everyone; bonus: all enemies revealed 10 s + 40 energy). 1/2/3/4 hackers = 100/150/175/190 %. Faults spawn Destroy / Stabilize / Override nodes (`docs/HACK_TERMINAL.md`) |
+| Objective 1 | **Hack a Terminal** | **an ENEMY squad's home terminal** (raid it: 20 s, faults at 35 % / 67 %; you can NOT hack your own, its owners can defend it) **or the CENTRAL one** (Rilo plaza: 12 s, fault at 50 %, contested by everyone; bonus: all enemies revealed 10 s + 40 energy). 1/2/3/4 hackers = 100/150/175/190 %. Faults spawn Destroy / Stabilize / Override nodes (`docs/HACK_TERMINAL.md`) |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
 | Vault | **Central Vault** | channel at the centre (6 m) for 10 s |

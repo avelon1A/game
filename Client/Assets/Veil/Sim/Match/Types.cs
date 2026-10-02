@@ -299,7 +299,8 @@ namespace Veil.Sim
         public int Glitches;            // instabilities already triggered this hack
         public int Hackers;             // squadmates in the CENTRAL terminal zone right now
         public bool Contested;          // an enemy is in the central zone (progress stops, nothing is lost)
-        public Vec2 Home;               // this squad's home terminal
+        public Vec2 Home;               // the ENEMY home terminal this squad is raiding (Objective 1)
+        public Vec2 OwnHome;            // this squad's own home terminal (others raid it, it can't hack it)
         public float HomeProg, CenterProg;
         public int HomeGlitches, HomeHackers;
         public bool HomeContested, NodesHome;   // NodesHome: the active nodes belong to the home terminal

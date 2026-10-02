@@ -538,7 +538,7 @@ namespace Veil.UI
                     else Feed($"<color=#ffb057>Squad {(char)('A' + e.A)} hacked the CENTRAL terminal</color> — they can see you", Theme.Text);
                     break;
                 case EventType.HackContested:
-                    Popup(e.B == 1 ? "HOME TERMINAL CONTESTED" : "CENTRAL TERMINAL CONTESTED");
+                    Popup(e.B == 1 ? "ENEMY TERMINAL CONTESTED" : "CENTRAL TERMINAL CONTESTED");
                     break;
                 case EventType.ExtractRevealed:
                     Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
@@ -679,7 +679,7 @@ namespace Veil.UI
             {
                 SetChain(s, me);
                 _hack?.Update(s, me, dt);
-                if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK A TERMINAL", "Your HOME terminal (safe, slower) or the CENTRAL one (fast + bonus, contested)", 5f); }
+                if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK A TERMINAL", "Raid an ENEMY home terminal (20 s) or take the CENTRAL one (12 s + bonus) — you cannot hack your own", 5f); }
             }
             else
             {
@@ -801,7 +801,7 @@ namespace Veil.UI
                 c.Desc.text = task switch
                 {
                     ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>Instability: {s.Nodes.Count} node(s) to resolve</color>",
-                    ChainTask.Hack => $"Home {Mathf.RoundToInt(s.HomeProg * 100)}% · {dist:0} m  |  Centre {Mathf.RoundToInt(s.CenterProg * 100)}% · {me.Pos.Length:0} m",
+                    ChainTask.Hack => $"Enemy {Mathf.RoundToInt(s.HomeProg * 100)}% · {dist:0} m  |  Centre {Mathf.RoundToInt(s.CenterProg * 100)}% · {me.Pos.Length:0} m",
                     ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
                     ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
                     _ => $"Channel at the Vault in the centre · {dist:0} m",
@@ -991,7 +991,7 @@ namespace Veil.UI
         {
             if (GameConfig.ExtractionMode)
             {
-                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0, s.Site, s.Stage == 0 ? "HOME TERMINAL" : s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect && s.Nodes.Count == 0, s.Site, s.Stage == 0 ? "ENEMY TERMINAL" : s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
                 Waypoint(ref _wpCentre, s.Stage == 0 && s.Nodes.Count == 0, Vec2.Zero, "CENTRAL TERMINAL +BONUS", new Color(0.8f, 0.55f, 1f), me);
                 for (int i = 0; i < _wpNodes.Length; i++)
                 {

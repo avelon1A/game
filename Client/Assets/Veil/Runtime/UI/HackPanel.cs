@@ -121,7 +121,7 @@ namespace Veil.UI
             _pct.text = $"{Mathf.FloorToInt(prog * 100)}%";
             _pct.color = unstable ? new Color(1f, 0.4f, 0.45f) : contested ? new Color(1f, 0.6f, 0.25f) : Term;
             _log.text = Log(s, prog, hackers, contested, marks, unstable);
-            _header.text = home ? "RILO//OS  ·  HOME TERMINAL  ·  SLOW + SAFE" : "RILO//OS  ·  CENTRAL TERMINAL  ·  FAST + BONUS  ·  CONTESTED";
+            _header.text = home ? "RILO//OS  ·  ENEMY HOME TERMINAL  ·  RAID  ·  20 s" : "RILO//OS  ·  CENTRAL TERMINAL  ·  FAST + BONUS  ·  CONTESTED";
             float st = Stability(prog, unstable ? 1 : 0, marks);
             _stability.Set(st, dt);
             _stability.SetColor(st < 0.3f ? new Color(1f, 0.35f, 0.4f) : Theme.Cyan);
@@ -142,13 +142,13 @@ namespace Veil.UI
             else if (hackers > 0)
             {
                 int pct = Mathf.RoundToInt(GameConfig.HackSpeed[Mathf.Min(hackers, GameConfig.HackSpeed.Length - 1)] * 100);
-                _title.text = home ? "HACKING HOME TERMINAL" : "HACKING CENTRAL TERMINAL";
+                _title.text = home ? "RAIDING ENEMY TERMINAL" : "HACKING CENTRAL TERMINAL";
                 _state.text = $"{hackers} hacking · <color=#ffd84a>{pct}% speed</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
             else
             {
-                _title.text = home ? "HOME TERMINAL" : "CENTRAL TERMINAL";
+                _title.text = home ? "ENEMY HOME TERMINAL" : "CENTRAL TERMINAL";
                 _state.text = home ? "<color=#aab0d8>step into the ring to hack</color>" : "<color=#aab0d8>enter the plaza ring · +bonus</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }

@@ -30,7 +30,8 @@ namespace Veil.Sim
             {
                 var sq = Squads[s];
                 sq.Spawn = anchors[s % anchors.Length];
-                sq.Home = HomeTerminalFor(sq.Spawn);
+                sq.OwnHome = HomeTerminalFor(sq.Spawn);
+                sq.Home = RaidTarget(sq);
                 sq.Stage = 0;
                 EnterStage(sq);
             }
@@ -42,6 +43,23 @@ namespace Veil.Sim
         {
             Vec2 best = spawn * 0.85f; float bd = float.MaxValue;
             foreach (var t in Map.HomeTerminals) { float d = Vec2.DistSq(t, spawn); if (d < bd) { bd = d; best = t; } }
+            return best;
+        }
+
+        /// <summary>A squad can't hack its own home terminal: it raids an ENEMY home terminal (the nearest one to its
+        /// members) or takes the central one. Progress on enemy terminals is one shared value per squad.</summary>
+        private Vec2 RaidTarget(SquadState sq)
+        {
+            Vec2 c = Vec2.Zero; int n = 0;
+            foreach (var p in Players) if (p.Squad == sq.Id && Standing(p)) { c += p.Pos; n++; }
+            c = n > 0 ? c / n : sq.Spawn;
+            Vec2 best = sq.OwnHome; float bd = float.MaxValue;
+            foreach (var t in Map.HomeTerminals)
+            {
+                if (Vec2.DistSq(t, sq.OwnHome) < 1f) continue;
+                float d = Vec2.DistSq(t, c);
+                if (d < bd) { bd = d; best = t; }
+            }
             return best;
         }
 
@@ -65,6 +83,8 @@ namespace Veil.Sim
         /// (fast, contested, bonus). Finishing either completes the objective.</summary>
         private void UpdateHack(SquadState sq, float dt)
         {
+            // re-pick the enemy terminal to raid only while nobody is mid-hack there
+            if (sq.HomeHackers == 0 && !(sq.Nodes.Count > 0 && sq.NodesHome)) { sq.Home = RaidTarget(sq); sq.Site = sq.Home; }
             UpdateTerminal(sq, dt, true);
             UpdateTerminal(sq, dt, false);
             if (sq.CenterProg >= 1f)
