@@ -204,6 +204,7 @@ namespace Veil.EditorTools
             PlayerSettings.iOS.sdkVersion = simulator ? iOSSdkVersion.SimulatorSDK : iOSSdkVersion.DeviceSDK;
             if (simulator) PlayerSettings.iOS.simulatorSdkArchitecture = AppleMobileArchitectureSimulator.ARM64;
             PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            PlayerSettings.iOS.appleDeveloperTeamID = "VYKKC664R2";
             PlayerSettings.iOS.requiresFullScreen = true;
             Run(BuildTarget.iOS, BuildTargetGroup.iOS, Out(simulator ? "iOS-Simulator" : "iOS"));
         }
