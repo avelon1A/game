@@ -598,11 +598,12 @@ namespace Veil.UI
         {
             var dim = UIKit.Fill(Root, "Dim");
             UIKit.Image(dim, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.6f), true);
-            var panel = UIKit.Panel(Root, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 620));
+            var panel = UIKit.Panel(Root, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 720));
             var p = panel.transform;
             var t = UIKit.LabelAt(p, "PAUSED", 48, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(500, 60), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Button(p, "RESUME", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(420, 76), UIKit.ButtonStyle.Primary, () => App.SetPaused(false), 36);
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(60, -250), "SENSITIVITY", 0.03f, 0.4f, app.Profile.Sensitivity, v => { app.Profile.Sensitivity = v; app.Profile.Save(); app.ApplySettings(); }, v => (v * 10).ToString("0.0"));
+            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(60, -480), "CAMERA", 2.6f, 10f, app.Profile.CamDistance, v => { app.Profile.CamDistance = v; app.Profile.Save(); app.CamRig.Distance = v; }, v => v.ToString("0.0") + " m");
             new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -410), "MUSIC", new[] { "ON", "OFF" }, app.Profile.MusicOn ? 0 : 1,
                 i => { app.Profile.MusicOn = i == 0; app.Profile.Save(); app.ApplySettings(); }, 120);
             new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -330), "GYRO", new[] { "OFF", "FIRING", "ALWAYS" }, app.Profile.GyroMode,

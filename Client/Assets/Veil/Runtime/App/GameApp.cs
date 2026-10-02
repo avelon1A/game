@@ -572,7 +572,7 @@ namespace Veil.App
             _paused = false;
             CamRig.Map = Map;
             CamRig.Pitch = 18f;
-            CamRig.Distance = Platform.IsMobile ? 5.2f : 7.5f;   // phones: closer over-the-shoulder view
+            CamRig.Distance = Profile.CamDistance;   // Settings / pause: CAMERA DISTANCE (phones default close)
             // face the arena centre from the spawn
             _match.Driver.Poll();
             if (_match.Latest != null)
@@ -753,7 +753,7 @@ namespace Veil.App
                         CamRig.Yaw = Mathf.LerpAngle(CamRig.Yaw, _match.Predicted.Yaw, 1 - Mathf.Exp(-2f * dt));
                     }
                     var me = _match.Predicted;
-                    float fov = (Platform.IsMobile ? 55f : 62f) + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);   // wide phone screens: narrower FOV so the world looks closer
+                    float fov = (Platform.IsMobile ? 50f : 62f) + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);   // wide phone screens: narrower FOV so the world looks closer
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
                     if (!_match.Predicted.Alive)

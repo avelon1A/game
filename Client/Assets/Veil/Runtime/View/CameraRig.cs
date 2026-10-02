@@ -40,7 +40,7 @@ namespace Veil.View
         {
             Yaw += lookDelta.x * Sensitivity;
             Pitch = Mathf.Clamp(Pitch - lookDelta.y * Sensitivity, -8f, 65f);
-            Distance = Mathf.Clamp(Distance - scroll * 0.9f, 3.5f, 14f);
+            Distance = Mathf.Clamp(Distance - scroll * 0.9f, 2.6f, 14f);
 
             var rot = Quaternion.Euler(Pitch, Yaw, 0);
             // gentle vertical smoothing so jumps/landings don't jerk the camera

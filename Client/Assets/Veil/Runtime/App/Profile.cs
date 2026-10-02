@@ -32,6 +32,7 @@ namespace Veil.App
         public int Quality;   // 0 low, 1 high
         public bool Fullscreen;
         public int GyroMode;          // 0 off, 1 while firing, 2 always
+        public float CamDistance;     // third-person camera distance (m)
         public float GyroSensitivity;
         public bool GyroInvertX, GyroInvertY;
         public int VoiceMode;              // 0 push-to-talk, 1 open mic, 2 off
@@ -58,6 +59,7 @@ namespace Veil.App
                 Quality = PlayerPrefs.GetInt("quality", 1),
                 Fullscreen = PlayerPrefs.GetInt("fullscreen", 0) == 1,
                 GyroMode = PlayerPrefs.GetInt("gyroMode", 1),
+                CamDistance = PlayerPrefs.GetFloat("camDist", Application.isMobilePlatform ? 3.4f : 7.5f),
                 GyroSensitivity = PlayerPrefs.GetFloat("gyroSens", 1.0f),
                 GyroInvertX = PlayerPrefs.GetInt("gyroInvX", 0) == 1,
                 GyroInvertY = PlayerPrefs.GetInt("gyroInvY", 0) == 1,
@@ -95,6 +97,7 @@ namespace Veil.App
             PlayerPrefs.SetString("btok", BackendToken ?? "");
             PlayerPrefs.SetFloat("sens", Sensitivity);
             PlayerPrefs.SetFloat("music", Music);
+            PlayerPrefs.SetFloat("camDist", CamDistance);
             PlayerPrefs.SetInt("musicOn", MusicOn ? 1 : 0);
             PlayerPrefs.SetFloat("sfx", SfxVolume);
             PlayerPrefs.SetInt("minutes", MatchMinutes);

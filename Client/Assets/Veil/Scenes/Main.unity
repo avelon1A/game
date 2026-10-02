@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &459615081
+--- !u!1 &404939700
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,10 +127,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 459615085}
-  - component: {fileID: 459615084}
-  - component: {fileID: 459615083}
-  - component: {fileID: 459615082}
+  - component: {fileID: 404939704}
+  - component: {fileID: 404939703}
+  - component: {fileID: 404939702}
+  - component: {fileID: 404939701}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -138,13 +138,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &459615082
+--- !u!114 &404939701
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 459615081}
+  m_GameObject: {fileID: 404939700}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
@@ -182,21 +182,21 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!81 &459615083
+--- !u!81 &404939702
 AudioListener:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 459615081}
+  m_GameObject: {fileID: 404939700}
   m_Enabled: 1
---- !u!20 &459615084
+--- !u!20 &404939703
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 459615081}
+  m_GameObject: {fileID: 404939700}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
@@ -241,13 +241,13 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &459615085
+--- !u!4 &404939704
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 459615081}
+  m_GameObject: {fileID: 404939700}
   serializedVersion: 2
   m_LocalRotation: {x: 0.20106587, y: 0, z: 0, w: 0.9795777}
   m_LocalPosition: {x: 0, y: 30, z: -70}
@@ -256,7 +256,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1781306907
+--- !u!1 &1864100515
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -264,8 +264,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1781306909}
-  - component: {fileID: 1781306908}
+  - component: {fileID: 1864100517}
+  - component: {fileID: 1864100516}
   m_Layer: 0
   m_Name: Sun
   m_TagString: Untagged
@@ -273,13 +273,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!108 &1781306908
+--- !u!108 &1864100516
 Light:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1781306907}
+  m_GameObject: {fileID: 1864100515}
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
@@ -338,13 +338,13 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
---- !u!4 &1781306909
+--- !u!4 &1864100517
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1781306907}
+  m_GameObject: {fileID: 1864100515}
   serializedVersion: 2
   m_LocalRotation: {x: 0.38457704, y: -0.29742128, z: 0.1324205, w: 0.8637742}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -357,5 +357,5 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 459615085}
-  - {fileID: 1781306909}
+  - {fileID: 404939704}
+  - {fileID: 1864100517}
