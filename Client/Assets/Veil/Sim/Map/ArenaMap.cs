@@ -18,10 +18,11 @@ namespace Veil.Sim
     {
         public const int MapSeed = 1337;
 
-        private static readonly List<(Vec2 a, Vec2 b, float w)> Paths = new List<(Vec2, Vec2, float)>();
+        internal static readonly List<(Vec2 a, Vec2 b, float w)> Paths = new List<(Vec2, Vec2, float)>();
 
         public static MapData Build()
         {
+            if (GameConfig.IslandMap) return IslandMap.Build();
             var m = new MapData();
             var rng = new Rng(MapSeed);
             Paths.Clear();
@@ -208,7 +209,7 @@ namespace Veil.Sim
             return m;
         }
 
-        private static bool DecorAllowed(MapData m, Vec2 p, List<Vec2> reserved, float spotClear, float obstacleClear)
+        internal static bool DecorAllowed(MapData m, Vec2 p, List<Vec2> reserved, float spotClear, float obstacleClear)
         {
             if (p.Length < 25f) return false;                 // plaza + moat
             foreach (var z in m.Zones)
@@ -229,7 +230,7 @@ namespace Veil.Sim
             return Vec2.Dist(p, a + ab * t);
         }
 
-        private static Vec2 FreeSpot(MapData m, Vec2 p, float r)
+        internal static Vec2 FreeSpot(MapData m, Vec2 p, float r)
         {
             if (!m.IsBlockedForStanding(p, r)) return p;
             for (float rad = 0.5f; rad < 12f; rad += 0.5f)
@@ -241,12 +242,12 @@ namespace Veil.Sim
             return p;
         }
 
-        private static void AddZone(MapData m, ZoneType t, string name, Vec2 c, float r)
+        internal static void AddZone(MapData m, ZoneType t, string name, Vec2 c, float r)
         {
             m.Zones.Add(new ZoneDef { Id = m.Zones.Count, Type = t, Name = name, Center = c, Radius = r });
         }
 
-        private static void Path(MapData m, Vec2 a, Vec2 b, float width = 5f)
+        internal static void Path(MapData m, Vec2 a, Vec2 b, float width = 5f)
         {
             Vec2 d = b - a;
             m.Decals.Add(new GroundDecal
@@ -259,21 +260,21 @@ namespace Veil.Sim
             Paths.Add((a, b, width));
         }
 
-        private static Obstacle Circle(MapData m, ObstacleKind k, Vec2 c, float r, float h)
+        internal static Obstacle Circle(MapData m, ObstacleKind k, Vec2 c, float r, float h)
         {
             var o = new Obstacle { Kind = k, Shape = ShapeKind.Circle, Center = c, Radius = r, Height = h };
             m.Obstacles.Add(o);
             return o;
         }
 
-        private static Obstacle Box(MapData m, ObstacleKind k, Vec2 c, Vec2 half, float rot, float h)
+        internal static Obstacle Box(MapData m, ObstacleKind k, Vec2 c, Vec2 half, float rot, float h)
         {
             var o = new Obstacle { Kind = k, Shape = ShapeKind.Box, Center = c, Half = half, Rot = rot, Height = h };
             m.Obstacles.Add(o);
             return o;
         }
 
-        private static void Water(MapData m, Vec2 c, Vec2 half)
+        internal static void Water(MapData m, Vec2 c, Vec2 half)
         {
             var o = Box(m, ObstacleKind.Water, c, half, 0, 99f);
             o.BlocksShots = false;

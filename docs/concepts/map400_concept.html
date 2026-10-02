@@ -1,0 +1,169 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Rilo Map Concept</title>
+<style>
+:root{--bg:#0b0d18;--ink:#e9ecff;--dim:#9aa3d0}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Helvetica,Arial,sans-serif}
+.wrap{display:flex;gap:28px;padding:24px;flex-wrap:wrap;justify-content:center}
+h1{font-size:22px;margin:0 0 6px;letter-spacing:1px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:12px}
+.card{background:#12152a;border-radius:16px;padding:18px;box-shadow:0 10px 40px #0008}
+svg text{font-family:Helvetica,Arial,sans-serif}
+.legend{font-size:13px;line-height:1.7;color:var(--dim);max-width:800px}
+.legend b{color:var(--ink)}
+/* hacking terminal */
+.term{width:620px;height:440px;background:#020b08;border:2px solid #1dff9a55;border-radius:12px;position:relative;overflow:hidden;
+ font-family:Menlo,Consolas,monospace;color:#3dffa8;box-shadow:0 0 40px #1dff9a33 inset,0 0 30px #1dff9a22}
+.term:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,#ffffff06 0 1px,transparent 1px 3px);pointer-events:none}
+.th{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #1dff9a33;font-size:13px}
+.th .warn{color:#ff5a6a;animation:bl 1s steps(2) infinite}
+@keyframes bl{50%{opacity:.2}}
+.log{padding:10px 14px;font-size:12.5px;line-height:1.55;height:118px;color:#2fd38c}
+.log .hi{color:#c9ffe6}.log .r{color:#ff6b7a}
+.bar{margin:4px 14px;height:22px;border:1px solid #3dffa8;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:42%;background:repeating-linear-gradient(90deg,#3dffa8 0 10px,#1fae70 10px 12px)}
+.bar span{position:absolute;right:6px;top:2px;font-size:13px;color:#e8fff4;text-shadow:0 0 4px #000}
+.row{display:flex;gap:10px;padding:8px 14px;font-size:12px}
+.box{flex:1;border:1px solid #1dff9a44;padding:7px 8px;border-radius:4px}
+.box .k{color:#7fbfa3;font-size:10.5px;letter-spacing:1px}
+.st{height:8px;background:#0f2a20;margin-top:5px}.st i{display:block;height:100%;width:64%;background:#38d6ff}
+.node{display:flex;align-items:center;gap:6px;margin-top:3px}
+.dot{width:9px;height:9px;border-radius:50%}
+.hex{position:absolute;right:10px;top:46px;font-size:10px;color:#1dff9a40;line-height:1.25;text-align:right}
+.sq{display:flex;gap:14px;padding:6px 14px 0;font-size:12px;color:#8fd9b8}
+.sq b{color:#e8fff4}
+</style></head><body>
+<div class="wrap">
+<div class="card">
+<h1>RILO — 400 × 400 m map (concept)</h1>
+<div class="sub">Top-down layout. 4-way rotational symmetry: every squad gets the same distances, each quadrant has its own look.</div>
+<svg width="800" height="800" viewBox="0 0 800 800">
+ <defs>
+  <radialGradient id="sea" cx="50%" cy="50%" r="70%"><stop offset="60%" stop-color="#2bb7d6"/><stop offset="100%" stop-color="#0f5f8c"/></radialGradient>
+  <pattern id="trees" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="4.5" fill="#2f8f3a"/><circle cx="14" cy="13" r="4" fill="#3aa346"/></pattern>
+  <pattern id="rock" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="#b9875a"/><path d="M0 12 L6 6 L12 11 L16 7" stroke="#9a6b42" stroke-width="2" fill="none"/></pattern>
+  <pattern id="city" width="26" height="26" patternUnits="userSpaceOnUse"><rect width="26" height="26" fill="#cfd3e6"/><rect x="3" y="3" width="9" height="9" fill="#8b90b8"/><rect x="15" y="4" width="8" height="12" fill="#6e74a3"/><rect x="4" y="15" width="10" height="8" fill="#9aa0c8"/></pattern>
+  <pattern id="dock" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#9fa7b8"/><rect x="2" y="3" width="16" height="6" fill="#e2683c"/><rect x="2" y="11" width="10" height="6" fill="#3d7fd6"/></pattern>
+  <pattern id="hydro" width="22" height="22" patternUnits="userSpaceOnUse"><rect width="22" height="22" fill="#a9b6bf"/><circle cx="11" cy="11" r="6" fill="#d9e3ea" stroke="#7d8d99" stroke-width="2"/></pattern>
+ <clipPath id="isl"><rect x="30" y="30" width="740" height="740" rx="90"/></clipPath>
+ </defs>
+ <!-- sea + island -->
+ <rect width="800" height="800" fill="url(#sea)"/>
+ <rect x="30" y="30" width="740" height="740" rx="90" fill="#8fd16a"/>
+ <rect x="30" y="30" width="740" height="740" rx="90" fill="none" stroke="#f4e3a6" stroke-width="10"/>
+
+ <g clip-path="url(#isl)">
+ <!-- quadrant biomes -->
+ <path d="M400 400 L770 30 L770 400 Z" fill="url(#dock)" opacity=".55"/>   <!-- NE dockyard -->
+ <path d="M400 400 L30 30 L30 400 Z" fill="url(#trees)" opacity=".9"/>     <!-- NW forest -->
+ <path d="M400 400 L30 770 L30 400 Z" fill="url(#rock)" opacity=".75"/>     <!-- SW canyon -->
+ <path d="M400 400 L770 770 L770 400 Z" fill="url(#hydro)" opacity=".6"/>   <!-- SE hydro -->
+ <path d="M400 400 L770 30 L400 30 Z" fill="url(#dock)" opacity=".35"/>
+ <path d="M400 400 L30 30 L400 30 Z" fill="url(#trees)" opacity=".6"/>
+ <path d="M400 400 L30 770 L400 770 Z" fill="url(#rock)" opacity=".5"/>
+ <path d="M400 400 L770 770 L400 770 Z" fill="url(#hydro)" opacity=".4"/>
+
+ </g>
+ <!-- ring road + spokes -->
+ <circle cx="400" cy="400" r="215" fill="none" stroke="#e8d7a8" stroke-width="14"/>
+ <g stroke="#e8d7a8" stroke-width="12" stroke-linecap="round">
+  <line x1="120" y1="120" x2="290" y2="290"/><line x1="680" y1="120" x2="510" y2="290"/>
+  <line x1="120" y1="680" x2="290" y2="510"/><line x1="680" y1="680" x2="510" y2="510"/>
+  <line x1="400" y1="140" x2="400" y2="245"/><line x1="400" y1="660" x2="400" y2="555"/>
+  <line x1="140" y1="400" x2="245" y2="400"/><line x1="660" y1="400" x2="555" y2="400"/>
+ </g>
+ <!-- high ground ridges between quadrants -->
+ <g fill="#7a6a58" opacity=".85">
+  <ellipse cx="400" cy="150" rx="34" ry="16"/><ellipse cx="400" cy="650" rx="34" ry="16"/>
+  <ellipse cx="150" cy="400" rx="16" ry="34"/><ellipse cx="650" cy="400" rx="16" ry="34"/>
+ </g>
+
+ <!-- Rilo City + moat -->
+ <circle cx="400" cy="400" r="150" fill="url(#city)"/>
+ <circle cx="400" cy="400" r="158" fill="none" stroke="#33c3e8" stroke-width="14"/>
+ <g fill="#b88a52">
+  <rect x="393" y="234" width="14" height="22"/><rect x="393" y="544" width="14" height="22"/>
+  <rect x="234" y="393" width="22" height="14"/><rect x="544" y="393" width="22" height="14"/>
+  <rect x="279" y="279" width="14" height="22" transform="rotate(-45 286 290)"/><rect x="507" y="279" width="14" height="22" transform="rotate(45 514 290)"/>
+  <rect x="279" y="499" width="14" height="22" transform="rotate(45 286 510)"/><rect x="507" y="499" width="14" height="22" transform="rotate(-45 514 510)"/>
+ </g>
+ <!-- central plaza -->
+ <circle cx="400" cy="400" r="62" fill="#e9ecf7" stroke="#b9bfd9" stroke-width="3"/>
+ <circle cx="400" cy="400" r="26" fill="none" stroke="#ffd23f" stroke-width="5" stroke-dasharray="6 4"/>
+ <circle cx="400" cy="400" r="12" fill="#ffc93a" stroke="#7a5a10" stroke-width="2"/>
+ <g fill="#8c92b8"><rect x="352" y="352" width="10" height="10"/><rect x="438" y="352" width="10" height="10"/><rect x="352" y="438" width="10" height="10"/><rect x="438" y="438" width="10" height="10"/></g>
+ <text x="400" y="372" font-size="11" text-anchor="middle" font-weight="700" fill="#5a4400">HACK TERMINAL</text>
+ <text x="400" y="438" font-size="11" text-anchor="middle" font-weight="700" fill="#5a4400">CENTRAL VAULT</text>
+
+ <!-- squad spawns -->
+ <g font-size="13" font-weight="800" text-anchor="middle" fill="#fff">
+  <circle cx="100" cy="100" r="30" fill="#7dff9a" stroke="#fff" stroke-width="3"/><text x="100" y="105" fill="#103">A</text>
+  <circle cx="700" cy="100" r="30" fill="#ff7a8a" stroke="#fff" stroke-width="3"/><text x="700" y="105" fill="#301">B</text>
+  <circle cx="700" cy="700" r="30" fill="#7ab8ff" stroke="#fff" stroke-width="3"/><text x="700" y="705" fill="#013">C</text>
+  <circle cx="100" cy="700" r="30" fill="#ffd84a" stroke="#fff" stroke-width="3"/><text x="100" y="705" fill="#320">D</text>
+ </g>
+
+ <!-- capture zones (one per squad, same distance) -->
+ <g fill="#a66bff" fill-opacity=".35" stroke="#a66bff" stroke-width="3">
+  <circle cx="225" cy="140" r="22"/><circle cx="660" cy="225" r="22"/><circle cx="575" cy="660" r="22"/><circle cx="140" cy="575" r="22"/>
+ </g>
+ <!-- extraction candidates -->
+ <g fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="5 4">
+  <circle cx="400" cy="95" r="20"/><circle cx="705" cy="400" r="20"/><circle cx="400" cy="705" r="20"/><circle cx="95" cy="400" r="20"/>
+ </g>
+
+ <!-- labels -->
+ <g font-size="15" font-weight="800" fill="#fff" stroke="#0008" stroke-width="3" paint-order="stroke" text-anchor="middle">
+  <text x="400" y="290">RILO CITY</text>
+  <text x="235" y="230">FOREST</text>
+  <text x="575" y="230">DOCKYARD</text>
+  <text x="575" y="585">HYDRO PLANT</text>
+  <text x="225" y="585">CANYON</text>
+  <text x="400" y="62">OUTPOST</text>
+  <text x="400" y="752">OUTPOST</text>
+  <text x="58" y="370">RUINS</text>
+  <text x="742" y="370">RUINS</text>
+ </g>
+ <g font-size="11" fill="#fff" stroke="#0008" stroke-width="3" paint-order="stroke" text-anchor="middle">
+  <text x="100" y="148">SQUAD A SPAWN</text><text x="700" y="148">SQUAD B SPAWN</text>
+  <text x="700" y="748">SQUAD C SPAWN</text><text x="100" y="748">SQUAD D SPAWN</text>
+ </g>
+ <!-- scale -->
+ <g transform="translate(560 780)"><rect width="200" height="6" fill="#fff"/><text x="100" y="-6" font-size="11" fill="#fff" text-anchor="middle">100 m</text></g>
+</svg>
+<div class="legend">
+<b>Centre — Rilo City</b> (150 m wide circle, city blocks = cover and rooftops), ringed by a <b>canal with 8 bridges</b> (chokepoints).
+Central plaza: <b style="color:#ffd23f">Hack Terminal ring</b> (Objective 1, shared) + <b style="color:#ffc93a">Central Vault</b>.<br>
+<b>4 squad spawns</b> in the corners, ~210 m from the centre. <b style="color:#a66bff">Capture zone</b> per squad in the neighbouring region (Objective 2), same distance for all.
+<b>Energy cores</b> spread through Forest / Dockyard / Hydro / Canyon (Objective 3).<br>
+<b>Extraction points</b> (dashed white): Outposts and Ruins on the 4 sides — each sits between two squads; one is revealed when the first Vault opens.<br>
+<b>High ground</b> ridges between regions, ring road + spokes for rotations, sea all around.
+</div>
+</div>
+
+<div class="card">
+<h1>Hack Terminal UI (concept)</h1>
+<div class="sub">Appears when you step into the terminal ring — like hacking a computer.</div>
+<div class="term">
+ <div class="th"><span>RILO//OS · TERMINAL 07 · CENTRAL PLAZA</span><span class="warn">⚠ STABILITY LOW</span></div>
+ <div class="hex">7F 3A C1 9E<br>0D 44 B2 18<br>E3 9A 01 7C<br>5B 2F D8 66<br>A0 11 4E 93<br>C7 08 6D 2B</div>
+ <div class="log">
+  &gt; connect 10.7.0.1 :: <span class="hi">OK</span><br>
+  &gt; breach firewall.layer[1] .......... <span class="hi">DONE</span><br>
+  &gt; breach firewall.layer[2] .......... <span class="hi">DONE</span><br>
+  &gt; inject payload rilo.squadA ........ <span class="hi">RUNNING</span><br>
+  &gt; <span class="r">WARN: core temperature rising — instability at 67%</span><br>
+  &gt; 3 operators linked · speed x1.75_
+ </div>
+ <div class="bar"><i></i><span>UPLOAD 42%</span></div>
+ <div class="row">
+  <div class="box"><div class="k">STABILITY</div><div class="st"><i></i></div><div style="margin-top:4px">64%</div></div>
+  <div class="box"><div class="k">OPERATORS</div><div style="margin-top:3px">●●●○ &nbsp;x1.75</div><div style="color:#ffb057;margin-top:3px">ZONE CLEAR</div></div>
+  <div class="box"><div class="k">NEXT FAULT</div><div class="node"><span class="dot" style="background:#ff4d6d"></span>DESTROY</div><div class="node"><span class="dot" style="background:#38d6ff"></span>STABILIZE</div><div class="node"><span class="dot" style="background:#b06bff"></span>OVERRIDE</div></div>
+ </div>
+ <div class="sq">SQUADS: <span>A <b>42%</b></span><span>B <b>31%</b></span><span>C <b>0%</b></span><span>D <b>54%</b></span></div>
+</div>
+<div class="legend" style="max-width:620px;margin-top:12px">Green terminal screen with scan lines, live log lines (breach, payload, warnings), upload bar,
+stability gauge, operators linked (speed), node checklist during instability, and every squad's progress. Turns <span style="color:#ff6b7a">red</span> during instability, <span style="color:#ffb057">orange</span> when contested.</div>
+</div>
+</div>
+</body></html>

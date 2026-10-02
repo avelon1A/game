@@ -43,7 +43,7 @@ namespace Veil.View
     /// </summary>
     public sealed class StaticBatcher
     {
-        private struct Item { public Mesh Mesh; public Matrix4x4 M; public bool Shadows; }
+        private struct Item { public Mesh Mesh; public Matrix4x4 M; public bool Shadows; public int Sub; }
         private readonly Dictionary<(Material, int, bool), List<Item>> _items = new Dictionary<(Material, int, bool), List<Item>>();
         private readonly float _cell;
 
@@ -58,14 +58,14 @@ namespace Veil.View
             list.Add(new Item { Mesh = mesh, M = Matrix4x4.TRS(pos, rot, scale), Shadows = shadows });
         }
 
-        public void Add(Mesh mesh, Material mat, Matrix4x4 m, bool shadows = true)
+        public void Add(Mesh mesh, Material mat, Matrix4x4 m, bool shadows = true, int subMesh = 0)
         {
             Vector3 pos = m.GetColumn(3);
             int cx = Mathf.FloorToInt(pos.x / _cell), cz = Mathf.FloorToInt(pos.z / _cell);
             int cell = (cx + 100) * 1000 + (cz + 100);
             var key = (mat, cell, shadows);
             if (!_items.TryGetValue(key, out var list)) _items[key] = list = new List<Item>();
-            list.Add(new Item { Mesh = mesh, M = m, Shadows = shadows });
+            list.Add(new Item { Mesh = mesh, M = m, Shadows = shadows, Sub = subMesh });
         }
 
         public void Bake(Transform parent)
@@ -83,7 +83,7 @@ namespace Veil.View
                     {
                         int vc = list[i].Mesh.vertexCount;
                         if (verts + vc > 60000 && combine.Count > 0) break;
-                        combine.Add(new CombineInstance { mesh = list[i].Mesh, transform = list[i].M });
+                        combine.Add(new CombineInstance { mesh = list[i].Mesh, transform = list[i].M, subMeshIndex = list[i].Sub });
                         verts += vc;
                     }
                     start = i;

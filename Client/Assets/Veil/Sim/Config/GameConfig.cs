@@ -6,13 +6,14 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 8;
+        public const int ProtocolVersion = 9;
 
         // ---- Simulation ----
         public const int TickRate = 30;
         public const float Dt = 1f / TickRate;
         public const int SnapshotEveryTicks = 2;           // 15 Hz snapshots on the server
-        public const float MapHalf = 75f;                  // 150m x 150m arena
+        public const bool IslandMap = true;                // Rilo island (400 x 400 m, Sim/Map/IslandMap.cs); false = the old 150 m arena
+        public const float MapHalf = IslandMap ? 200f : 75f;
         public const int MaxPlayers = 16;
         public const int SquadSize = 4;                    // party / squad size
         public const int SquadCount = 4;                   // 4 squads x 4 = 16 players
@@ -64,9 +65,9 @@ namespace Veil.Sim
         public const float VaultRadius = 6f;
         public const float ExtractTime = 60f;          // hold the extraction point uncontested
         public const float ExtractRadius = 7f;
-        public const float ExtractDistance = 40f;      // extraction points sit between the squads' spawns
+        public const float ExtractDistance = IslandMap ? 160f : 40f;      // extraction points sit between the squads' spawns
         public const float ExtractRespawnTime = 15f;   // longer re-entry once extraction is revealed
-        public const float ExtractCircleMin = 52f;     // the collapse never closes over the extraction points
+        public const float ExtractCircleMin = IslandMap ? 172f : 52f;     // the collapse never closes over the extraction points
         public const int StagePoints = 100;            // per member, per completed stage (tie-breaks)
         public const float StageRevealRadius = 30f;    // completing a stage reveals nearby enemies...
         public const float StageRevealTime = 3f;       // ...for this long
@@ -166,9 +167,9 @@ namespace Veil.Sim
         public const int SquadVaultsNeeded = 1;
 
         // ---- Collapse ----
-        public const float CircleStartRadius = 112f;
-        public const float CircleCollapseEnd = 34f;
-        public const float CircleFinalRadius = 16f;
+        public const float CircleStartRadius = IslandMap ? 290f : 112f;
+        public const float CircleCollapseEnd = IslandMap ? 110f : 34f;
+        public const float CircleFinalRadius = IslandMap ? 60f : 16f;
         public const float OutsideDamagePerSec = 7f;
 
         // ---- Phase boundaries (fraction of match, GDD §5: 3/7/11/14 of 15 minutes) ----

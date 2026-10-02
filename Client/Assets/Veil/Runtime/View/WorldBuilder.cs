@@ -8,7 +8,7 @@ namespace Veil.View
     /// Builds the visual arena from <see cref="MapData"/>. Static geometry is batched; animated
     /// landmarks (tower crystal, reactor, vault door, waterfalls) stay as live objects.
     /// </summary>
-    public sealed class WorldBuilder
+    public sealed partial class WorldBuilder
     {
         public Transform Root { get; private set; }
         public Transform TowerCrystal { get; private set; }
@@ -28,11 +28,11 @@ namespace Veil.View
             _rnd = new System.Random(ArenaMap.MapSeed);
             Root = new GameObject("Arena").transform;
 
-            BuildGround();
+            if (_map.Island) BuildIslandGround(); else BuildGround();
             foreach (var d in _map.Decals) BuildDecal(d);
             foreach (var o in _map.Obstacles) BuildObstacle(o);
             BuildScatter();
-            BuildSurroundings();
+            if (_map.Island) BuildIslandSurroundings(); else BuildSurroundings();
 
             _batch.Bake(Build.Node(Root, "Static", Vector3.zero));
             Root.gameObject.AddComponent<WorldAnimator>().Init(this);
@@ -91,25 +91,26 @@ namespace Veil.View
                     var wood = MaterialLib.Toon(Palette.Wood, 0.2f);
                     var woodD = MaterialLib.Toon(Palette.WoodDark, 0.2f);
                     bool alongZ = d.Half.Y > d.Half.X;
+                    var br = Quaternion.Euler(0, d.Rot, 0);
                     Vector3 c = Build.V(d.Center, 0.18f);
-                    Add(MeshGen.Box, wood, c, new Vector3(d.Half.X * 2, 0.3f, d.Half.Y * 2));
+                    Add(MeshGen.Box, wood, c, new Vector3(d.Half.X * 2, 0.3f, d.Half.Y * 2), br);
                     int planks = 9;
                     for (int i = 0; i < planks; i++)
                     {
                         float t = -1 + (i + 0.5f) * 2f / planks;
                         var off = alongZ ? new Vector3(0, 0.17f, t * d.Half.Y) : new Vector3(t * d.Half.X, 0.17f, 0);
                         var sc = alongZ ? new Vector3(d.Half.X * 2, 0.04f, 0.08f) : new Vector3(0.08f, 0.04f, d.Half.Y * 2);
-                        Add(MeshGen.Box, woodD, c + off, sc, null, false);
+                        Add(MeshGen.Box, woodD, c + br * off, sc, br, false);
                     }
                     for (int s = -1; s <= 1; s += 2)
                     {
                         var railOff = alongZ ? new Vector3(s * (d.Half.X - 0.15f), 0.75f, 0) : new Vector3(0, 0.75f, s * (d.Half.Y - 0.15f));
                         var railSc = alongZ ? new Vector3(0.18f, 0.14f, d.Half.Y * 2) : new Vector3(d.Half.X * 2, 0.14f, 0.18f);
-                        Add(MeshGen.Box, woodD, c + railOff, railSc);
+                        Add(MeshGen.Box, woodD, c + br * railOff, railSc, br);
                         for (int k = -1; k <= 1; k++)
                         {
                             var postOff = alongZ ? new Vector3(s * (d.Half.X - 0.15f), 0.45f, k * d.Half.Y * 0.9f) : new Vector3(k * d.Half.X * 0.9f, 0.45f, s * (d.Half.Y - 0.15f));
-                            Add(MeshGen.Box, wood, c + postOff, new Vector3(0.22f, 0.8f, 0.22f));
+                            Add(MeshGen.Box, wood, c + br * postOff, new Vector3(0.22f, 0.8f, 0.22f), br);
                         }
                     }
                     break;
@@ -135,6 +136,7 @@ namespace Veil.View
             var stone = MaterialLib.Toon(Palette.Stone, 0.25f);
             var stoneD = MaterialLib.Toon(Palette.StoneDark, 0.2f);
             var stoneL = MaterialLib.Toon(Palette.StoneLight, 0.25f);
+            if (_map.Island && TryProp(o, c)) return;
             switch (o.Kind)
             {
                 case ObstacleKind.Wall:
@@ -177,6 +179,7 @@ namespace Veil.View
                     Add(MeshGen.Icosphere(1, 0.2f, (o.Variant + 3) % 7), MaterialLib.Toon(Palette.StoneDark, 0.2f), c + new Vector3(o.Radius * 0.9f, 0.2f, o.Radius * 0.5f), Vector3.one * o.Radius * 0.9f);
                     break;
                 }
+                case ObstacleKind.Water when _map.Island: break;
                 case ObstacleKind.Water:
                 {
                     Vector3 size = new Vector3(o.Half.X * 2, 1, o.Half.Y * 2);
@@ -211,9 +214,18 @@ namespace Veil.View
                     break;
                 }
                 case ObstacleKind.Stall: BuildStall(o, c, rot); break;
-                case ObstacleKind.TowerCore: BuildTower(c); break;
+                case ObstacleKind.TowerCore: if (_map.Island) BuildRiloTower(c); else BuildTower(c); break;
                 case ObstacleKind.ReactorCore: BuildReactor(c); break;
                 case ObstacleKind.VaultBuilding: BuildVault(o, c, rot); break;
+                case ObstacleKind.CityBlock: BuildCityBlock(o, c); break;
+                case ObstacleKind.Container: BuildContainer(o, c, rot); break;
+                case ObstacleKind.Crane: BuildCrane(o, c); break;
+                case ObstacleKind.Hut: BuildHouse(o, c, rot); break;
+                case ObstacleKind.Palm: BuildPalm(o, c); break;
+                case ObstacleKind.Pine: BuildPine(o, c); break;
+                case ObstacleKind.Mesa: BuildMesa(o, c); break;
+                case ObstacleKind.Tank: BuildTank(o, c); break;
+                case ObstacleKind.Watchtower: BuildWatchtower(o, c); break;
                 case ObstacleKind.Pylon:
                 {
                     var metal = MaterialLib.Toon(Palette.Hex("#3b3752"), 0.3f, 0.6f);
@@ -392,10 +404,13 @@ namespace Veil.View
             var tuft = MaterialLib.Toon(Palette.GrassDark, 0.2f);
             var tuftL = MaterialLib.Toon(Palette.GrassLight, 0.2f);
             Color[] flowers = { Palette.Hex("#ffffff"), Palette.Hex("#ffd24a"), Palette.Hex("#ff7ab8"), Palette.Hex("#8fb8ff") };
-            for (int i = 0; i < 700; i++)
+            float span = _map.Half - 8f;
+            int tufts = _map.Island ? 3200 : 700;
+            for (int i = 0; i < tufts; i++)
             {
-                var p = new Vec2(R(-70, 70), R(-70, 70));
+                var p = new Vec2(R(-span, span), R(-span, span));
                 if (_map.IsBlockedForStanding(p, 0.5f) || _map.ZoneAt(p) >= 0 || p.Length < 17) continue;
+                if (_map.Island && !Grassy(IslandMap.BiomeAt(p))) continue;
                 bool onPath = false;
                 foreach (var d in _map.Decals)
                     if (d.Kind == 0 && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).X) < d.Half.X + 0.5f && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).Y) < d.Half.Y) { onPath = true; break; }
@@ -408,10 +423,12 @@ namespace Veil.View
             }
             // bushes along roads
             var bush = MaterialLib.Toon(Palette.Hex("#4aa843"), 0.3f);
-            for (int i = 0; i < 120; i++)
+            int bushes = _map.Island ? 600 : 120;
+            for (int i = 0; i < bushes; i++)
             {
-                var p = new Vec2(R(-68, 68), R(-68, 68));
+                var p = new Vec2(R(-span, span), R(-span, span));
                 if (_map.IsBlockedForStanding(p, 1.2f) || _map.ZoneAt(p) >= 0 || p.Length < 22) continue;
+                if (_map.Island && !Grassy(IslandMap.BiomeAt(p))) continue;
                 Add(MeshGen.Icosphere(1, 0.15f, i % 5), bush, Build.V(p, 0.3f), new Vector3(R(0.9f, 1.5f), R(0.7f, 1.1f), R(0.9f, 1.5f)), Quaternion.Euler(0, R(0, 360), 0));
             }
         }

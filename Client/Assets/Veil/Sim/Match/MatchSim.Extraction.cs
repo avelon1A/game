@@ -41,6 +41,7 @@ namespace Veil.Sim
             if (TaskOf(stage) == ChainTask.Vault || TaskOf(stage) == ChainTask.Hack) return Map.Zones[TowerZone].Center;
             if (stage >= SiteLayout.Length) return Vec2.Zero;
             var (r, deg) = SiteLayout[stage];
+            if (Map.Island && TaskOf(stage) == ChainTask.Capture) { r = 100f; deg = 45f; }   // island: the neighbouring cardinal region, inside the ring road
             Vec2 c = Vec2.FromYaw(sq.Spawn.Yaw + deg) * r;
             if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
             return c;

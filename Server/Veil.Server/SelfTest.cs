@@ -30,6 +30,12 @@ namespace Veil.Server
                     if (!map.Nav.FindPath(a.Center + new Vec2(0, a.Type == ZoneType.Tower ? 5 : 0), b.Center + new Vec2(0, b.Type == ZoneType.Tower ? 5 : 0), path))
                     { bad++; Console.WriteLine($"  !! no path {a.Name} -> {b.Name}"); }
                 }
+            foreach (var (yy, rr) in new[] { (22.5f, 150f), (26f, 150f), (30f, 150f), (35f, 150f), (45f, 150f) })
+            {
+                var pp = Vec2.FromYaw(yy) * rr; float sd = 99; ObstacleKind kk = ObstacleKind.Wall;
+                foreach (var o in map.Obstacles) if (o.Kind == ObstacleKind.Water) { float d = o.SignedDistance(pp); if (d < sd) { sd = d; } }
+                Console.WriteLine($"probe yaw {yy} r {rr}: water sd {sd:0.0} walk {map.Nav.Walkable(pp)}");
+            }
             Console.WriteLine(bad == 0 ? "Map validation OK" : $"Map validation: {bad} problems");
 
             int failures = 0;

@@ -134,6 +134,7 @@ namespace Veil.App
                 if (args[i] == "-autotest-online" && i + 1 < args.Length) { _autotest = true; _scripted = true; _onlineHost = args[i + 1]; }
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
+                if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
             }
             if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
         }
@@ -889,6 +890,43 @@ namespace Veil.App
         }
 
         // ------------------------------------------------------------------ autotest (screenshots for CI / review)
+
+        /// <summary>-mapshot -shotdir DIR: renders the island from above (top-down + oblique) for map reviews, then quits.</summary>
+        private IEnumerator MapShots()
+        {
+            yield return new WaitForSeconds(1.5f);
+            
+            if (Canvas != null) Canvas.gameObject.SetActive(false);
+            Stage?.SetVisible(false);
+            var go = new GameObject("MapShotCam");
+            var cam = go.AddComponent<Camera>();
+            cam.farClipPlane = 3000f;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.12f, 0.45f, 0.62f);
+            foreach (var c in Camera.allCameras) if (c != cam) c.enabled = false;
+            void Pose(Vector3 pos, Vector3 look, bool ortho, float size)
+            {
+                cam.orthographic = ortho; cam.orthographicSize = size; cam.fieldOfView = 40f;
+                go.transform.position = pos; go.transform.LookAt(look);
+            }
+            Pose(new Vector3(0, 600, 0), Vector3.zero, true, 215f); go.transform.rotation = Quaternion.Euler(90, 0, 0);   // north up
+            yield return Shot("map_topdown");
+            var seaGo = GameObject.Find("Sea"); if (seaGo) seaGo.SetActive(false);
+            yield return Shot("map_topdown_nosea");
+            if (seaGo) seaGo.SetActive(true);
+            Pose(new Vector3(0, 330, -380), new Vector3(0, 0, 10), false, 0);
+            yield return Shot("map_oblique");
+            Pose(new Vector3(0, 70, -150), new Vector3(0, 10, 0), false, 0);
+            yield return Shot("map_city");
+            Pose(Quaternion.Euler(0, 45, 0) * new Vector3(0, 45, 105), Quaternion.Euler(0, 45, 0) * new Vector3(0, 0, 150), false, 0);
+            yield return Shot("map_dockyard");
+            Pose(Quaternion.Euler(0, 225, 0) * new Vector3(0, 45, 105), Quaternion.Euler(0, 225, 0) * new Vector3(0, 0, 150), false, 0);
+            yield return Shot("map_canyon");
+            Pose(Quaternion.Euler(0, 0, 0) * new Vector3(0, 45, 105), new Vector3(0, 0, 150), false, 0);
+            yield return Shot("map_snow");
+            yield return new WaitForSeconds(1f);
+            Application.Quit();
+        }
 
         private IEnumerator Shot(string name)
         {

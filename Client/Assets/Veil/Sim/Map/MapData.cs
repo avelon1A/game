@@ -5,12 +5,24 @@ namespace Veil.Sim
 {
     public enum ObstacleKind : byte
     {
-        Wall, LowWall, Pillar, Tree, Rock, Water, Building, Crate, Cliff, Stall, TowerCore, ReactorCore, VaultBuilding, Pylon
+        Wall, LowWall, Pillar, Tree, Rock, Water, Building, Crate, Cliff, Stall, TowerCore, ReactorCore, VaultBuilding, Pylon,
+        CityBlock, Container, Crane, Hut, Palm, Pine, Mesa, Tank, Watchtower
     }
 
     public enum ShapeKind : byte { Circle, Box }
 
     public enum ZoneType : byte { Tower, Vault, Reactor, Market, Ruins }
+
+    /// <summary>Island regions (ground look + names on the map / HUD).</summary>
+    public enum Biome : byte { City, Snow, Dock, Ruins, Beach, Forest, Canyon, Hydro, Outpost, Sea }
+
+    public sealed class RegionDef
+    {
+        public string Name;
+        public Biome Biome;
+        public Vec2 Center;
+        public float Bearing;     // degrees, 0 = north
+    }
 
     /// <summary>A static collision/visual element of the arena.</summary>
     public sealed class Obstacle
@@ -112,6 +124,8 @@ namespace Veil.Sim
         public readonly List<Vec2> KeySpots = new List<Vec2>();
         public readonly List<Vec2> CoreSpots = new List<Vec2>();
         public readonly List<GroundDecal> Decals = new List<GroundDecal>();
+        public readonly List<RegionDef> Regions = new List<RegionDef>();
+        public bool Island;
         public NavGrid Nav;
 
         private const float CellSize = 8f;
@@ -242,7 +256,7 @@ namespace Veil.Sim
             float tmx = dx != 0 ? ((sx > 0 ? (x + 1 - ax) : (ax - x)) * tdx) : float.MaxValue;
             float tmy = dy != 0 ? ((sy > 0 ? (y + 1 - ay) : (ay - y)) * tdy) : float.MaxValue;
             int guard = 0;
-            while (guard++ < 400)
+            while (guard++ < 1200)
             {
                 if (x < 0 || y < 0 || x >= _visionRes || y >= _visionRes) return false;
                 if (!(x == (int)ax && y == (int)ay) && _visionBlocked[y * _visionRes + x])
