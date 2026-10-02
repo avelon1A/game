@@ -54,7 +54,11 @@ Pick in **Characters → HERO** plus a **glow colour**; bots get random heroes. 
 | Health | 100, regenerates 7/s after 5 s without damage |
 | Blaster | 11 damage per hit, 0.3 s between shots, instant hit (bolts cross the 30 m range in one tick) |
 | Knockback | small push on hit |
-| Respawn | 5 s, then 2 s spawn protection, near your squad |
+| Downed | at 0 HP you are **knocked down** (if a squadmate is still standing): crawl, can't shoot; 60 bleed-HP, bleed out in 25 s |
+| Revive | a squadmate stands within 2.3 m without shooting for 4 s → back up with 30 HP (+50 for the reviver) |
+| Squad wipe | nobody in the squad standing → all downed members are eliminated |
+| Respawn | 5 s after elimination, then 2 s spawn protection, near your squad. While dead you **spectate** squadmates (1–4 / click / tap to switch) |
+| Assists | damaging an enemy within 8 s before their elimination: +30 |
 | On death | you keep 60 % of your energy |
 | Friendly fire | **off**: squadmates can't hurt each other |
 | Noise | firing shows you on nearby enemies' minimaps for 1.5 s |

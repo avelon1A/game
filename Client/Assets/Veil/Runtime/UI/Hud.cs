@@ -477,6 +477,8 @@ namespace Veil.UI
             _popupT = 1.8f;
         }
 
+        private string SpectateHint => Application.isMobilePlatform ? "tap to switch" : "1-4 / click to switch";
+
         private string N(int id) => id == _m.LocalId ? "<color=#ffd84a>You</color>" : _m.NameOf(id);
 
         private void HandleEvent(SimEvent e)
@@ -487,6 +489,16 @@ namespace Veil.UI
                     if (e.B == _m.LocalId) Feed(e.A >= 0 ? $"{N(e.A)} eliminated <color=#ff5a6a>You</color>" : "<color=#ff5a6a>You</color> were caught by the collapse", Theme.Text);
                     else if (e.A == _m.LocalId) { Feed($"You eliminated {N(e.B)}", Theme.Gold); Popup("+ELIMINATION"); _hitT = 0.4f; }
                     else Feed(e.A >= 0 ? $"{N(e.A)} eliminated {N(e.B)}" : $"{N(e.B)} fell to the collapse", Theme.TextDim);
+                    break;
+                case EventType.Downed:
+                    if (e.B == _m.LocalId) Feed(e.A >= 0 ? $"{N(e.A)} knocked <color=#ff5a6a>You</color> down" : "<color=#ff5a6a>You</color> are down", Theme.Text);
+                    else if (e.A == _m.LocalId) { Feed($"You knocked down {N(e.B)}", Theme.Gold); Popup("KNOCKED DOWN"); _hitT = 0.4f; }
+                    else if (_m.IsAlly(e.B)) Feed($"<color=#ff5a6a>{_m.NameOf(e.B)} is down</color> — revive them!", Theme.Text);
+                    break;
+                case EventType.Revived:
+                    if (e.A == _m.LocalId) Popup($"REVIVED {_m.NameOf(e.B).ToUpper()}  +{GameConfig.RevivePoints}");
+                    else if (e.B == _m.LocalId) Feed($"{N(e.A)} revived <color=#7dff9a>You</color>", Theme.Text);
+                    else if (_m.IsAlly(e.B)) Feed($"{N(e.A)} revived {N(e.B)}", Theme.TextDim);
                     break;
                 case EventType.ZoneCaptured:
                     Feed($"{N(e.A)} captured the <color=#{ColorUtility.ToHtmlStringRGB(Palette.ZoneColor(_m.Map.Zones[e.B].Type))}>{_m.Map.Zones[e.B].Name}</color>", Theme.Text);
@@ -631,7 +643,18 @@ namespace Veil.UI
             _revealEdge.color = new Color(0.6f, 0.3f, 1f, Mathf.Clamp01(_revealT) * 0.6f);
             _crosshair.enabled = me.Alive && !_m.Driver.Autopilot;
 
-            if (!me.Alive) _respawn.text = $"ELIMINATED\n<size=28><color=#ffffff>Respawning in {Mathf.Max(0, me.RespawnT):0.0}</color></size>";
+            if (!me.Alive) _respawn.text = $"ELIMINATED\n<size=28><color=#ffffff>Respawning in {Mathf.Max(0, me.RespawnT):0.0}</color></size>" +
+                                           (_view.SpectateName != null ? $"\n<size=24><color=#7dff9a>Spectating {_view.SpectateName}</color>  <color=#aab0d8>· {SpectateHint}</color></size>" : "");
+            else if (s.Self.Downed)
+                _respawn.text = s.Self.ReviveProg > 0.01f
+                    ? $"<color=#7dff9a>BEING REVIVED</color>\n<size=30><color=#ffffff>{Mathf.RoundToInt(s.Self.ReviveProg * 100)}%</color></size>"
+                    : $"DOWNED\n<size=26><color=#ffffff>A squadmate can revive you · bleeding out in {Mathf.Max(0, s.Self.BleedT):0}s</color></size>";
+            else if (s.Self.Reviving >= 0)
+            {
+                float rp = 0;
+                foreach (var a in s.Avatars) if (a.OwnerId == s.Self.Reviving && a.AvatarId < 1000) rp = a.ReviveProg;
+                _respawn.text = $"<color=#7dff9a>REVIVING {_m.NameOf(s.Self.Reviving).ToUpper()}</color>\n<size=30><color=#ffffff>{Mathf.RoundToInt(rp * 100)}%</color></size>";
+            }
             else _respawn.text = "";
             _respawn.supportRichText = true;
 
@@ -781,6 +804,8 @@ namespace Veil.UI
                 bool ally = _m.IsAlly(av.OwnerId);
                 bool decoy = av.AvatarId >= 1000;
                 np.Name.text = av.IsMyDecoy ? "Your Decoy" : ally && decoy ? $"{name}'s decoy" : name;
+                np.Name.supportRichText = true;
+                if (av.Downed) np.Name.text += ally ? (av.ReviveProg > 0.01f ? $"  <color=#7dff9a>REVIVING {Mathf.RoundToInt(av.ReviveProg * 100)}%</color>" : "  <color=#ff5a6a>DOWNED · go revive</color>") : "  <color=#ff5a6a>DOWNED</color>";
                 np.Name.color = av.IsMyDecoy || (ally && decoy) ? Theme.PurpleLight : ally ? Theme.Green : Theme.Text;
                 np.Hp.Set(av.Health01, Time.deltaTime);
                 np.Hp.SetColor(av.Health01 < 0.3f ? Theme.Red : Palette.Health);

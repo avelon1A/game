@@ -85,7 +85,7 @@ namespace Veil.Sim
             {
                 foreach (var p in Players)
                 {
-                    if (!p.Alive || Vec2.DistSq(p.Pos, pk.Pos) > r2 || p.H > 1.6f) continue;
+                    if (!p.Alive || p.Downed || Vec2.DistSq(p.Pos, pk.Pos) > r2 || p.H > 1.6f) continue;
                     if (!Collect(p, pk)) continue;
                     _collected.Add(pk.Id);
                     break;
@@ -152,7 +152,7 @@ namespace Veil.Sim
                 Array.Clear(_squadCount, 0, _squadCount.Length);
                 foreach (var p in Players)
                 {
-                    if (!p.Alive || p.ZoneId != zi) continue;
+                    if (!p.Alive || p.Downed || p.ZoneId != zi) continue;
                     count++;
                     if (_squadCount[p.Squad]++ == 0) { squads++; squad = p.Squad; single = p.Id; }
                 }
@@ -212,7 +212,7 @@ namespace Veil.Sim
                         if (c.TowerPingTimer >= GameConfig.TowerRevealInterval) { c.TowerPingTimer = 0; ping = true; }
                         foreach (var m in Players)
                         {
-                            if (m.Squad != z.Squad || !m.Alive) continue;
+                            if (m.Squad != z.Squad || !m.Alive || m.Downed) continue;
                             m.TowerControlTime += dt;
                             if (ping) m.TowerSightT = GameConfig.TowerRevealDuration;
                         }
@@ -224,7 +224,7 @@ namespace Veil.Sim
                 {
                     foreach (var p in Players)
                     {
-                        if (!p.Alive || p.ZoneId != zi) continue;
+                        if (!p.Alive || p.Downed || p.ZoneId != zi) continue;
                         float rate = GameConfig.ReactorEnergyPerSec + (z.Squad == p.Squad ? GameConfig.ReactorControllerBonus : 0);
                         p.Energy = MathF.Min(GameConfig.MaxEnergy, p.Energy + rate * dt);
                         p.PublicPingT = 0.35f;
@@ -237,7 +237,7 @@ namespace Veil.Sim
         {
             foreach (var p in Players)
             {
-                if (!p.Alive || p.ZoneId != z.Id || p.Keys < GameConfig.VaultKeys || z.Locked || z.Cooldown > 0)
+                if (!p.Alive || p.Downed || p.ZoneId != z.Id || p.Keys < GameConfig.VaultKeys || z.Locked || z.Cooldown > 0)
                 {
                     if (p.ZoneId != z.Id) p.VaultChannel = 0;
                     continue;

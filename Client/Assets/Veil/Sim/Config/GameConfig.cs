@@ -6,7 +6,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 4;
+        public const int ProtocolVersion = 5;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -42,6 +42,17 @@ namespace Veil.Sim
         public const float HealthRegenPerSec = 7f;
         public const float RespawnTime = 5f;
         public const float SpawnProtection = 2f;
+
+        // ---- downed & revive (Rilo v2, Milestone 1) ----
+        public const float DownedHealth = 60f;        // "bleed HP": enemies must deal this much more to finish a downed player
+        public const float DownedBleedTime = 25f;     // downed this long without a revive = eliminated
+        public const float DownedSpeed = 1.4f;        // crawl speed
+        public const float ReviveTime = 4f;           // a squadmate standing close (and not shooting) revives in this long
+        public const float ReviveRadius = 2.3f;
+        public const float ReviveHealth = 30f;
+        public const int RevivePoints = 50;
+        public const int AssistPoints = 30;
+        public const float AssistWindow = 8f;         // damage within this many seconds before an elimination = assist
         public const float DeathEnergyKeep = 0.6f;
 
         // ---- Abilities (Q / E / R) ----

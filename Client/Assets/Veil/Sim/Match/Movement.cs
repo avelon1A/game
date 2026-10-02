@@ -12,6 +12,17 @@ namespace Veil.Sim
         {
             if (!p.Alive) return;
             p.Yaw = cmd.Yaw;
+            if (p.Downed)
+            {
+                // crawl: no dash, sprint or jump
+                p.DashT = 0;
+                p.Vel = Vec2.MoveTowards(p.Vel, cmd.Move * GameConfig.DownedSpeed, GameConfig.GroundAccel * dt);
+                p.Pos += (p.Vel + p.Knock) * dt;
+                p.Knock = Vec2.MoveTowards(p.Knock, Vec2.Zero, GameConfig.KnockbackDecay * dt);
+                p.H = 0; p.VH = 0; p.Grounded = true;
+                map.ResolveCircle(ref p.Pos, GameConfig.PlayerRadius, 0);
+                return;
+            }
 
             // ---- Dash (Q) ----
             if (p.DashCd > 0) p.DashCd = System.MathF.Max(0, p.DashCd - dt);

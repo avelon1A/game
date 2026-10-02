@@ -16,6 +16,8 @@ namespace Veil.View
         public bool Dead;
         public bool Victory;
         public bool Idle;   // lobby / portrait pose
+        public bool Downed;     // knocked down: sit / crawl
+        public bool Reviving;   // kneeling over a downed squadmate
     }
 
     /// <summary>
@@ -183,11 +185,13 @@ namespace Veil.View
             _anim.SetBool("Grounded", s.Grounded || s.Dead);
             _anim.SetBool("Dashing", s.Dashing);
             _aimT -= dt;
-            bool aiming = (s.Aiming || _aimT > 0) && !s.Dead;
+            bool aiming = (s.Aiming || _aimT > 0) && !s.Dead && !s.Downed && !s.Reviving;
             _aimW = Mathf.MoveTowards(_aimW, aiming ? 1f : 0f, dt * 9f);
             _fireKick = Mathf.MoveTowards(_fireKick, 0, dt * 8f);
             _anim.SetBool("Aiming", aiming);
             _anim.SetBool("Dead", s.Dead);
+            _anim.SetBool("Downed", s.Downed && !s.Dead);
+            _anim.SetBool("Reviving", s.Reviving && !s.Downed && !s.Dead);
             _anim.SetBool("Victory", s.Victory);
             _anim.SetBool("Lobby", s.Idle && !s.Victory);
             LobbyActs(s.Idle && !s.Victory, dt);

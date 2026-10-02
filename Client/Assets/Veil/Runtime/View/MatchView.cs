@@ -20,7 +20,8 @@ namespace Veil.View
         public byte FireSeq, CastSeq, HitSeq, JumpSeq;
         public Vector3 Pos, Vel;
         public float Yaw, VisualYaw;
-        public bool Grounded = true, Dashing, Sprinting;
+        public bool Grounded = true, Dashing, Sprinting, Downed, Reviving;
+        public float ReviveProg;
         public float VH;
         public Transform ShieldBubble;
         public TrailRenderer Trail;
@@ -129,6 +130,7 @@ namespace Veil.View
 
             UpdateLocal(dt, snap);
             UpdateRemotes(dt, snap);
+            UpdateSpectate();
             UpdateProjectiles(snap);
             UpdatePickups(dt);
             for (int i = 0; i < _zones.Count && i < snap.Zones.Length; i++) _zones[i].Update(snap.Zones[i], Match, dt);
@@ -137,6 +139,40 @@ namespace Veil.View
             bool collapsing = snap.Circle < GameConfig.CircleStartRadius - 0.5f;
             _circle.gameObject.SetActive(collapsing);
             if (collapsing) _circle.localScale = new Vector3(snap.Circle * 2, 30, snap.Circle * 2);
+        }
+
+        // ------------------------------------------------------------------ spectating (while eliminated)
+
+        public int SpectateId { get; private set; } = -1;
+        public string SpectateName => SpectateId >= 0 ? Match.NameOf(SpectateId) : null;
+        public Vector3? SpectatePos => SpectateId >= 0 && Avatars.TryGetValue(SpectateId, out var a) ? a.Pos : (Vector3?)null;
+
+        private readonly List<int> _mates = new List<int>();
+
+        private void Mates()
+        {
+            _mates.Clear();
+            foreach (var kv in Avatars)
+                if (!kv.Value.IsLocal && kv.Key < 1000 && kv.Value.Alive && Match.IsAlly(kv.Value.OwnerId)) _mates.Add(kv.Key);
+            _mates.Sort();
+        }
+
+        private void UpdateSpectate()
+        {
+            if (Local == null || Local.Alive) { SpectateId = -1; return; }
+            Mates();
+            if (!_mates.Contains(SpectateId)) SpectateId = _mates.Count > 0 ? _mates[0] : -1;
+        }
+
+        /// <summary>Switch the spectated squadmate: index 0..3 = 1..4 keys, -1 = next.</summary>
+        public void SwitchSpectate(int index)
+        {
+            if (Local == null || Local.Alive) return;
+            Mates();
+            if (_mates.Count == 0) { SpectateId = -1; return; }
+            if (index >= 0) { if (index < _mates.Count) SpectateId = _mates[index]; return; }
+            int at = _mates.IndexOf(SpectateId);
+            SpectateId = _mates[(at + 1) % _mates.Count];
         }
 
         private void UpdateLocal(float dt, Snapshot snap)
@@ -148,6 +184,9 @@ namespace Veil.View
             av.Pos = pos;
             av.Vel = new Vector3(p.Vel.X, 0, p.Vel.Y);
             av.Alive = p.Alive;
+            av.Downed = p.Alive && p.Downed;
+            av.Reviving = snap != null && snap.Self.Reviving >= 0;
+            av.ReviveProg = snap != null ? snap.Self.ReviveProg : 0;
             av.Health01 = p.HealthFrac;
             av.Grounded = p.Grounded;
             av.VH = p.VH;
@@ -160,7 +199,7 @@ namespace Veil.View
             DriveRig(av, dt, true);
 
             // where the next shot will actually land (mirrors MatchSim projectile stepping); the HUD crosshair sits here
-            HasShotImpact = p.Alive && !Match.Driver.Autopilot;
+            HasShotImpact = p.Alive && !p.Downed && !Match.Driver.Autopilot;
             if (HasShotImpact)
             {
                 var dir = Vec2.FromYaw(Match.AimYaw);
@@ -239,6 +278,9 @@ namespace Veil.View
                     av.Shield = (src.Flags & AvatarFlags.Shield) != 0;
                     av.VH = s1 != null ? (s1.H - s0.H) / 0.066f : 0;
                     av.Alive = true;
+                    av.Downed = src.Downed;
+                    av.Reviving = src.Reviving;
+                    av.ReviveProg = src.ReviveProg;
                     TriggerSeqs(av, src.FireSeq, src.CastSeq, src.HitSeq, src.JumpSeq, false);
                     av.Fade = Mathf.MoveTowards(av.Fade, av.Vis == Visibility.Full ? 1 : 0, dt * 5f);
                 }
@@ -330,7 +372,7 @@ namespace Veil.View
             av.Rig.Animate(new RigState
             {
                 Velocity = av.Vel, Grounded = av.Grounded, VerticalVelocity = av.VH, Dashing = av.Dashing,
-                Sprinting = av.Sprinting, Dead = !av.Alive, Victory = false,
+                Sprinting = av.Sprinting, Dead = !av.Alive, Victory = false, Downed = av.Downed, Reviving = av.Reviving,
             }, dt);
         }
 

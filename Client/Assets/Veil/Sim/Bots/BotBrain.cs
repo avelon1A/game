@@ -199,6 +199,15 @@ namespace Veil.Sim
             ConsiderObjective(_p.Secondary, 38, Consider);
             ConsiderObjective(_sim.Squads[_p.Squad].Objective, 44, Consider);
 
+            // ---- downed: crawl to the nearest standing squadmate; standing: go revive a downed one ----
+            foreach (var o in _sim.Players)
+            {
+                if (o == _p || !o.Alive || !MatchSim.Allies(o, _p)) continue;
+                float d = Vec2.Dist(o.Pos, _p.Pos);
+                if (_p.Downed && !o.Downed) Consider(Goal.Wander, 95 - d * 0.3f, o.Pos);
+                else if (!_p.Downed && o.Downed && d < 45f) Consider(Goal.Wander, (Kind == BotKind.Defender ? 82 : 72) - d * 0.5f, o.Pos);
+            }
+
             // ---- squad: regroup when drifting far from the nearest living squadmate; back up a mate in a fight ----
             {
                 PlayerState mate = null; float md = float.MaxValue;

@@ -195,12 +195,20 @@ namespace Veil.Sim
 
                 UpdateTimers(p, dt);
                 if (!p.Alive) { UpdateRespawn(p, dt); continue; }
+                p.Reviving = -1;
+                if (p.Downed)
+                {
+                    Movement.Step(p, cmd, Map, dt, Events);
+                    p.ZoneId = Map.ZoneAt(p.Pos);
+                    continue;
+                }
 
                 HandleActions(p, cmd);
                 Movement.Step(p, cmd, Map, dt, Events);
                 p.ZoneId = Map.ZoneAt(p.Pos);
             }
 
+            foreach (var p in Players) if (p.Alive && p.Downed) UpdateDowned(p, dt);
             UpdateProjectiles(dt);
             UpdateDecoys(dt);
             UpdatePickups(dt);
@@ -225,7 +233,7 @@ namespace Veil.Sim
             for (int i = 0; i < p.RevealedTo.Length; i++)
                 if (p.RevealedTo[i] > 0) p.RevealedTo[i] = MathF.Max(0, p.RevealedTo[i] - dt);
             p.SinceDamage += dt;
-            if (p.Alive && p.SinceDamage > GameConfig.HealthRegenDelay && p.Health < GameConfig.MaxHealth && p.Pos.Length <= CircleRadius)
+            if (p.Alive && !p.Downed && p.SinceDamage > GameConfig.HealthRegenDelay && p.Health < GameConfig.MaxHealth && p.Pos.Length <= CircleRadius)
                 p.Health = MathF.Min(GameConfig.MaxHealth, p.Health + GameConfig.HealthRegenPerSec * dt);
         }
 
@@ -316,7 +324,7 @@ namespace Veil.Sim
                     Squad = p.Squad, SquadRank = sq.Rank, SquadTotal = sq.Total, SquadPoints = p.Score.Squad,
                     Total = p.Score.Total, Primary = p.Score.Primary, Secondary = p.Score.Secondary,
                     Resources = p.Score.Resources, Territory = p.Score.Territory, Eliminations = p.Score.Eliminations,
-                    Survival = p.Score.Survival, Bonus = p.Score.Bonus, Elims = p.Elims, Deaths = p.Deaths,
+                    Survival = p.Score.Survival, Bonus = p.Score.Bonus, Elims = p.Elims, Deaths = p.Deaths, Assists = p.Assists, Revives = p.Revives,
                     PrimaryDone = p.Primary.Done, SecondaryDone = p.Secondary.Done,
                     PrimaryType = p.Primary.Type, SecondaryType = p.Secondary.Type,
                 });

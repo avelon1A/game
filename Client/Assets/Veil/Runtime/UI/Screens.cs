@@ -528,7 +528,7 @@ namespace Veil.UI
                 _spawned.Add(tag.gameObject);
             }
 
-            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL   PRIM  SEC   RES  TERR  ELIM  SURV  SQUAD   K/D</color>\n");
+            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL   PRIM  SEC   RES  TERR  ELIM  SURV  SQUAD   K/A/D  REV</color>\n");
             int lastSquad = -1;
             foreach (var r in results)
             {
@@ -537,7 +537,7 @@ namespace Veil.UI
                     lastSquad = r.Squad;
                     sb.Append($"\n<color={(r.Squad == me.Squad ? "#7dff9a" : "#c7a6ff")}>#{r.SquadRank}  SQUAD {(char)('A' + r.Squad)}  ·  {r.SquadTotal:N0}</color>\n");
                 }
-                string line = $"    {r.Name,-15} {r.Total,5}   {r.Primary,4}  {r.Secondary,3}  {r.Resources,4}  {r.Territory,4}  {r.Eliminations,4}  {r.Survival,4}  {r.SquadPoints,5}   {r.Elims}/{r.Deaths}{(r == mvp ? "  MVP" : "")}";
+                string line = $"    {r.Name,-15} {r.Total,5}   {r.Primary,4}  {r.Secondary,3}  {r.Resources,4}  {r.Territory,4}  {r.Eliminations,4}  {r.Survival,4}  {r.SquadPoints,5}   {r.Elims}/{r.Assists}/{r.Deaths}  {r.Revives,3}{(r == mvp ? "  MVP" : "")}";
                 sb.Append(r.PlayerId == localId ? $"<color=#ffd84a>{line}</color>\n" : line + "\n");
             }
             _full.text = sb.ToString();

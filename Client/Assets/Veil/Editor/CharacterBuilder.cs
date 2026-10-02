@@ -14,7 +14,7 @@ namespace Veil.EditorTools
     /// </summary>
     public sealed class CharacterImport : AssetPostprocessor
     {
-        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory" };
+        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory", "fixing_kneeling" };
 
         /// <summary>
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
@@ -23,7 +23,7 @@ namespace Veil.EditorTools
         public static readonly string[] HumanoidHeroes = { "vanguard", "volt", "lyra", "nova", "sol" };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
         public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
 
-        public override uint GetVersion() => 3;   // bump → Unity re-imports every character with these rules
+        public override uint GetVersion() => 4;   // bump → Unity re-imports every character with these rules
 
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
         private bool IsLibrary => assetPath == LibraryFbx;
@@ -184,7 +184,8 @@ namespace Veil.EditorTools
                 // the hero's own clips win (e.g. Meshy walk / run); the library fills whatever is missing
                 foreach (var (game, libName) in LibraryLocomotion)
                     if (!clips.ContainsKey(game) && lib.TryGetValue(libName, out var lc)) clips[game] = lc;
-                foreach (var (game, libName) in new[] { ("shoot", "pistol_aim_neutral"), ("hit", "hit_chest"), ("death", "death01"), ("victory", "dance_loop") })
+                foreach (var (game, libName) in new[] { ("shoot", "pistol_aim_neutral"), ("hit", "hit_chest"), ("death", "death01"), ("victory", "dance_loop"),
+                                                         ("downed", "sitting_idle_loop"), ("crawl", "crouch_fwd_loop"), ("revive", "fixing_kneeling") })
                     if (!clips.ContainsKey(game) && lib.TryGetValue(libName, out var lc2)) clips[game] = lc2;
             }
             AnimationClip C(params string[] names) { foreach (var n in names) if (clips.TryGetValue(n, out var c)) return c; return null; }
@@ -220,7 +221,7 @@ namespace Veil.EditorTools
             foreach (var (p, t) in new[] { ("Speed", AnimatorControllerParameterType.Float), ("VSpeed", AnimatorControllerParameterType.Float),
                                            ("Grounded", AnimatorControllerParameterType.Bool), ("Dashing", AnimatorControllerParameterType.Bool),
                                            ("Aiming", AnimatorControllerParameterType.Bool), ("Dead", AnimatorControllerParameterType.Bool),
-                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("LobbyAct", AnimatorControllerParameterType.Int), ("LobbyActs", AnimatorControllerParameterType.Int), ("Hit", AnimatorControllerParameterType.Trigger) })
+                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("Downed", AnimatorControllerParameterType.Bool), ("Reviving", AnimatorControllerParameterType.Bool), ("LobbyAct", AnimatorControllerParameterType.Int), ("LobbyActs", AnimatorControllerParameterType.Int), ("Hit", AnimatorControllerParameterType.Trigger) })
                 ctrl.AddParameter(p, t);
 
             var idle = C("idle", "walk"); var walk = C("walk"); var run = C("run", "walk"); var sprint = C("sprint", "run");
@@ -268,6 +269,25 @@ namespace Veil.EditorTools
                 var d = sm.AddState("Death"); d.motion = death;
                 Any(d, 0.08f).AddCondition(AnimatorConditionMode.If, 0, "Dead");
                 Tr(d, loco, 0.1f).AddCondition(AnimatorConditionMode.IfNot, 0, "Dead");
+            }
+            // downed: sit / crawl on the ground; reviving a squadmate: kneel
+            var downed = C("downed"); var crawl = C("crawl", "downed"); var revive = C("revive");
+            if (downed)
+            {
+                var dn = sm.AddState("Downed");
+                var dTree = new BlendTree { name = "DownedTree", blendParameter = "Speed", useAutomaticThresholds = false, hideFlags = HideFlags.HideInHierarchy };
+                AssetDatabase.AddObjectToAsset(dTree, ctrl);
+                dTree.AddChild(downed, 0f);
+                dTree.AddChild(crawl, 1.2f);
+                dn.motion = dTree;
+                Any(dn, 0.2f).AddCondition(AnimatorConditionMode.If, 0, "Downed");
+                Tr(dn, loco, 0.3f).AddCondition(AnimatorConditionMode.IfNot, 0, "Downed");
+            }
+            if (revive)
+            {
+                var rv = sm.AddState("Reviving"); rv.motion = revive;
+                Any(rv, 0.2f).AddCondition(AnimatorConditionMode.If, 0, "Reviving");
+                Tr(rv, loco, 0.2f).AddCondition(AnimatorConditionMode.IfNot, 0, "Reviving");
             }
             var lobbyClip = C("lobby");
             if (!lobbyClip && C("lobby_act1")) lobbyClip = C("idle");   // lobby actions without an own lobby idle: use the idle

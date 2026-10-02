@@ -745,7 +745,23 @@ namespace Veil.App
                     float fov = 62f + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
-                    if (!_match.Predicted.Alive) target += Vector3.up * 2f;
+                    if (!_match.Predicted.Alive)
+                    {
+                        // eliminated: follow a squadmate until the respawn (1-4 / click / tap switches)
+                        var kbs = Keyboard.current; var ms = Mouse.current; var tsc = Touchscreen.current;
+                        if (kbs != null)
+                        {
+                            if (kbs.digit1Key.wasPressedThisFrame) _matchView.SwitchSpectate(0);
+                            if (kbs.digit2Key.wasPressedThisFrame) _matchView.SwitchSpectate(1);
+                            if (kbs.digit3Key.wasPressedThisFrame) _matchView.SwitchSpectate(2);
+                            if (kbs.digit4Key.wasPressedThisFrame) _matchView.SwitchSpectate(3);
+                        }
+                        if ((ms != null && ms.leftButton.wasPressedThisFrame) || (tsc != null && tsc.primaryTouch.press.wasPressedThisFrame))
+                            _matchView.SwitchSpectate(-1);
+                        var sp = _matchView.SpectatePos;
+                        if (sp.HasValue) target = sp.Value;
+                        else target += Vector3.up * 2f;
+                    }
                     CamRig.Follow(target, look, scroll, dt);
                     _hud?.PlaceCrosshair(dt);   // after the camera moved, so it tracks without lag
                     break;

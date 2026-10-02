@@ -159,6 +159,13 @@ namespace Veil.Sim
         public float SpawnProtT;
         public float SinceDamage = 99f;
         public int LastAttacker = -1;
+        public bool Downed;             // knocked down: crawls, can be revived or finished
+        public float BleedT;            // seconds left before a downed player is eliminated
+        public float ReviveProg;        // 0..1 while a squadmate revives
+        public int DownedBy = -1;
+        public int Reviving = -1;       // id of the downed squadmate this player is reviving (-1 none)
+        public int Revives, Assists;
+        public readonly float[] DamagedAt = new float[GameConfig.MaxPlayers + 1];   // sim time each attacker last hit this player
 
         // abilities & combat
         public float FireCd, PulseCd, DecoyCd, BuyCd;
@@ -197,7 +204,7 @@ namespace Veil.Sim
         {
             Pos = o.Pos; Vel = o.Vel; Knock = o.Knock; DashDir = o.DashDir; H = o.H; VH = o.VH; Yaw = o.Yaw;
             Grounded = o.Grounded; DashT = o.DashT; DashCd = o.DashCd; SpeedBuffT = o.SpeedBuffT;
-            Energy = o.Energy; Alive = o.Alive;
+            Energy = o.Energy; Alive = o.Alive; Downed = o.Downed;
         }
     }
 
@@ -247,7 +254,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived,
     }
 
     public struct SimEvent
@@ -282,7 +289,7 @@ namespace Veil.Sim
         public int Rank;
         public int Total;
         public int Primary, Secondary, Resources, Territory, Eliminations, Survival, Bonus;
-        public int Elims, Deaths;
+        public int Elims, Deaths, Assists, Revives;
         public bool PrimaryDone, SecondaryDone;
         public ObjectiveType PrimaryType, SecondaryType;
     }

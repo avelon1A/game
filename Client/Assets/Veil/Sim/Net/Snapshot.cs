@@ -16,6 +16,11 @@ namespace Veil.Sim
         Ally = 128,          // squadmate (or a squadmate's decoy)
     }
 
+    public static class AvatarState
+    {
+        public const byte Downed = 1, Reviving = 2;
+    }
+
     /// <summary>A visible character. Decoys are sent exactly like players (OwnerId = the player they imitate).</summary>
     public sealed class AvatarSnap
     {
@@ -26,6 +31,11 @@ namespace Veil.Sim
         public float H, Yaw, Health01;
         public AvatarFlags Flags;
         public byte FireSeq, CastSeq, HitSeq, JumpSeq;
+        public byte State;          // AvatarState bits
+        public float ReviveProg;    // 0..1 while downed and being revived
+
+        public bool Downed => (State & AvatarState.Downed) != 0;
+        public bool Reviving => (State & AvatarState.Reviving) != 0;
 
         public AvatarSnap Clone() => (AvatarSnap)MemberwiseClone();
     }
@@ -85,6 +95,7 @@ namespace Veil.Sim
             d.TowerSightT = s.TowerSightT; d.PublicPingT = s.PublicPingT; d.NoiseT = s.NoiseT;
             d.Keys = s.Keys; d.CoresCollected = s.CoresCollected; d.ZoneId = s.ZoneId; d.VaultChannel = s.VaultChannel;
             d.CapturedMask = s.CapturedMask; d.TowerControlTime = s.TowerControlTime; d.Deaths = s.Deaths; d.Elims = s.Elims;
+            d.BleedT = s.BleedT; d.ReviveProg = s.ReviveProg; d.Reviving = s.Reviving; d.Revives = s.Revives; d.Assists = s.Assists; d.DownedBy = s.DownedBy;
             d.Primary.CopyFrom(s.Primary); d.Secondary.CopyFrom(s.Secondary); d.Score.CopyFrom(s.Score);
             d.LastSeq = s.LastSeq; d.LastInput = s.LastInput;
         }
@@ -123,6 +134,8 @@ namespace Veil.Sim
                 if (p.SpawnProtT > 0) a.Flags |= AvatarFlags.SpawnProtected;
                 if (p.ZoneId == sim.RuinsZone) a.Flags |= AvatarFlags.Stealthed;
                 if (p.Squad == viewer.Squad) a.Flags |= AvatarFlags.Ally;
+                if (p.Downed) { a.State |= AvatarState.Downed; a.ReviveProg = p.ReviveProg; }
+                if (p.Reviving >= 0) a.State |= AvatarState.Reviving;
                 snap.Avatars.Add(a);
             }
             foreach (var d in sim.Decoys)

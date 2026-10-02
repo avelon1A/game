@@ -196,11 +196,66 @@ namespace Veil.Sim
             victim.Health -= amount;
             victim.SinceDamage = 0;
             victim.LastAttacker = attacker;
+            if (attacker >= 0 && attacker < victim.DamagedAt.Length) victim.DamagedAt[attacker] = Time;
             victim.HitSeq++;
             victim.VaultChannel = 0;
             victim.Knock += dir * GameConfig.Knockback;
             Events.Add(new SimEvent(EventType.Hit, attacker, victim.Id, (int)MathF.Ceiling(amount), victim.Pos));
-            if (victim.Health <= 0) Eliminate(victim, attacker);
+            if (victim.Health <= 0) HealthGone(victim, attacker);
+        }
+
+        /// <summary>Out of health: knocked down while a squadmate is still standing, otherwise eliminated.</summary>
+        private void HealthGone(PlayerState v, int attacker)
+        {
+            if (v.Downed || !HasStandingMate(v)) { Eliminate(v, v.Downed && attacker < 0 ? v.DownedBy : attacker); return; }
+            v.Downed = true;
+            v.Health = GameConfig.DownedHealth;
+            v.Shield = 0;
+            v.BleedT = GameConfig.DownedBleedTime;
+            v.ReviveProg = 0;
+            v.DownedBy = attacker;
+            v.DashT = 0; v.VaultChannel = 0; v.Reviving = -1;
+            Events.Add(new SimEvent(EventType.Downed, attacker, v.Id, 0, v.Pos));
+            CheckSquadWipe(v.Squad);
+        }
+
+        private bool HasStandingMate(PlayerState v)
+        {
+            foreach (var o in Players) if (o != v && o.Squad == v.Squad && o.Alive && !o.Downed) return true;
+            return false;
+        }
+
+        /// <summary>Nobody left standing in a squad: everyone still downed is eliminated.</summary>
+        private void CheckSquadWipe(int squad)
+        {
+            foreach (var o in Players) if (o.Squad == squad && o.Alive && !o.Downed) return;
+            foreach (var o in Players) if (o.Squad == squad && o.Alive && o.Downed) Eliminate(o, o.DownedBy);
+        }
+
+        private void UpdateDowned(PlayerState p, float dt)
+        {
+            p.BleedT -= dt;
+            if (p.BleedT <= 0) { Eliminate(p, p.DownedBy); return; }
+            // a squadmate standing close and not shooting revives; progress slowly fades when they step away
+            PlayerState reviver = null;
+            float r2 = GameConfig.ReviveRadius * GameConfig.ReviveRadius;
+            foreach (var o in Players)
+            {
+                if (o == p || o.Squad != p.Squad || !o.Alive || o.Downed || o.LastInput.Has(Buttons.Fire)) continue;
+                if (Vec2.DistSq(o.Pos, p.Pos) <= r2 && (o.Reviving < 0 || o.Reviving == p.Id)) { reviver = o; break; }
+            }
+            if (reviver == null) { p.ReviveProg = MathF.Max(0, p.ReviveProg - dt / GameConfig.ReviveTime * 0.5f); return; }
+            reviver.Reviving = p.Id;
+            p.ReviveProg += dt / GameConfig.ReviveTime;
+            if (p.ReviveProg < 1f) return;
+            p.Downed = false;
+            p.ReviveProg = 0;
+            p.Health = GameConfig.ReviveHealth;
+            p.SinceDamage = 0;
+            p.DownedBy = -1;
+            reviver.Revives++;
+            reviver.Score.Bonus += GameConfig.RevivePoints;
+            Events.Add(new SimEvent(EventType.Revived, reviver.Id, p.Id, 0, p.Pos));
         }
 
         private void ApplyEnvironmentDamage(PlayerState p, float amount)
@@ -208,12 +263,16 @@ namespace Veil.Sim
             if (!p.Alive) return;
             bool recentlyShot = p.LastAttacker >= 0 && p.SinceDamage < 3f;
             p.Health -= amount;
-            if (p.Health <= 0) Eliminate(p, recentlyShot ? p.LastAttacker : -1);
+            if (p.Health <= 0) HealthGone(p, recentlyShot ? p.LastAttacker : -1);
         }
 
         private void Eliminate(PlayerState v, int killer)
         {
+            if (!v.Alive) return;
             v.Alive = false;
+            v.Downed = false;
+            v.ReviveProg = 0;
+            v.Reviving = -1;
             v.Health = 0;
             v.Shield = 0;
             v.RespawnT = GameConfig.RespawnTime;
@@ -243,7 +302,17 @@ namespace Veil.Sim
                 // farming the same victim is worth less: 100, 50, 25, 25...
                 k.Score.Eliminations += Math.Max(25, GameConfig.EliminationPoints >> (k.ElimsOn[v.Id] - 1));
             }
+            // assists: other enemies that hurt the victim recently
+            for (int i = 0; i < Players.Count && i < v.DamagedAt.Length; i++)
+            {
+                var a = Players[i];
+                if (a.Id == killer || a == v || Allies(a, v) || v.DamagedAt[i] <= 0 || Time - v.DamagedAt[i] > GameConfig.AssistWindow) continue;
+                a.Assists++;
+                a.Score.Bonus += GameConfig.AssistPoints;
+            }
+            Array.Clear(v.DamagedAt, 0, v.DamagedAt.Length);
             Events.Add(new SimEvent(EventType.Eliminated, killer, v.Id, 0, v.Pos));
+            CheckSquadWipe(v.Squad);
         }
 
         private void UpdateRespawn(PlayerState p, float dt)

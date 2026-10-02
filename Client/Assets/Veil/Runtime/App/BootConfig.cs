@@ -27,7 +27,7 @@ namespace Veil.App
     public static class BootConfig
     {
         /// <summary>This app's build number. Bump it for every APK you hand out (it is also the Android versionCode).</summary>
-        public const int Build = 2;
+        public const int Build = 3;
 
         // tried in order; the second is a CDN mirror of the same file in case GitHub raw is blocked on a network
         private static readonly string[] Urls =
