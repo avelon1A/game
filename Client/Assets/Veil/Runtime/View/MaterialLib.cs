@@ -209,51 +209,9 @@ namespace Veil.View
             public bool Shorts, KneePads, CropTop, HoodDown, ShoulderPad, ArmRings, Scarf, Cargo;
         }
 
-        // Heroes = Quaternius CC0 characters (Tools/ai3d/blender/build_heroes.py). Colours feed UI accents + the procedural fallback.
+        // Hero = Meshy "Orange Vanguard" (Tools/ai3d/blender/build_meshy_rigged.py). Colours feed UI accents + the procedural fallback.
         public static readonly Outfit[] Outfits =
         {
-            new Outfit // hooded ranger, forest green
-            {
-                Name = "Ranger", Jacket = Hex("#2f5a2c"), Panel = Hex("#6b4a2e"), Inner = Hex("#1c1a18"), Collar = Hex("#2f5a2c"),
-                Pants = Hex("#1a2a1d"), Cuff = Hex("#6b4a2e"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#7dff9a"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#1a2a1d"),
-                ShoulderPad = true,
-            },
-            new Outfit // hooded huntress, crimson
-            {
-                Name = "Huntress", Jacket = Hex("#6b1f3a"), Panel = Hex("#6b4a2e"), Inner = Hex("#1c1a18"), Collar = Hex("#6b1f3a"),
-                Pants = Hex("#241419"), Cuff = Hex("#6b4a2e"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#ff5f8a"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#241419"),
-                ShoulderPad = true,
-            },
-            new Outfit // tan leather warden with beard
-            {
-                Name = "Warden", Jacket = Hex("#6e5a3e"), Panel = Hex("#3e2f22"), Inner = Hex("#1c1a18"), Collar = Hex("#6e5a3e"),
-                Pants = Hex("#4a3f33"), Cuff = Hex("#3e2f22"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#ffd84a"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#4a3f33"),
-                ShoulderPad = true,
-            },
-            new Outfit // hooded scout, teal
-            {
-                Name = "Scout", Jacket = Hex("#1f5a60"), Panel = Hex("#6b4a2e"), Inner = Hex("#1c1a18"), Collar = Hex("#1f5a60"),
-                Pants = Hex("#152226"), Cuff = Hex("#6b4a2e"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#40e6ff"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#152226"),
-                ShoulderPad = true,
-            },
-            new Outfit // peasant drifter, linen + brown
-            {
-                Name = "Drifter", Jacket = Hex("#cfc4a8"), Panel = Hex("#3e2f22"), Inner = Hex("#1c1a18"), Collar = Hex("#cfc4a8"),
-                Pants = Hex("#231d18"), Cuff = Hex("#3e2f22"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#ff9a3c"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#231d18"),
-                ShoulderPad = true,
-            },
-            new Outfit // peasant wanderer, olive
-            {
-                Name = "Wanderer", Jacket = Hex("#8a8a6a"), Panel = Hex("#2a2522"), Inner = Hex("#1c1a18"), Collar = Hex("#8a8a6a"),
-                Pants = Hex("#1d1a18"), Cuff = Hex("#2a2522"), Glove = Hex("#3a2a1e"), GloveAccent = Hex("#c7a6ff"),
-                Shoe = Hex("#5a3d26"), ShoeAccent = Hex("#3a2a1c"), Sole = Hex("#2a1f16"), Belt = Hex("#6b4a2e"), Buckle = Hex("#b9c2c9"), Sock = Hex("#1d1a18"),
-                ShoulderPad = true,
-            },
             new Outfit // Meshy "Orange Vanguard" (rigged on Meshy, own walk / run / sprint)
             {
                 Name = "Vanguard", Jacket = Hex("#ff7a1f"), Panel = Hex("#f4f1ea"), Inner = Hex("#26262e"), Collar = Hex("#f4f1ea"),

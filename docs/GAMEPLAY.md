@@ -18,18 +18,10 @@
 | **Collapse** | The arena closes towards the centre. |
 | **Final** | Holding the Tower at the end gives **+300**. |
 
-## 2. Heroes (cosmetic only, no stat differences)
+## 2. Hero
 
-| Hero | Look | Blaster |
-|---|---|---|
-| Ranger | green hood | green assault rifle |
-| Huntress | crimson hood | orange rifle |
-| Warden | tan leather, beard | yellow shotgun |
-| Scout | teal hood | long sniper |
-| Drifter | linen shirt, brown hair | yellow pistol |
-| Wanderer | olive, auburn buns | purple pistol |
-
-Pick in **Characters → HERO**, plus a **glow colour**. All heroes share the same smooth walk / jog / sprint / roll / aim animations.
+One hero: **Vanguard** (Meshy-rigged, orange/white suit, own walk / run / sprint; other moves retargeted from the animation library) with a magenta blaster.
+Pick a **glow colour** in **Characters**; bots get random glow colours.
 
 ## 3. Controls
 

@@ -58,17 +58,8 @@ namespace Veil.Sim
 
         public static Appearance Preset(int i)
         {
-            i = ((i % 7) + 7) % 7;
-            switch (i)
-            {
-                case 0: return new Appearance { Outfit = 0, Hair = 4, HairColor = 0, Accessory = 0, Color = 5 }; // ranger
-                case 1: return new Appearance { Outfit = 1, Hair = 4, HairColor = 0, Accessory = 0, Color = 1 }; // huntress
-                case 2: return new Appearance { Outfit = 2, Hair = 4, HairColor = 0, Accessory = 0, Color = 4 }; // warden
-                case 3: return new Appearance { Outfit = 3, Hair = 4, HairColor = 0, Accessory = 0, Color = 2 }; // scout
-                case 4: return new Appearance { Outfit = 4, Hair = 0, HairColor = 0, Accessory = 0, Color = 0 }; // drifter
-                case 5: return new Appearance { Outfit = 5, Hair = 1, HairColor = 0, Accessory = 0, Color = 3 }; // wanderer
-                default: return new Appearance { Outfit = 6, Hair = 0, HairColor = 0, Accessory = 0, Color = 0 }; // vanguard (Meshy)
-            }
+            // single hero (Meshy vanguard); presets only vary the glow colour
+            return new Appearance { Outfit = 0, Hair = 0, HairColor = 0, Accessory = 0, Color = (byte)(((i % 6) + 6) % 6) };
         }
     }
 

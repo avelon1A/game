@@ -74,9 +74,9 @@ namespace Veil.View
 
         /// <summary>When true, characters use AI-generated prefabs from Resources/Characters if present.</summary>
         public static bool UseModels = true;
-        public static readonly string[] ModelNames = { "ranger", "huntress", "warden", "scout", "drifter", "wanderer", "vanguard" };
+        public static readonly string[] ModelNames = { "vanguard" };
         /// <summary>Each hero's blaster (Kenney Blaster Kit, CC0) in Resources/Weapons, same order as ModelNames.</summary>
-        public static readonly string[] WeaponNames = { "blaster-p", "blaster-n", "blaster-g", "blaster-e", "blaster-j", "blaster-a", "blaster-m" };
+        public static readonly string[] WeaponNames = { "blaster-m" };
         private static Material _weaponMat;
 
         private static Material WeaponMaterial()
