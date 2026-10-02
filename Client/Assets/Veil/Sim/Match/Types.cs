@@ -58,8 +58,8 @@ namespace Veil.Sim
 
         public static Appearance Preset(int i)
         {
-            // single hero (Meshy vanguard); presets only vary the glow colour
-            return new Appearance { Outfit = 0, Hair = 0, HairColor = 0, Accessory = 0, Color = (byte)(((i % 6) + 6) % 6) };
+            // heroes: 0 vanguard, 1 volt, 2 lyra, 3 nova, 4 sol (Meshy); presets alternate heroes and vary the glow colour
+            return new Appearance { Outfit = (byte)(((i % 5) + 5) % 5), Hair = 0, HairColor = 0, Accessory = 0, Color = (byte)(((i % 6) + 6) % 6) };
         }
     }
 

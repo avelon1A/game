@@ -13,16 +13,16 @@ namespace Veil.UI
         private readonly List<Text> _labels = new List<Text>();
         public int Selected { get; private set; }
 
-        public ChipRow(Transform parent, Vector2 anchor, Vector2 pos, string title, string[] options, int selected, Action<int> onPick, float chipWidth = 120)
+        public ChipRow(Transform parent, Vector2 anchor, Vector2 pos, string title, string[] options, int selected, Action<int> onPick, float chipWidth = 120, float labelWidth = 180)
         {
-            float width = options.Length * (chipWidth + 8) + 180;
+            float width = options.Length * (chipWidth + 8) + labelWidth;
             Root = UIKit.At(parent, "Chips_" + title, anchor, pos, new Vector2(width, 48));
             var t = UIKit.LabelAt(Root, title, 20, Theme.TextDim, new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(170, 40), TextAnchor.MiddleLeft, UIKit.BoldFont); UIKit.Fit(t);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
             for (int i = 0; i < options.Length; i++)
             {
                 int idx = i;
-                var b = UIKit.Button(Root, options[i], new Vector2(0, 0.5f), new Vector2(180 + i * (chipWidth + 8), 0), new Vector2(chipWidth, 44), UIKit.ButtonStyle.Ghost, () => { Select(idx); onPick(idx); }, options[i].Length > 8 ? 14 : 18);
+                var b = UIKit.Button(Root, options[i], new Vector2(0, 0.5f), new Vector2(labelWidth + i * (chipWidth + 8), 0), new Vector2(chipWidth, 44), UIKit.ButtonStyle.Ghost, () => { Select(idx); onPick(idx); }, options[i].Length > 7 ? 15 : 18);
                 ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
                 _chips.Add((Image)b.targetGraphic);
                 _labels.Add(UIKit.ButtonLabel(b));

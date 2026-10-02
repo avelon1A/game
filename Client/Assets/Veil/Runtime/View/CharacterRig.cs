@@ -74,9 +74,9 @@ namespace Veil.View
 
         /// <summary>When true, characters use AI-generated prefabs from Resources/Characters if present.</summary>
         public static bool UseModels = true;
-        public static readonly string[] ModelNames = { "vanguard" };
+        public static readonly string[] ModelNames = { "vanguard", "volt", "lyra", "nova", "sol" };
         /// <summary>Each hero's blaster (Kenney Blaster Kit, CC0) in Resources/Weapons, same order as ModelNames.</summary>
-        public static readonly string[] WeaponNames = { "blaster-m" };
+        public static readonly string[] WeaponNames = { "blaster-m", "blaster-e", "blaster-n", "blaster-j", "blaster-g" };
         private static Material _weaponMat;
 
         private static Material WeaponMaterial()
@@ -98,6 +98,20 @@ namespace Veil.View
         private Animator _anim;
         private Transform _boneRUpper, _boneRLower;
         private float _dist, _deadT;
+
+        // heroes with lobby_act clips (CharacterBuilder) do one of them every few seconds while idling in menus
+        private float _lobbyActT = 4f;
+        private int _lobbyActN = -1;
+        private void LobbyActs(bool lobby, float dt)
+        {
+            if (_lobbyActN < 0) { _lobbyActN = 0; foreach (var p in _anim.parameters) if (p.name == "LobbyActs") _lobbyActN = p.defaultInt; }
+            int n = _lobbyActN;
+            if (n == 0) return;
+            if (!lobby) { _lobbyActT = 4f; _anim.SetInteger("LobbyAct", 0); return; }
+            _lobbyActT -= dt;
+            if (_lobbyActT < -0.3f) { _anim.SetInteger("LobbyAct", 0); _lobbyActT = UnityEngine.Random.Range(6f, 11f); }
+            else if (_lobbyActT < 0f && _anim.GetInteger("LobbyAct") == 0) _anim.SetInteger("LobbyAct", UnityEngine.Random.Range(1, n + 1));
+        }
 
         public static bool HasModel(int outfit) => Resources.Load<GameObject>("Characters/" + ModelNames[outfit % ModelNames.Length]) != null;
 
@@ -176,6 +190,7 @@ namespace Veil.View
             _anim.SetBool("Dead", s.Dead);
             _anim.SetBool("Victory", s.Victory);
             _anim.SetBool("Lobby", s.Idle && !s.Victory);
+            LobbyActs(s.Idle && !s.Victory, dt);
 
             // footsteps from distance travelled
             if (s.Grounded && speed > 0.5f && !s.Dead)

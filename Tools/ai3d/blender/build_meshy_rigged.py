@@ -1,6 +1,7 @@
 """
 Imports a Meshy *rigged* character download (one GLB per animation, Mixamo skeleton) into the Unity hero pipeline.
-  Blender -b -P build_meshy_rigged.py -- <folder with *_Animation_<Name>_withSkin.glb> <unity Characters dir> <hero name>
+  Blender -b -P build_meshy_rigged.py -- <folder with *_Animation_<Name>_withSkin.glb> <unity Characters dir> <hero name> [meshy=clip ...]
+Extra meshy=clip pairs override CLIP_MAP, e.g. idle_4=lobby idle_3=lobby_act1 (lobby_act* play now and then in the lobby).
 Output: Characters/<hero>/{<hero>.fbx (mesh + rig + clips), <hero>_albedo.png, <hero>_textured.txt}.
 Clips it lacks (idle, jump, roll, aim, hit, death…) come from the Universal Animation Library via Unity humanoid
 retargeting (CharacterBuilder: HumanoidHeroes).
@@ -14,7 +15,8 @@ SRC, OUT_ROOT, NAME = argv[0], argv[1], argv[2]
 HEIGHT = 2.0
 # Meshy animation name -> game clip (first match wins; unknown ones are kept under their own name)
 CLIP_MAP = [("walking", "walk"), ("casual_walk", "walk_casual"), ("running", "run"), ("run_03", "run_alt"),
-            ("runfast", "sprint"), ("agree_gesture", "victory"), ("skill_01", "skill")]
+            ("runfast", "sprint"), ("agree_gesture", "victory"), ("skill_01", "skill"), ("idle_03", "lobby")]
+CLIP_MAP = [tuple(a.lower().split("=", 1)) for a in argv[3:]] + CLIP_MAP
 
 
 def log(*a): print(f"[{NAME}]", *a, flush=True)

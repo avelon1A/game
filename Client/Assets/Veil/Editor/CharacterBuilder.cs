@@ -20,7 +20,7 @@ namespace Veil.EditorTools
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
         /// locomotion retargets onto them. The Ranger already shares the library's rig and stays generic.
         /// </summary>
-        public static readonly string[] HumanoidHeroes = { "vanguard" };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
+        public static readonly string[] HumanoidHeroes = { "vanguard", "volt", "lyra", "nova", "sol" };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
         public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
 
         public override uint GetVersion() => 3;   // bump → Unity re-imports every character with these rules
@@ -220,7 +220,7 @@ namespace Veil.EditorTools
             foreach (var (p, t) in new[] { ("Speed", AnimatorControllerParameterType.Float), ("VSpeed", AnimatorControllerParameterType.Float),
                                            ("Grounded", AnimatorControllerParameterType.Bool), ("Dashing", AnimatorControllerParameterType.Bool),
                                            ("Aiming", AnimatorControllerParameterType.Bool), ("Dead", AnimatorControllerParameterType.Bool),
-                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("Hit", AnimatorControllerParameterType.Trigger) })
+                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("LobbyAct", AnimatorControllerParameterType.Int), ("LobbyActs", AnimatorControllerParameterType.Int), ("Hit", AnimatorControllerParameterType.Trigger) })
                 ctrl.AddParameter(p, t);
 
             var idle = C("idle", "walk"); var walk = C("walk"); var run = C("run", "walk"); var sprint = C("sprint", "run");
@@ -270,12 +270,26 @@ namespace Veil.EditorTools
                 Tr(d, loco, 0.1f).AddCondition(AnimatorConditionMode.IfNot, 0, "Dead");
             }
             var lobbyClip = C("lobby");
+            if (!lobbyClip && C("lobby_act1")) lobbyClip = C("idle");   // lobby actions without an own lobby idle: use the idle
             if (lobbyClip)
             {
                 // menus / podium / portraits: the concept-art hero stance
                 var l = sm.AddState("Lobby"); l.motion = lobbyClip;
                 Any(l, 0.25f).AddCondition(AnimatorConditionMode.If, 0, "Lobby");
                 Tr(l, loco, 0.25f).AddCondition(AnimatorConditionMode.IfNot, 0, "Lobby");
+                // lobby_act1..N: one-shot idle actions CharacterRig plays now and then (LobbyAct = index)
+                int n = 0;
+                for (var act = C("lobby_act" + (n + 1)); act; act = C("lobby_act" + (n + 1)))
+                {
+                    n++;
+                    var a = sm.AddState("LobbyAct" + n); a.motion = act;
+                    Tr(l, a, 0.25f).AddCondition(AnimatorConditionMode.Equals, n, "LobbyAct");
+                    var back = a.AddTransition(l); back.hasExitTime = true; back.exitTime = 0.92f; back.duration = 0.25f;
+                    Tr(a, loco, 0.25f).AddCondition(AnimatorConditionMode.IfNot, 0, "Lobby");
+                }
+                var ps = ctrl.parameters;
+                foreach (var p in ps) if (p.name == "LobbyActs") p.defaultInt = n;
+                ctrl.parameters = ps;
             }
             if (victory)
             {

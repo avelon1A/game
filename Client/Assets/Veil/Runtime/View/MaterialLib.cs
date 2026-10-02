@@ -219,6 +219,34 @@ namespace Veil.View
                 Shoe = Hex("#2a2a31"), ShoeAccent = Hex("#ff7a1f"), Sole = Hex("#f4f4f6"), Belt = Hex("#e9e3d6"), Buckle = Hex("#2a2a31"), Sock = Hex("#f4f4f6"),
                 ShoulderPad = true,
             },
+            new Outfit // Meshy "Neon Vanguard" (rigged on Meshy, own walk / run + idle in the lobby)
+            {
+                Name = "Volt", Jacket = Hex("#2ee6ff"), Panel = Hex("#1a1d26"), Inner = Hex("#101219"), Collar = Hex("#2ee6ff"),
+                Pants = Hex("#1a1d26"), Cuff = Hex("#2ee6ff"), Glove = Hex("#14161d"), GloveAccent = Hex("#2ee6ff"),
+                Shoe = Hex("#1a1d26"), ShoeAccent = Hex("#2ee6ff"), Sole = Hex("#e9f6ff"), Belt = Hex("#2a2f3a"), Buckle = Hex("#2ee6ff"), Sock = Hex("#1a1d26"),
+                ShoulderPad = true,
+            },
+            new Outfit // Meshy "Cyber Violet" (female; idle actions in the lobby)
+            {
+                Name = "Lyra", Jacket = Hex("#a66bff"), Panel = Hex("#1c1626"), Inner = Hex("#120f19"), Collar = Hex("#a66bff"),
+                Pants = Hex("#1c1626"), Cuff = Hex("#a66bff"), Glove = Hex("#15121c"), GloveAccent = Hex("#c99bff"),
+                Shoe = Hex("#1c1626"), ShoeAccent = Hex("#a66bff"), Sole = Hex("#f1ebff"), Belt = Hex("#2c2438"), Buckle = Hex("#c99bff"), Sock = Hex("#1c1626"),
+                ShoulderPad = true,
+            },
+            new Outfit // Meshy "Pink Techwear Muse" (female; waves hello in the lobby)
+            {
+                Name = "Nova", Jacket = Hex("#ff4fa0"), Panel = Hex("#f4eef2"), Inner = Hex("#1d1820"), Collar = Hex("#ff4fa0"),
+                Pants = Hex("#2a2028"), Cuff = Hex("#ff4fa0"), Glove = Hex("#1d1820"), GloveAccent = Hex("#ff8cc4"),
+                Shoe = Hex("#f4eef2"), ShoeAccent = Hex("#ff4fa0"), Sole = Hex("#ffffff"), Belt = Hex("#2a2028"), Buckle = Hex("#ff8cc4"), Sock = Hex("#f4eef2"),
+                ShoulderPad = true,
+            },
+            new Outfit // Meshy "Solar Paladin" (dances / flips in the lobby)
+            {
+                Name = "Sol", Jacket = Hex("#ffd21f"), Panel = Hex("#f6f1e2"), Inner = Hex("#2a2418"), Collar = Hex("#ffd21f"),
+                Pants = Hex("#3a3222"), Cuff = Hex("#ffd21f"), Glove = Hex("#2a2418"), GloveAccent = Hex("#ffe57a"),
+                Shoe = Hex("#f6f1e2"), ShoeAccent = Hex("#ffd21f"), Sole = Hex("#ffffff"), Belt = Hex("#3a3222"), Buckle = Hex("#ffe57a"), Sock = Hex("#f6f1e2"),
+                ShoulderPad = true,
+            },
         };
 
         public static readonly string[] HairNames = { "Spiky", "Ponytail", "Sleek", "Crest", "Hood" };

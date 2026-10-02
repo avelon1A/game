@@ -18,10 +18,18 @@
 | **Collapse** | The arena closes towards the centre. |
 | **Final** | Holding the Tower at the end gives **+300**. |
 
-## 2. Hero
+## 2. Heroes (cosmetic only, no stat differences)
 
-One hero: **Vanguard** (Meshy-rigged, orange/white suit, own walk / run / sprint; other moves retargeted from the animation library) with a magenta blaster.
-Pick a **glow colour** in **Characters**; bots get random glow colours.
+| Hero | Look | Lobby |
+|---|---|---|
+| Vanguard | orange / white suit | standard idle |
+| Volt | neon cyan techwear | idle + occasional pose |
+| Lyra | violet cyber (female) | own idle + 3 idle actions |
+| Nova | pink techwear (female) | idle + waves hello |
+| Sol | gold / white paladin | idle + dance / flip |
+
+All are Meshy-rigged models (own walk / run); other moves are retargeted from the animation library.
+Pick in **Characters → HERO** plus a **glow colour**; bots get random heroes. New heroes: `Tools/ai3d/blender/build_meshy_rigged.py` (see its header).
 
 ## 3. Controls
 
