@@ -118,8 +118,77 @@ namespace Veil.View
             }
         }
 
+        /// <summary>Visual-only street furniture: lights along streets, benches and planters, market parasols, boats at the docks.</summary>
+        private void BuildIslandDetail()
+        {
+            void Put(string cat, Vec2 at, float yaw, float height, int v = 0)
+            {
+                var l = Props(cat); if (l.Count == 0) return;
+                var p = l[Mathf.Abs(v) % l.Count];
+                AddProp(p, Build.V(at), yaw, height / Mathf.Max(p.Size.y, 0.01f));
+            }
+            bool Free(Vec2 p, float r) => !_map.IsBlockedForStanding(p, r);
+            // street lights + planters along the city avenues, both sides
+            for (int i = 0; i < 8; i++)
+            {
+                float yaw = i * 45f;
+                var dir = Vec2.FromYaw(yaw); var side = Vec2.FromYaw(yaw + 90f);
+                for (float r = 20f; r < IslandMap.MoatIn - 3f; r += 9f)
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        var p = dir * r + side * (s * 5.4f);
+                        if (Free(p, 0.4f)) Put("streetlight", p, yaw + (s > 0 ? 180 : 0), 4.6f, i);
+                        var q = dir * (r + 4.5f) + side * (s * 5.6f);
+                        if (Free(q, 0.6f)) Put(i % 2 == 0 ? "planter" : "bench", q, yaw + (s > 0 ? -90 : 90), 0.9f, i + (int)r);
+                    }
+            }
+            // ring road lights
+            for (float yaw = 7.5f; yaw < 360; yaw += 15f)
+            {
+                var p = Vec2.FromYaw(yaw) * (IslandMap.RingRoad + 4.8f);
+                if (Free(p, 0.4f)) Put("streetlight", p, yaw + 180, 4.6f, (int)yaw);
+            }
+            // plaza benches facing the tower
+            for (int i = 0; i < 8; i++)
+            {
+                var p = Vec2.FromYaw(i * 45f + 22.5f) * 17.5f;
+                if (Free(p, 0.6f)) Put("bench", p, i * 45f + 22.5f, 0.9f, i);
+            }
+            // market square + beach parasols
+            var market = _map.Zone(ZoneType.Market).Center;
+            for (int i = 0; i < 4; i++)
+            {
+                var p = market + Vec2.FromYaw(i * 90f + 45f) * 3.2f;
+                if (Free(p, 0.5f)) Put("parasol", p, i * 37f, 2.6f, i);
+            }
+            var rnd = new System.Random(77);
+            for (int i = 0; i < 14; i++)
+            {
+                var p = Vec2.FromYaw(135f + (float)(rnd.NextDouble() * 34 - 17)) * (float)(140 + rnd.NextDouble() * 38);
+                if (IslandMap.BiomeAt(p) == Biome.Beach && Free(p, 1f)) Put("parasol", p, (float)rnd.NextDouble() * 360, 2.6f, i);
+            }
+            // bins and cones near city blocks
+            foreach (var o in _map.Obstacles)
+            {
+                if (o.Kind != ObstacleKind.CityBlock) continue;
+                var p = o.Center + Vec2.FromYaw(o.Variant % 360) * (Mathf.Max(o.Half.X, o.Half.Y) + 1.4f);
+                if (o.Variant % 3 == 0 && Free(p, 0.6f)) Put(o.Variant % 2 == 0 ? "dumpster" : "cone", p, o.Variant % 90, o.Variant % 2 == 0 ? 1.4f : 0.8f, o.Variant);
+            }
+            // the hydro dam (Meshy landmark) across the two dam walls
+            var dam = Landmark("dam");
+            if (dam != null) AddProp(dam, Build.V(DamCenter), 270f + 90f, 22f / Mathf.Max(Mathf.Max(dam.Size.x, dam.Size.z), 0.01f));
+            // boats moored off the dockyard and beach coasts
+            for (int i = 0; i < 6; i++)
+            {
+                float yaw = (i < 4 ? 45f : 135f) + (i % 4 - 1.5f) * 9f;
+                var p = Vec2.FromYaw(yaw) * (IslandMap.CoastRadius(yaw) + 9f);
+                Put("boat", p, yaw + 90f, i % 3 == 2 ? 7f : 2.2f, i);
+            }
+        }
+
         private void BuildIslandSurroundings()
         {
+            BuildIslandDetail();
             // the sea: one plane at water level (rivers, moat and coast are terrain dips under it)
             var sea = Build.Part(Root, MeshGen.GroundQuad, MaterialLib.Water(), new Vector3(0, WaterLevel, 0), new Vector3(1600, 1, 1600), null, "Sea", false);
             // small islets on the horizon
@@ -172,6 +241,29 @@ namespace Veil.View
             return l;
         }
 
+        private PropInfo Landmark(string name)
+        {
+            var l = Props("landmark_" + name);   // Props() looks for _0, _1...: fall back to the single file
+            if (l.Count > 0) return l[0];
+            var go = Resources.Load<GameObject>("Props/landmark_" + name);
+            if (go == null) return null;
+            var b = new Bounds(); bool first = true;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var mb = mf.sharedMesh.bounds; var m = mf.transform.localToWorldMatrix;
+                for (int c = 0; c < 8; c++)
+                {
+                    var p = m.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1)));
+                    if (first) { b = new Bounds(p, Vector3.zero); first = false; } else b.Encapsulate(p);
+                }
+            }
+            var info = new PropInfo { Prefab = go, Size = b.size };
+            l.Add(info);
+            return info;
+        }
+
+        public static Vec2 DamCenter => Vec2.FromYaw(270f) * 170f;
+
         /// <summary>Adds a prop to the static batches. scale is uniform; the prop's origin is its bottom centre.</summary>
         private void AddProp(PropInfo p, Vector3 pos, float yaw, float scale)
         {
@@ -190,6 +282,12 @@ namespace Veil.View
         /// <summary>Real model for an obstacle, fitted to its collision shape. False = no prop, use the coded look.</summary>
         private bool TryProp(Obstacle o, Vector3 c)
         {
+            if (o.Kind == ObstacleKind.Crane && Landmark("crane") is PropInfo crane)
+            {
+                AddProp(crane, c, Mathf.Atan2(c.x, c.z) * Mathf.Rad2Deg + 90f, o.Height / Mathf.Max(crane.Size.y, 0.01f));
+                return true;
+            }
+            if (o.Kind == ObstacleKind.Wall && Vec2.Dist(o.Center, DamCenter) < 18f) return true;   // drawn by the dam landmark
             string cat; int v = Mathf.Abs(o.Variant);
             switch (o.Kind)
             {
@@ -398,6 +496,22 @@ namespace Veil.View
         /// <summary>The Rilo tower at the centre of the city: dark spire with purple light, crystal on top.</summary>
         private void BuildRiloTower(Vector3 c)
         {
+            var tw = Landmark("tower");
+            if (tw != null)
+            {
+                AddProp(tw, c, 45f, 44f / Mathf.Max(tw.Size.y, 0.01f));
+                var term = Landmark("terminal");
+                if (term != null)
+                    for (int i = 0; i < 4; i++)
+                    {
+                        float yaw = 45f + 90f * i;
+                        AddProp(term, c + Quaternion.Euler(0, yaw, 0) * Vector3.forward * 4.6f, yaw, 1.5f / Mathf.Max(term.Size.y, 0.01f));
+                    }
+                var cr = Build.Part(Root, MeshGen.Octahedron, MaterialLib.Glow(Palette.Hex("#c48bff"), 3.5f), c + Vector3.up * 47f, new Vector3(2.2f, 3.4f, 2.2f), null, "TowerCrystal", false);
+                TowerCrystal = cr.transform;
+                Build.Part(Root, MeshGen.Cylinder(16), MaterialLib.Unlit(new Color(0.75f, 0.5f, 1f, 0.06f), MaterialLib.Blend.Additive), c + Vector3.up * 78f, new Vector3(0.9f, 60f, 0.9f), null, "TowerBeam", false);
+                return;
+            }
             var dark = MaterialLib.Toon(Palette.Hex("#2d2a45"), 0.3f, 0.3f);
             var mid = MaterialLib.Toon(Palette.Hex("#4a4470"), 0.3f, 0.3f);
             var glow = MaterialLib.Glow(Palette.Hex("#b46bff"), 2.6f);

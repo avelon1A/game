@@ -86,6 +86,20 @@ namespace Veil.View
                     }
                     break;
                 }
+                case 4: // asphalt street: kerbs, dark road, dashed centre line
+                {
+                    var rot = Quaternion.Euler(0, d.Rot, 0);
+                    Add(MeshGen.GroundQuad, MaterialLib.Toon(Palette.Hex("#c9ccd8"), 0f), Build.V(d.Center, 0.014f), new Vector3(d.Half.X * 2 + 2.4f, 1, d.Half.Y * 2), rot, false);
+                    Add(MeshGen.GroundQuad, MaterialLib.Toon(Palette.Hex("#4a4d5e"), 0f), Build.V(d.Center, 0.024f), new Vector3(d.Half.X * 2, 1, d.Half.Y * 2), rot, false);
+                    var line = MaterialLib.Toon(Palette.Hex("#f2f2f2"), 0f);
+                    int dashes = Mathf.Max(1, (int)(d.Half.Y * 2 / 4f));
+                    for (int i = 0; i < dashes; i++)
+                    {
+                        var local = new Vec2(0, -d.Half.Y + (i + 0.5f) * (d.Half.Y * 2 / dashes));
+                        Add(MeshGen.GroundQuad, line, Build.V(d.Center + Vec2.RotateYaw(local, d.Rot), 0.03f), new Vector3(0.22f, 1, 1.8f), rot, false);
+                    }
+                    break;
+                }
                 case 1: // bridge
                 {
                     var wood = MaterialLib.Toon(Palette.Wood, 0.2f);
@@ -413,7 +427,7 @@ namespace Veil.View
                 if (_map.Island && !Grassy(IslandMap.BiomeAt(p))) continue;
                 bool onPath = false;
                 foreach (var d in _map.Decals)
-                    if (d.Kind == 0 && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).X) < d.Half.X + 0.5f && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).Y) < d.Half.Y) { onPath = true; break; }
+                    if ((d.Kind == 0 || d.Kind == 4) && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).X) < d.Half.X + 0.5f && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).Y) < d.Half.Y) { onPath = true; break; }
                 if (onPath) continue;
                 if (i % 5 == 0)
                     Add(MeshGen.SphereLow, MaterialLib.Toon(flowers[i % flowers.Length], 0.2f), Build.V(p, 0.25f), Vector3.one * 0.22f, null, false);

@@ -5,7 +5,8 @@
 ## 1. The match
 
 - **16 players**: 4 squads × 4. Empty seats are filled by bots (Explorer, Collector, Hunter, Defender, Opportunist).
-- **Arena**: 150 m × 150 m with a central **Tower**, plus **Reactor**, **Market**, **Vault**, **Ruins** and capturable zones.
+- **Map: Rilo Island** (400 m × 400 m): **Rilo City** in the centre (Rilo tower + Hack Terminal plaza, moat with 8 bridges), surrounded by **Snow Base, Dockyard, Ruins, Beach, Forest, Canyon, Hydro Plant, Outpost**, split by rivers (bridges are chokepoints) and linked by a ring road. Squads spawn in Outpost / Dockyard / Beach / Canyon at the same distance from the centre. Props: Kenney CC0 + Meshy landmarks (`Tools/ai3d/blender/build_props.py`, `build_landmarks.py`).
+- **HUD**: compass bar (objective / extraction / node markers), minimap (tap or **M** = full map screen with region names and legend), terminal-style hack screen.
 - **Length**: 5, 10 or 15 minutes, chosen in the lobby by the squad leader.
 - **Winning (extraction mode, default)**: the **first squad to complete the extraction wins** and the match ends immediately. If time runs out, squads rank by extraction progress, then route progress, then score.
 

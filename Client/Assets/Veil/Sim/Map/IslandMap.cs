@@ -120,12 +120,16 @@ namespace Veil.Sim
 
             // ---------------- roads ----------------
             for (float yaw = 0; yaw < 360; yaw += 15f)
-                Path(m, Vec2.FromYaw(yaw) * RingRoad, Vec2.FromYaw(yaw + 15f) * RingRoad, 6f);
+            {
+                Path(m, Vec2.FromYaw(yaw) * RingRoad, Vec2.FromYaw(yaw + 15f) * RingRoad, 7f);
+                m.Decals[m.Decals.Count - 1].Kind = 4;   // asphalt
+            }
             for (int i = 0; i < 8; i++)
             {
                 float yaw = i * 45f;
                 Path(m, Vec2.FromYaw(yaw) * (MoatOut + 3f), Vec2.FromYaw(yaw) * (CoastRadius(yaw) - 16f), i % 2 == 0 ? 6f : 7f);
-                Path(m, Vec2.FromYaw(yaw) * 14f, Vec2.FromYaw(yaw) * (MoatIn - 1f), 7f);      // city avenues
+                Path(m, Vec2.FromYaw(yaw) * 14f, Vec2.FromYaw(yaw) * (MoatIn - 1f), 8f);      // city avenues
+                m.Decals[m.Decals.Count - 1].Kind = 4;
             }
 
             // ---------------- Rilo City ----------------
@@ -330,7 +334,7 @@ namespace Veil.Sim
         private static void BuildCanyon(MapData m, Rng rng, List<Vec2> reserved)
         {
             const int k = 5;
-            Scatter(m, rng, reserved, k, 16, 85f, 178f, p => Circle(m, ObstacleKind.Mesa, p, rng.Range(4f, 8f), rng.Range(9f, 16f)), 7f, 4f);
+            Scatter(m, rng, reserved, k, 16, 85f, 178f, p => Circle(m, ObstacleKind.Mesa, p, rng.Range(4f, 8f), rng.Range(9f, 16f)), 14f, 4f);   // spires stay well clear of spawns and pickups
             Scatter(m, rng, reserved, k, 24, 80f, 180f, p => Circle(m, ObstacleKind.Rock, p, rng.Range(1.2f, 2.6f), rng.Range(1.6f, 3.4f)));
             for (int i = 0; i < 2; i++) Box(m, ObstacleKind.Hut, Local(k, 112f + i * 30f, 14f - i * 6f), new Vec2(3f, 2.4f), rng.Range(0, 90), 4f).Variant = 30 + i;
         }

@@ -16,36 +16,52 @@ namespace Veil.UI
         private readonly Text _title, _pct, _state, _nodes, _squads;
         private readonly Bar _progress, _stability;
         private readonly int _localSquad;
+        private readonly Text _log, _header;
+        private static Font _mono;
+        private static Font Mono => _mono ??= Font.CreateDynamicFontFromOSFont(new[] { "Menlo", "Consolas", "Courier New", "Droid Sans Mono", "monospace" }, 16);
+        private static readonly Color Term = new Color(0.24f, 1f, 0.66f), TermDim = new Color(0.18f, 0.66f, 0.45f);
 
         public HackPanel(Transform parent, int localSquad)
         {
             _localSquad = localSquad;
-            _root = UIKit.At(parent, "HackPanel", new Vector2(0.5f, 0), new Vector2(0, 26), new Vector2(560, 176));
+            _root = UIKit.At(parent, "HackPanel", new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(600, 262));
             _root.pivot = new Vector2(0.5f, 0);
-            _back = UIKit.Image(_root, UIKit.Rounded, new Color(0.06f, 0.07f, 0.14f, 0.82f));
+            _back = UIKit.Image(_root, UIKit.Rounded, new Color(0.01f, 0.05f, 0.035f, 0.9f));
+            var edge = UIKit.Fill(_root, "Edge");
+            UIKit.Image(edge, UIKit.Ring, new Color(0.1f, 1f, 0.6f, 0.0f));
+            // scan lines
+            for (int y = 4; y < 262; y += 4)
+            {
+                var ln = UIKit.At(_root, "Scan", new Vector2(0.5f, 0), new Vector2(0, y), new Vector2(584, 1));
+                UIKit.Image(ln, UIKit.Square, new Color(1, 1, 1, 0.025f));
+            }
+            _header = UIKit.LabelAt(_root, "RILO//OS  ·  TERMINAL 07  ·  CENTRAL PLAZA", 13, TermDim, new Vector2(0, 1), new Vector2(20, -8), new Vector2(560, 18), TextAnchor.MiddleLeft);
+            _header.font = Mono; _header.rectTransform.pivot = new Vector2(0, 1);
+            _log = UIKit.LabelAt(_root, "", 13, TermDim, new Vector2(0, 0), new Vector2(20, 34), new Vector2(560, 74), TextAnchor.LowerLeft);
+            _log.font = Mono; _log.rectTransform.pivot = new Vector2(0, 0); _log.supportRichText = true; _log.lineSpacing = 1.05f;
 
-            _title = UIKit.LabelAt(_root, "HACKING TERMINAL", 22, Color.white, new Vector2(0, 1), new Vector2(20, -12), new Vector2(330, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            _title.rectTransform.pivot = new Vector2(0, 1);
+            _title = UIKit.LabelAt(_root, "HACKING TERMINAL", 22, Color.white, new Vector2(0, 1), new Vector2(20, -28), new Vector2(380, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _title.rectTransform.pivot = new Vector2(0, 1); _title.font = Mono;
             _title.supportRichText = true;
-            _pct = UIKit.LabelAt(_root, "0%", 26, Theme.Gold, new Vector2(1, 1), new Vector2(-20, -10), new Vector2(120, 32), TextAnchor.MiddleRight, UIKit.TitleFont);
+            _pct = UIKit.LabelAt(_root, "0%", 26, Term, new Vector2(1, 1), new Vector2(-20, -26), new Vector2(120, 32), TextAnchor.MiddleRight, UIKit.TitleFont);
             _pct.rectTransform.pivot = new Vector2(1, 1);
 
-            _progress = new Bar(_root, new Vector2(0, 1), new Vector2(20, -46), new Vector2(520, 16), Theme.Gold, new Color(1, 1, 1, 0.1f));
+            _progress = new Bar(_root, new Vector2(0, 1), new Vector2(20, -62), new Vector2(560, 18), Term, new Color(0.1f, 1f, 0.6f, 0.12f));
             _progress.Root.pivot = new Vector2(0, 1);
 
-            var stl = UIKit.LabelAt(_root, "STABILITY", 13, Theme.TextDim, new Vector2(0, 1), new Vector2(20, -68), new Vector2(90, 18), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var stl = UIKit.LabelAt(_root, "STABILITY", 13, Theme.TextDim, new Vector2(0, 1), new Vector2(20, -88), new Vector2(90, 18), TextAnchor.MiddleLeft, UIKit.BoldFont); stl.font = Mono; stl.color = TermDim;
             stl.rectTransform.pivot = new Vector2(0, 1);
-            _stability = new Bar(_root, new Vector2(0, 1), new Vector2(110, -72), new Vector2(200, 9), Theme.Cyan, new Color(1, 1, 1, 0.1f));
+            _stability = new Bar(_root, new Vector2(0, 1), new Vector2(110, -92), new Vector2(200, 9), Theme.Cyan, new Color(1, 1, 1, 0.1f));
             _stability.Root.pivot = new Vector2(0, 1);
-            _state = UIKit.LabelAt(_root, "", 15, Theme.Text, new Vector2(1, 1), new Vector2(-20, -66), new Vector2(220, 20), TextAnchor.MiddleRight, UIKit.BoldFont);
+            _state = UIKit.LabelAt(_root, "", 15, Theme.Text, new Vector2(1, 1), new Vector2(-20, -86), new Vector2(260, 20), TextAnchor.MiddleRight, UIKit.BoldFont);
             _state.rectTransform.pivot = new Vector2(1, 1);
             _state.supportRichText = true;
 
-            _nodes = UIKit.LabelAt(_root, "", 17, Color.white, new Vector2(0, 1), new Vector2(20, -94), new Vector2(520, 44), TextAnchor.UpperLeft, UIKit.BoldFont);
+            _nodes = UIKit.LabelAt(_root, "", 15, Color.white, new Vector2(0, 1), new Vector2(20, -110), new Vector2(560, 40), TextAnchor.UpperLeft, UIKit.BoldFont);
             _nodes.rectTransform.pivot = new Vector2(0, 1);
             _nodes.supportRichText = true;
 
-            _squads = UIKit.LabelAt(_root, "", 15, Theme.TextDim, new Vector2(0, 0), new Vector2(20, 10), new Vector2(520, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _squads = UIKit.LabelAt(_root, "", 14, TermDim, new Vector2(0, 0), new Vector2(20, 10), new Vector2(560, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
             _squads.rectTransform.pivot = new Vector2(0, 0);
             _squads.supportRichText = true;
         }
@@ -67,6 +83,26 @@ namespace Veil.UI
             return 1f;
         }
 
+        /// <summary>Fake console log that follows the real hack state.</summary>
+        private static string Log(Snapshot s)
+        {
+            float p = s.StageProg;
+            var sb = new System.Text.StringBuilder();
+            void L(string t, bool done) => sb.Append($"> {t} {(done ? "<color=#c9ffe6>DONE</color>" : "<color=#c9ffe6>RUNNING</color>")}\n");
+            sb.Append("> connect 10.7.0.1 :: <color=#c9ffe6>OK</color>\n");
+            L("breach firewall.layer[1] .......", p >= 0.2f);
+            if (p >= 0.2f) L("breach firewall.layer[2] .......", p >= GameConfig.HackInstability[0]);
+            if (p >= GameConfig.HackInstability[0]) L("inject payload rilo.core .......", p >= GameConfig.HackInstability[1]);
+            if (p >= GameConfig.HackInstability[1]) L("upload keys -> squad uplink ....", p >= 1f);
+            if (s.Nodes.Count > 0) sb.Append("> <color=#ff6b7a>FAULT: core unstable — stabilization required</color>\n");
+            else if (s.HackContested) sb.Append("> <color=#ffb057>WARN: hostile signal in zone — paused</color>\n");
+            else if (s.Hackers > 0) sb.Append($"> {s.Hackers} operator(s) linked · speed x{GameConfig.HackSpeed[Mathf.Min(s.Hackers, GameConfig.HackSpeed.Length - 1)]:0.##}_\n");
+            else sb.Append("> waiting for operator in range_\n");
+            var lines = sb.ToString().TrimEnd('\n').Split('\n');
+            int from = Mathf.Max(0, lines.Length - 4);
+            return string.Join("\n", lines, from, lines.Length - from);
+        }
+
         public void Update(Snapshot s, float dt)
         {
             bool show = GameConfig.ExtractionMode && s.Stage == 0;
@@ -75,8 +111,10 @@ namespace Veil.UI
 
             bool unstable = s.Nodes.Count > 0;
             _progress.Set(s.StageProg, dt);
-            _progress.SetColor(unstable ? new Color(1f, 0.35f, 0.4f) : s.HackContested ? new Color(1f, 0.55f, 0.2f) : Theme.Gold);
+            _progress.SetColor(unstable ? new Color(1f, 0.35f, 0.4f) : s.HackContested ? new Color(1f, 0.55f, 0.2f) : Term);
             _pct.text = $"{Mathf.FloorToInt(s.StageProg * 100)}%";
+            _pct.color = unstable ? new Color(1f, 0.4f, 0.45f) : s.HackContested ? new Color(1f, 0.6f, 0.25f) : Term;
+            _log.text = Log(s);
             float st = Stability(s.StageProg, s.Nodes.Count);
             _stability.Set(st, dt);
             _stability.SetColor(st < 0.3f ? new Color(1f, 0.35f, 0.4f) : Theme.Cyan);
@@ -86,26 +124,26 @@ namespace Veil.UI
             {
                 _title.text = $"<color=#ff5a6a>TERMINAL INSTABILITY</color>";
                 _state.text = "STABILIZATION REQUIRED";
-                _back.color = new Color(0.22f, 0.05f, 0.1f, 0.86f);
+                _back.color = new Color(0.16f, 0.02f, 0.05f, 0.92f);
             }
             else if (s.HackContested)
             {
                 _title.text = $"<color=#ffa040>TERMINAL CONTESTED</color>";
                 _state.text = "<color=#ffa040>progress paused · clear the zone</color>";
-                _back.color = new Color(0.2f, 0.11f, 0.04f, 0.86f);
+                _back.color = new Color(0.14f, 0.07f, 0.01f, 0.92f);
             }
             else if (s.Hackers > 0)
             {
                 int pct = Mathf.RoundToInt(GameConfig.HackSpeed[Mathf.Min(s.Hackers, GameConfig.HackSpeed.Length - 1)] * 100);
                 _title.text = "HACKING TERMINAL";
                 _state.text = $"{s.Hackers} hacking · <color=#ffd84a>{pct}% speed</color>";
-                _back.color = new Color(0.06f, 0.07f, 0.14f, 0.82f);
+                _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
             else
             {
                 _title.text = "HACK TERMINAL";
                 _state.text = "<color=#aab0d8>enter the plaza ring to hack</color>";
-                _back.color = new Color(0.06f, 0.07f, 0.14f, 0.82f);
+                _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
 
             if (unstable)

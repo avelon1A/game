@@ -28,19 +28,24 @@ namespace Veil.UI
             var tex = new Texture2D(res, res, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             float half = map.Half;
             var px = new Color[res * res];
-            Color grass = Palette.Grass * 0.75f, path = Palette.Path * 0.85f;
+            Color grass = Palette.Grass * 0.75f, path = Palette.Path * 0.85f, asphalt = Palette.Hex("#4a4d5e");
             for (int y = 0; y < res; y++)
                 for (int x = 0; x < res; x++)
                 {
                     var p = new Vec2((x + 0.5f) / res * half * 2 - half, (y + 0.5f) / res * half * 2 - half);
                     Color c = grass;
+                    if (map.Island)
+                    {
+                        var b = IslandMap.BiomeAt(p);
+                        c = b == Biome.Sea ? Palette.Hex("#2a7fb0") : WorldBuilder.BiomeColor(b) * 0.88f;
+                    }
                     foreach (var d in map.Decals)
                     {
                         if (d.Kind == 2 && Vec2.Dist(p, d.Center) < d.Radius) c = Palette.Stone * 0.8f;
                         else if (d.Kind != 2)
                         {
                             var l = Vec2.InverseRotateYaw(p - d.Center, d.Rot);
-                            if (Mathf.Abs(l.X) < d.Half.X && Mathf.Abs(l.Y) < d.Half.Y) c = d.Kind == 1 ? Palette.Wood : path;
+                            if (Mathf.Abs(l.X) < d.Half.X && Mathf.Abs(l.Y) < d.Half.Y) c = d.Kind == 1 ? Palette.Wood : d.Kind == 4 ? asphalt : path;
                         }
                     }
                     foreach (int oi in map.Query(p))
@@ -48,6 +53,8 @@ namespace Veil.UI
                         var o = map.Obstacles[oi];
                         if (o.SignedDistance(p) > 0) continue;
                         if (o.Kind == ObstacleKind.Water) c = Palette.Hex("#3aa0e0");
+                        else if (map.Island && (o.Kind == ObstacleKind.Tree || o.Kind == ObstacleKind.Palm || o.Kind == ObstacleKind.Pine)) c *= 0.8f;
+                        else if (o.Kind == ObstacleKind.CityBlock) c = Palette.Hex("#6e7290");
                         else if (o.Kind == ObstacleKind.Tree) c = Palette.GrassDark * 0.7f;
                         else if (o.Kind == ObstacleKind.Cliff) c = Palette.CliffDark * 0.8f;
                         else c = o.Height > 2 ? Palette.StoneDark * 0.8f : Palette.Stone * 0.9f;
@@ -63,7 +70,7 @@ namespace Veil.UI
         public Minimap(Transform parent, MapData map, Vector2 anchor, Vector2 pos, float size)
         {
             _size = size;
-            _scale = size / (map.Half * 2) * 1.55f; // zoomed in: shows ~100m
+            _scale = size / (map.Half * 2) * (map.Island ? 3.2f : 1.55f); // zoomed in: shows ~100-125m
             _root = UIKit.At(parent, "Minimap", anchor, pos, new Vector2(size + 16, size + 16));
             UIKit.Image(_root, UIKit.Circle, new Color(0.05f, 0.06f, 0.14f, 0.9f));
             var ring = UIKit.Fill(_root, "Ring");
@@ -77,7 +84,7 @@ namespace Veil.UI
             _content = UIKit.At(maskRt, "Content", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             var mapRt = UIKit.At(_content, "Map", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(map.Half * 2 * _scale, map.Half * 2 * _scale));
             var raw = mapRt.gameObject.AddComponent<RawImage>();
-            raw.texture = MapTexture(map, 192);
+            raw.texture = MapTexture(map, map.Island ? 384 : 192);
             raw.color = new Color(1, 1, 1, 0.95f);
             raw.raycastTarget = false;
 
@@ -104,6 +111,7 @@ namespace Veil.UI
         }
 
         private Vector2 W(Vec2 p) => new Vector2(p.X, p.Y) * _scale;
+        public RectTransform Root => _root;
 
         public static Sprite ZoneIcon(ZoneType t)
         {

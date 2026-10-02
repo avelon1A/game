@@ -39,6 +39,13 @@ PROPS = {
     "crate":      [(PIR, ["crate", "barrel", "crate-bottles"])],
     "watchtower": [(PIR, ["tower-watch"])],
     "streetlight":[(ROAD, ["light-square", "light-curved"])],
+    "parasol":    [(COM, ["detail-parasol-a", "detail-parasol-b"])],
+    "bench":      [(HOL, ["bench", "bench-short"])],
+    "planter":    [(SUB, ["planter"])],
+    "dumpster":   [(ROAD, ["dumpster"])],
+    "cone":       [(ROAD, ["construction-cone", "construction-barrier"])],
+    "boat":       [(PIR, ["boat-row-large", "boat-row-small", "ship-small"])],
+    "barrel":     [(PIR, ["barrel"])],
 }
 
 

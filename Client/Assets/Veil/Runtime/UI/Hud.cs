@@ -98,6 +98,7 @@ namespace Veil.UI
             BuildTopRight();
             BuildObjectives();
             if (GameConfig.ExtractionMode) _hack = new HackPanel(Root, _m.LocalSquad);
+            _compass = new CompassBar(Root);
             BuildSquad();
             BuildVitals();
             BuildAbilities();
@@ -608,6 +609,16 @@ namespace Veil.UI
             var s = _m.Latest;
             if (s == null) return;
             var me = _m.Predicted;
+            if (_mapScreen == null && _m.Map.Island)
+            {
+                _mapScreen = new MapScreen(Root, _m);
+                var tap = _minimap.Root.gameObject.AddComponent<Button>();
+                tap.onClick.AddListener(() => _mapScreen.Toggle());
+                _minimap.Root.GetComponent<Image>().raycastTarget = true;
+            }
+            if (Keyboard.current != null && Keyboard.current.mKey.wasPressedThisFrame) _mapScreen?.Toggle();
+            _mapScreen?.Update(_view);
+            _compass.Update(s, me, cameraYaw);
 
             // phase
             if (s.Phase != _lastPhase)
@@ -884,7 +895,7 @@ namespace Veil.UI
         {
             string text = "";
             float bar = -1;
-            if (me.ZoneId >= 0 && me.Alive)
+            if (me.ZoneId >= 0 && me.Alive && !(GameConfig.ExtractionMode && _m.Map.Zones[me.ZoneId].Type == ZoneType.Tower))
             {
                 var def = _m.Map.Zones[me.ZoneId];
                 var z = s.Zones[me.ZoneId];
@@ -933,6 +944,9 @@ namespace Veil.UI
 
         private Text _wpSite, _wpExtract;
         private HackPanel _hack;
+        private CompassBar _compass;
+        private MapScreen _mapScreen;
+        public bool MapOpen => _mapScreen != null && _mapScreen.Open;
         private readonly Text[] _wpNodes = new Text[GameConfig.HackNodes];
         private bool _announced;
 
