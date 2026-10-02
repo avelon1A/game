@@ -108,13 +108,13 @@ namespace Veil.View
                     bool alongZ = d.Half.Y > d.Half.X;
                     var br = Quaternion.Euler(0, d.Rot, 0);
                     // deck top sits at ground level (players walk at y = 0); the beams hang below into the water
-                    Vector3 c = Build.V(d.Center, -0.13f);
+                    Vector3 c = Build.V(d.Center, -0.07f);   // deck top at +0.08 m: clearly above roads/paths (≤0.04) so they never z-fight
                     Add(MeshGen.Box, wood, c, new Vector3(d.Half.X * 2, 0.3f, d.Half.Y * 2), br);
                     int planks = 9;
                     for (int i = 0; i < planks; i++)
                     {
                         float t = -1 + (i + 0.5f) * 2f / planks;
-                        var off = alongZ ? new Vector3(0, 0.17f, t * d.Half.Y) : new Vector3(t * d.Half.X, 0.17f, 0);
+                        var off = alongZ ? new Vector3(0, 0.165f, t * d.Half.Y) : new Vector3(t * d.Half.X, 0.165f, 0);
                         var sc = alongZ ? new Vector3(d.Half.X * 2, 0.04f, 0.08f) : new Vector3(0.08f, 0.04f, d.Half.Y * 2);
                         Add(MeshGen.Box, woodD, c + br * off, sc, br, false);
                     }

@@ -269,6 +269,7 @@ namespace Veil.Sim
             foreach (var q in m.CoreSpots) if (Vec2.Dist(p, q) < 2.5f) return;
             foreach (var q in m.KeySpots) if (Vec2.Dist(p, q) < 2.5f) return;
             foreach (var q in m.HomeTerminals) if (Vec2.Dist(p, q) < 9f) return;
+            foreach (var d in m.Decals) if (d.Kind == 1 && Vec2.Dist(p, d.Center) < Math.Max(d.Half.X, d.Half.Y) + 2f) return;   // never on bridges
             var o = Circle(m, ObstacleKind.Decor, p, r, h);
             o.Rot = yaw; o.Variant = cat * 1000 + Math.Abs(v) % 1000;
             o.BlocksShots = cat != 0 && cat != 3;   // thin lamp posts / parasol poles don't stop bolts
