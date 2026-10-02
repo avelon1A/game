@@ -45,7 +45,7 @@ namespace Veil.UI
                         else if (d.Kind != 2)
                         {
                             var l = Vec2.InverseRotateYaw(p - d.Center, d.Rot);
-                            if (Mathf.Abs(l.X) < d.Half.X && Mathf.Abs(l.Y) < d.Half.Y) c = d.Kind == 1 ? Palette.Wood : d.Kind == 4 ? asphalt : path;
+                            if (Mathf.Abs(l.X) < d.Half.X && Mathf.Abs(l.Y) < d.Half.Y) c = d.Kind == 1 ? Palette.Wood : d.Kind >= 4 ? asphalt : path;
                         }
                     }
                     foreach (int oi in map.Query(p))

@@ -119,8 +119,24 @@ namespace Veil.View
         }
 
         /// <summary>Visual-only street furniture: lights along streets, benches and planters, market parasols, boats at the docks.</summary>
+        /// <summary>The ring road as one smooth curved strip: kerb, asphalt, dashed centre line.</summary>
+        private void BuildRingRoad()
+        {
+            float r = IslandMap.RingRoad, w = 7f;
+            float outer = r + w * 0.5f;
+            Add(MeshGen.Ring((r - w * 0.5f - 1.2f) / (outer + 1.2f), 1f, 160), MaterialLib.Toon(Palette.Hex("#c9ccd8"), 0f), new Vector3(0, 0.014f, 0), Vector3.one * (outer + 1.2f), null, false);
+            Add(MeshGen.Ring((r - w * 0.5f) / outer, 1f, 160), MaterialLib.Toon(Palette.Hex("#4a4d5e"), 0f), new Vector3(0, 0.024f, 0), Vector3.one * outer, null, false);
+            var line = MaterialLib.Toon(Palette.Hex("#f2f2f2"), 0f);
+            for (float a = 0; a < 360f; a += 2.4f)
+            {
+                var p = Vec2.FromYaw(a) * r;
+                Add(MeshGen.GroundQuad, line, Build.V(p, 0.03f), new Vector3(0.22f, 1, 2.2f), Quaternion.Euler(0, a + 90f, 0), false);
+            }
+        }
+
         private void BuildIslandDetail()
         {
+            BuildRingRoad();
             void Put(string cat, Vec2 at, float yaw, float height, int v = 0)
             {
                 var l = Props(cat); if (l.Count == 0) return;
@@ -548,7 +564,7 @@ namespace Veil.View
                     for (int i = 0; i < 4; i++)
                     {
                         float yaw = 45f + 90f * i;
-                        AddProp(term, c + Quaternion.Euler(0, yaw, 0) * Vector3.forward * 4.6f, yaw, 1.5f / Mathf.Max(term.Size.y, 0.01f));
+                        AddProp(term, c + Quaternion.Euler(0, yaw, 0) * Vector3.forward * 5.9f, yaw, 1.5f / Mathf.Max(term.Size.y, 0.01f));
                     }
                 var cr = Build.Part(Root, MeshGen.Octahedron, MaterialLib.Glow(Palette.Hex("#c48bff"), 3.5f), c + Vector3.up * 47f, new Vector3(2.2f, 3.4f, 2.2f), null, "TowerCrystal", false);
                 TowerCrystal = cr.transform;

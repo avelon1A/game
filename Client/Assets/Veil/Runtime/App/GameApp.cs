@@ -931,12 +931,13 @@ namespace Veil.App
             var dbg = Veil.View.MaterialLib.Unlit(new Color(1f, 0.1f, 0.1f, 0.35f), Veil.View.MaterialLib.Blend.Alpha);
             foreach (var o in Map.Obstacles)
             {
-                if (o.Kind != ObstacleKind.Solid) continue;
+                if (o.Kind != ObstacleKind.Solid && o.Kind != ObstacleKind.TowerCore) continue;
                 var size = o.Shape == ShapeKind.Box ? new Vector3(o.Half.X * 2, o.Height, o.Half.Y * 2) : new Vector3(o.Radius * 2, o.Height, o.Radius * 2);
                 Veil.View.Build.Part(World.Root, o.Shape == ShapeKind.Box ? Veil.View.MeshGen.Box : Veil.View.MeshGen.Cylinder(12), dbg, new Vector3(o.Center.X, o.Height / 2, o.Center.Y), size, Quaternion.Euler(0, o.Rot, 0), "DebugSolid", false);
             }
             void Near(Vector3 at, float yaw, float dist, float h) => Pose(at + Quaternion.Euler(0, yaw, 0) * new Vector3(0, h, -dist), at + Vector3.up * 3f, false, 0);
             Near(new Vector3(0, 0, 42), 180, 26, 14); yield return Shot("lm_market");
+            Near(new Vector3(0, 0, 0), 200, 22, 12); yield return Shot("lm_tower");
             Near(new Vector3(-138, 0, 0), 90, 26, 14); yield return Shot("lm_reactor");
             Near(new Vector3(138, 0, 0), 270, 36, 18); yield return Shot("lm_ruins");
             Near(new Vector3(21, 0, 160), 0, 28, 12); yield return Shot("lm_vault");

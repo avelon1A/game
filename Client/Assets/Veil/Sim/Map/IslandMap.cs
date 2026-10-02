@@ -122,7 +122,7 @@ namespace Veil.Sim
             for (float yaw = 0; yaw < 360; yaw += 15f)
             {
                 Path(m, Vec2.FromYaw(yaw) * RingRoad, Vec2.FromYaw(yaw + 15f) * RingRoad, 7f);
-                m.Decals[m.Decals.Count - 1].Kind = 4;   // asphalt
+                m.Decals[m.Decals.Count - 1].Kind = 5;   // ring road segment: drawn as one smooth ring by WorldBuilder
             }
             for (int i = 0; i < 8; i++)
             {
@@ -255,7 +255,8 @@ namespace Veil.Sim
         {
             // central plaza: tower core, low walls (cover), pillars — the Hack Terminal and the Vault
             m.Decals.Add(new GroundDecal { Kind = 2, Center = Vec2.Zero, Radius = 18f });
-            Circle(m, ObstacleKind.TowerCore, Vec2.Zero, 2.8f, 22f);
+            Circle(m, ObstacleKind.TowerCore, Vec2.Zero, 4.6f, 40f);   // the Meshy Rilo tower base
+            Box(m, ObstacleKind.Solid, Vec2.Zero, new Vec2(5.3f, 5.3f), 45f, 1.6f);   // its square plinth
             for (int i = 0; i < 4; i++)
             {
                 float yaw = 45 + 90 * i;

@@ -86,6 +86,7 @@ namespace Veil.View
                     }
                     break;
                 }
+                case 5: break;   // ring road segment: see BuildRingRoad
                 case 4: // asphalt street: kerbs, dark road, dashed centre line
                 {
                     var rot = Quaternion.Euler(0, d.Rot, 0);
@@ -427,7 +428,7 @@ namespace Veil.View
                 if (_map.Island && !Grassy(IslandMap.BiomeAt(p))) continue;
                 bool onPath = false;
                 foreach (var d in _map.Decals)
-                    if ((d.Kind == 0 || d.Kind == 4) && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).X) < d.Half.X + 0.5f && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).Y) < d.Half.Y) { onPath = true; break; }
+                    if ((d.Kind == 0 || d.Kind >= 4) && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).X) < d.Half.X + 0.5f && Mathf.Abs(Vec2.InverseRotateYaw(p - d.Center, d.Rot).Y) < d.Half.Y) { onPath = true; break; }
                 if (onPath) continue;
                 if (i % 5 == 0)
                     Add(MeshGen.SphereLow, MaterialLib.Toon(flowers[i % flowers.Length], 0.2f), Build.V(p, 0.25f), Vector3.one * 0.22f, null, false);
