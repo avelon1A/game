@@ -7,6 +7,7 @@ using Veil.Match;
 using Veil.Sim;
 using EventType = Veil.Sim.EventType;
 using Veil.View;
+using Veil.Audio;
 
 namespace Veil.UI
 {
@@ -61,7 +62,7 @@ namespace Veil.UI
         {
             public RectTransform Root;
             public Image Icon, Check;
-            public Text Title, Desc, Progress;
+            public Text Title, Desc, Progress, Tag;
             public Bar Bar;
         }
 
@@ -213,6 +214,7 @@ namespace Veil.UI
                 // tag sits under the progress bar so long titles never collide with it
                 var tag = UIKit.LabelAt(c.Root, i == 0 ? "PRIMARY +500" : i == 2 ? $"SQUAD +{GameConfig.SquadObjectivePoints}" : "SECONDARY +250", 11, i == 0 ? Theme.PurpleLight : i == 2 ? Theme.Green : Theme.Cyan, new Vector2(0, 0), new Vector2(82, 0), new Vector2(200, 14), TextAnchor.LowerLeft, UIKit.BoldFont);
                 tag.rectTransform.pivot = new Vector2(0, 0);
+                c.Tag = tag;
                 _objectives[i] = c;
             }
         }
@@ -500,6 +502,27 @@ namespace Veil.UI
                     else if (e.B == _m.LocalId) Feed($"{N(e.A)} revived <color=#7dff9a>You</color>", Theme.Text);
                     else if (_m.IsAlly(e.B)) Feed($"{N(e.A)} revived {N(e.B)}", Theme.TextDim);
                     break;
+                case EventType.StageComplete:
+                {
+                    string sq = $"Squad {(char)('A' + e.A)}";
+                    string what = e.B < 3 ? $"objective {e.B + 1}/3" : "the <color=#ffc93a>Vault</color>";
+                    if (e.A == _m.LocalSquad)
+                    {
+                        Banner(e.B < 3 ? $"OBJECTIVE {e.B + 1} COMPLETE" : "VAULT OPENED", e.B < 2 ? $"Next: {TaskTitle(MatchSim.TaskOf(e.B + 1))}" : e.B == 2 ? "Next: open the Central Vault" : "Get to the extraction!", 3f);
+                        Sfx.Play(Sfx.Objective, 0.8f);
+                    }
+                    else Feed($"{sq} completed {what}", e.B >= 3 ? Theme.Red : Theme.TextDim);
+                    break;
+                }
+                case EventType.ExtractRevealed:
+                    Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
+                    Sfx.Play(Sfx.Capture, 0.9f);
+                    break;
+                case EventType.ExtractControl:
+                    if (e.B == 1) Feed("<color=#ff5a6a>Extraction CONTESTED</color>", Theme.Text);
+                    else if (e.A == _m.LocalSquad) { Feed("<color=#7dff9a>Your squad holds the extraction</color>", Theme.Text); }
+                    else if (e.A >= 0) { Feed($"<color=#ff5a6a>Squad {(char)('A' + e.A)} took the extraction!</color>", Theme.Text); Popup($"SQUAD {(char)('A' + e.A)} IS EXTRACTING"); }
+                    break;
                 case EventType.ZoneCaptured:
                     Feed($"{N(e.A)} captured the <color=#{ColorUtility.ToHtmlStringRGB(Palette.ZoneColor(_m.Map.Zones[e.B].Type))}>{_m.Map.Zones[e.B].Name}</color>", Theme.Text);
                     if (e.A == _m.LocalId) Popup($"{_m.Map.Zones[e.B].Name.ToUpper()} CAPTURED");
@@ -616,9 +639,13 @@ namespace Veil.UI
             SetAbility(_abilities[3], me.DecoyCd, GameConfig.DecoyCooldown, GameConfig.DecoyCost, me);
 
             // objectives
-            SetObjective(_objectives[0], me.Primary, me);
-            SetObjective(_objectives[1], me.Secondary, me);
-            SetObjective(_objectives[2], s.SquadObjective, me);
+            if (GameConfig.ExtractionMode) SetChain(s, me);
+            else
+            {
+                SetObjective(_objectives[0], me.Primary, me);
+                SetObjective(_objectives[1], me.Secondary, me);
+                SetObjective(_objectives[2], s.SquadObjective, me);
+            }
             UpdateSquad(s, dt);
 
             // prompt + channel bar
@@ -697,6 +724,100 @@ namespace Veil.UI
             a.Timer.text = cd > 0.05f && maxCd > 1 ? Mathf.CeilToInt(cd).ToString() : "";
             a.Icon.color = new Color(a.Icon.color.r, a.Icon.color.g, a.Icon.color.b, cd <= 0 && affordable ? 1f : 0.45f);
             a.Cost.text = a.CostValue > 0 ? $"{a.Name} <color={(affordable ? "#3ee6ff" : "#ff5a6a")}>{a.CostValue}</color>" : a.Name;
+        }
+
+        // ------------------------------------------------------------------ extraction mode route
+
+        public static string TaskTitle(ChainTask t) => t switch
+        {
+            ChainTask.Hack => "HACK TERMINAL",
+            ChainTask.Capture => "CAPTURE ZONE",
+            ChainTask.Collect => "COLLECT CORES",
+            ChainTask.Vault => "CENTRAL VAULT",
+            _ => "EXTRACTION",
+        };
+
+        private static Sprite TaskIcon(ChainTask t) => t switch
+        {
+            ChainTask.Hack => Icons.Target,
+            ChainTask.Capture => Icons.Tower,
+            ChainTask.Collect => Icons.Core,
+            ChainTask.Vault => Icons.Vault,
+            _ => Icons.Trophy,
+        };
+
+        private static string StageName(int stage) => stage < 3 ? $"OBJ {stage + 1}/3" : stage == 3 ? "VAULT" : "EXTRACT";
+
+        private void SetChain(Snapshot s, PlayerState me)
+        {
+            float dist = Vec2.Dist(me.Pos, s.Site);
+            // card 0: the squad's current task
+            var c = _objectives[0];
+            var task = s.Task;
+            if (s.Stage < 4)
+            {
+                c.Title.text = s.Stage < 3 ? $"OBJ {s.Stage + 1}/3 · {TaskTitle(task)}" : "OPEN THE CENTRAL VAULT";
+                c.Desc.text = task switch
+                {
+                    ChainTask.Hack => $"Stand at your terminal · {dist:0} m",
+                    ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
+                    ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
+                    _ => $"Channel at the Vault in the centre · {dist:0} m",
+                };
+                c.Progress.text = task == ChainTask.Collect ? $"{Mathf.RoundToInt(s.StageProg * GameConfig.CollectCores)}/{GameConfig.CollectCores}" : $"{Mathf.RoundToInt(s.StageProg * 100)}%";
+            }
+            else
+            {
+                c.Title.text = "VAULT OPENED";
+                c.Desc.text = "Reach the extraction and hold it";
+                c.Progress.text = "DONE";
+            }
+            c.Icon.sprite = TaskIcon(task);
+            c.Bar.Set(s.Stage < 4 ? s.StageProg : 1, Time.deltaTime);
+            c.Check.gameObject.SetActive(s.Stage >= 4);
+            c.Tag.text = "YOUR SQUAD";
+
+            // card 1: the route — own progress dots + every rival squad's stage (public info)
+            var r = _objectives[1];
+            var dots = new System.Text.StringBuilder();
+            for (int i = 0; i < 5; i++) dots.Append(i < s.Stage ? "<color=#7dff9a>●</color>" : i == s.Stage ? "<color=#ffd84a>●</color>" : "<color=#555a7a>○</color>");
+            r.Title.text = "ROUTE  " + dots;
+            r.Title.supportRichText = true;
+            var rivals = new System.Text.StringBuilder();
+            for (int q = 0; q < GameConfig.SquadCount; q++)
+            {
+                if (q == _m.LocalSquad) continue;
+                if (rivals.Length > 0) rivals.Append("  ");
+                rivals.Append($"{(char)('A' + q)}: {StageName(s.SquadStage[q])}");
+            }
+            r.Desc.text = rivals.ToString();
+            r.Icon.sprite = Icons.Players;
+            r.Bar.Set((s.Stage + (s.Stage < 4 ? s.StageProg : 0)) / 4f, Time.deltaTime);
+            r.Progress.text = StageName(s.Stage);
+            r.Check.gameObject.SetActive(false);
+            r.Tag.text = "RIVAL SQUADS";
+
+            // card 2: extraction
+            var x = _objectives[2];
+            x.Icon.sprite = Icons.Trophy;
+            x.Title.text = "EXTRACTION";
+            float mine = s.SquadExtract[_m.LocalSquad];
+            int lead = -1; float leadP = 0;
+            for (int q = 0; q < GameConfig.SquadCount; q++) if (s.SquadExtract[q] > leadP) { leadP = s.SquadExtract[q]; lead = q; }
+            if (!s.ExtractRevealed) { x.Desc.text = "Revealed when a squad opens the Vault"; x.Progress.text = "LOCKED"; }
+            else
+            {
+                float de = Vec2.Dist(me.Pos, s.ExtractPos);
+                string holder = s.ExtractContested ? "<color=#ff5a6a>CONTESTED</color>"
+                    : s.ExtractController < 0 ? "nobody holding"
+                    : s.ExtractController == _m.LocalSquad ? "<color=#7dff9a>YOU HOLD IT</color>" : $"<color=#ff5a6a>SQUAD {(char)('A' + s.ExtractController)} HOLDS IT</color>";
+                x.Desc.text = $"{holder} · {de:0} m" + (s.Stage < 4 ? " · open the Vault to extract" : "");
+                x.Desc.supportRichText = true;
+                x.Progress.text = $"{Mathf.RoundToInt(mine * 100)}%";
+            }
+            x.Bar.Set(mine, Time.deltaTime);
+            x.Check.gameObject.SetActive(false);
+            x.Tag.text = lead >= 0 && lead != _m.LocalSquad ? $"LEADER: SQUAD {(char)('A' + lead)} {Mathf.RoundToInt(leadP * 100)}%" : "FIRST TO 100% WINS";
         }
 
         private void SetObjective(ObjectiveCard c, ObjectiveState o, PlayerState me)
@@ -782,8 +903,49 @@ namespace Veil.UI
             _crosshair.color = _view.ShotHitsAvatar ? new Color(1f, 0.35f, 0.35f, 0.95f) : new Color(1, 1, 1, 0.85f);
         }
 
+        private Text _wpSite, _wpExtract;
+
+        /// <summary>Screen waypoint for a world point: follows it on screen, sticks to the screen edge when off-screen.</summary>
+        private void Waypoint(ref Text t, bool show, Vec2 at, string label, Color c, PlayerState me)
+        {
+            if (t == null)
+            {
+                t = UIKit.LabelAt(Root, "", 20, Color.white, new Vector2(0, 0), Vector2.zero, new Vector2(260, 52), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                t.supportRichText = true;
+                UIKit.Outline(t, new Color(0, 0, 0, 0.85f), 2);
+            }
+            t.gameObject.SetActive(show);
+            if (!show) return;
+            var canvasRt = (RectTransform)Root;
+            Vector3 world = new Vector3(at.X, 3.5f, at.Y);
+            Vector3 sp = _cam.WorldToScreenPoint(world);
+            bool behind = sp.z < 0;
+            if (behind) sp = new Vector3(Screen.width - sp.x, Screen.height - sp.y, 0);
+            float mx = 90, my = 70;
+            bool off = behind || sp.x < mx || sp.x > Screen.width - mx || sp.y < my || sp.y > Screen.height - my;
+            if (off)
+            {
+                // push to the screen edge in the direction of the target
+                Vector2 ctr = new Vector2(Screen.width / 2f, Screen.height / 2f);
+                Vector2 dir = ((Vector2)sp - ctr);
+                if (behind && dir.sqrMagnitude < 1) dir = Vector2.down;
+                float k = Mathf.Min((Screen.width / 2f - mx) / Mathf.Max(1e-3f, Mathf.Abs(dir.x)), (Screen.height / 2f - my) / Mathf.Max(1e-3f, Mathf.Abs(dir.y)));
+                sp = ctr + dir * k;
+            }
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRt, sp, null, out var lp);
+            t.rectTransform.anchorMin = t.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            t.rectTransform.anchoredPosition = lp;
+            t.text = $"<color=#{ColorUtility.ToHtmlStringRGB(c)}>▼ {label}</color>\n<size=16>{Vec2.Dist(me.Pos, at):0} m</size>";
+        }
+
         private void UpdateWorldLabels(PlayerState me, Snapshot s)
         {
+            if (GameConfig.ExtractionMode)
+            {
+                Waypoint(ref _wpSite, s.Stage < 4 && s.Task != ChainTask.Collect, s.Site, s.Stage < 3 ? TaskTitle(s.Task) : "VAULT", new Color(1f, 0.82f, 0.3f), me);
+                Waypoint(ref _wpExtract, s.ExtractRevealed, s.ExtractPos, "EXTRACTION",
+                    s.ExtractContested || (s.ExtractController >= 0 && s.ExtractController != _m.LocalSquad) ? new Color(1f, 0.35f, 0.35f) : s.ExtractController == _m.LocalSquad ? new Color(0.45f, 1f, 0.55f) : Color.white, me);
+            }
             var canvasRt = (RectTransform)Root;
             // nameplates
             _scratch.Clear();

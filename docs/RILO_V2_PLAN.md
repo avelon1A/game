@@ -24,7 +24,7 @@ proved first in a small test arena (design doc §33), then scaled up.
 - Bots: revive nearby teammates, protect downed allies (Defender), finish downed enemies (Opportunist).
 - Scoreboard tracks **revives** and **assists**.
 
-## Milestone 2 — Objective chain + Secured Energy (2–3 days)
+## Milestone 2 — Objective chain + Secured Energy (2–3 days) ✅ chain done (secured energy + key events still to do)
 - Each squad progresses **independently** through the same chain:
   `Objective 1 → Objective 2 → Objective 3 → Key Event A + B → Vault Access`
 - 3 objective types (readable, never hidden): **Hack Terminal** (hold 8 s), **Capture Zone** (hold area), **Collect** (bring N energy cores).
@@ -33,7 +33,7 @@ proved first in a small test arena (design doc §33), then scaled up.
 - Info events: completing an objective briefly reveals nearby enemies; other squads get "Squad X is hacking" alerts.
 - HUD: current objective, progress bar, squad chain progress (●●●○○).
 
-## Milestone 3 — Vault + Extraction = the win condition (2 days)
+## Milestone 3 — Vault + Extraction = the win condition (2 days) ✅ done
 - Vault Access → channel the **central Vault** → **extraction point revealed to everyone**.
 - Extraction: ~60 s, progresses only while **uncontested**; enemies inside = contested (paused); losing control pauses / slowly drains; another squad can take it.
 - **Only the squad that reaches 100% wins** — match ends immediately.

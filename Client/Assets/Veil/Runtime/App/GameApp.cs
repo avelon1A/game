@@ -597,6 +597,7 @@ namespace Veil.App
         private void ShowResults(List<PlayerResult> results, int localId)
         {
             bool online = IsOnlineMatch;
+            ResultsScreen.Winner = _match?.Latest?.Winner ?? -1;
             EndMatchCleanup();
             HideAll();
             State = AppState.Results;

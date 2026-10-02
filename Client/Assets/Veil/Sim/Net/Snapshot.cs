@@ -69,6 +69,17 @@ namespace Veil.Sim
         public ZoneSnap[] Zones = new ZoneSnap[0];
         public readonly ObjectiveState SquadObjective = new ObjectiveState { IsSquad = true };
         public int SquadTotal;
+
+        // extraction mode: own chain + public extraction state + every squad's stage (enemy progress is public info)
+        public int Stage;
+        public float StageProg;
+        public Vec2 Site;
+        public bool ExtractRevealed, ExtractContested;
+        public Vec2 ExtractPos;
+        public int ExtractController = -1, Winner = -1;
+        public readonly byte[] SquadStage = new byte[GameConfig.SquadCount];
+        public readonly float[] SquadExtract = new float[GameConfig.SquadCount];
+        public ChainTask Task => MatchSim.TaskOf(Stage);
     }
 
     public sealed class RosterEntry
@@ -155,6 +166,11 @@ namespace Veil.Sim
                 snap.Avatars.Add(a);
             }
 
+            snap.Stage = squad.Stage; snap.StageProg = squad.StageProg; snap.Site = squad.Site;
+            snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
+            snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
+            for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
+
             snap.Projectiles.Clear();
             float pr = GameConfig.VisionRadius + 6f;
             foreach (var p in sim.Projectiles)
@@ -191,6 +207,15 @@ namespace Veil.Sim
                 case EventType.PickupSpawned:
                 case EventType.PickupCollected:
                     return true;
+                case EventType.ExtractRevealed:
+                case EventType.ExtractControl:
+                    return true;
+                case EventType.StageComplete:
+                    if (viewer.Squad != e.A) e.Pos = Vec2.Zero;   // rivals learn the progress, not where their site is
+                    return true;
+                case EventType.Downed:
+                case EventType.Revived:
+                    return Ally(sim, viewer, e.B) || e.A == viewer.Id || NearSquad(sim, viewer, e.Pos, GameConfig.VisionRadius + 5f);
                 case EventType.ObjectiveComplete:
                     if (e.B == 2) return Ally(sim, viewer, e.A);   // squad objective: the whole squad
                     return e.A == viewer.Id;

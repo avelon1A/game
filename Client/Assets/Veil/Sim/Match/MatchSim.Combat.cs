@@ -275,7 +275,7 @@ namespace Veil.Sim
             v.Reviving = -1;
             v.Health = 0;
             v.Shield = 0;
-            v.RespawnT = GameConfig.RespawnTime;
+            v.RespawnT = ExtractRevealed ? GameConfig.ExtractRespawnTime : GameConfig.RespawnTime;
             v.Deaths++;
             v.Vel = Vec2.Zero;
             v.Knock = Vec2.Zero;

@@ -7,7 +7,22 @@
 - **16 players**: 4 squads × 4. Empty seats are filled by bots (Explorer, Collector, Hunter, Defender, Opportunist).
 - **Arena**: 150 m × 150 m with a central **Tower**, plus **Reactor**, **Market**, **Vault**, **Ruins** and capturable zones.
 - **Length**: 5, 10 or 15 minutes, chosen in the lobby by the squad leader.
-- **Winning**: squads are ranked by the **sum of their members' scores**. There is also an MVP and a personal rank.
+- **Winning (extraction mode, default)**: the **first squad to complete the extraction wins** and the match ends immediately. If time runs out, squads rank by extraction progress, then route progress, then score.
+
+### The route (every squad, same distances)
+| Step | Task | Rule |
+|---|---|---|
+| Objective 1 | **Hack Terminal** | a squadmate stands at your terminal (3 m) for 8 s |
+| Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
+| Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
+| Vault | **Central Vault** | channel at the centre (6 m) for 10 s |
+| Extraction | **Hold the point** | 60 s, only squads that opened their Vault progress |
+
+- Enemies near your site **pause** your progress (contest). Completing a step briefly reveals enemies near it.
+- The first Vault opening **reveals the extraction point to everyone** (between two squads, away from the opener).
+- Extraction: one squad inside = it progresses; two squads inside = **contested**, nobody progresses; leaving pauses it.
+- After the reveal, re-entry takes **15 s** instead of 5 s. The collapse never closes over the extraction point.
+- HUD: current step + distance, route dots and every rival squad's step, extraction status; gold beam = your site, big ring = extraction.
 
 ### Phases
 | Phase | What changes |

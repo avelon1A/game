@@ -200,6 +200,9 @@ namespace Veil.Sim
                 w.U8((byte)(z.Controller + 1)); w.U8((byte)(z.Capturer + 1)); w.U8((byte)(z.Squad + 1)); w.U8((byte)(z.CapturerSquad + 1)); w.Unit(z.Progress, 1f);
                 w.Bool(z.Contested); w.Bool(z.Locked); w.U8((byte)z.Occupants); w.Time(z.Cooldown);
             }
+            w.U8((byte)s.Stage); w.Unit(s.StageProg, 1f); w.Vec(s.Site);
+            w.Bool(s.ExtractRevealed); w.Bool(s.ExtractContested); w.Vec(s.ExtractPos); w.U8((byte)(s.ExtractController + 1)); w.U8((byte)(s.Winner + 1));
+            for (int i = 0; i < GameConfig.SquadCount; i++) { w.U8(s.SquadStage[i]); w.U16((ushort)MathF.Round(s.SquadExtract[i] * 65535f)); }
         }
 
         private static void WriteObjective(ByteWriter w, ObjectiveState o)
@@ -258,6 +261,9 @@ namespace Veil.Sim
                     Occupants = r.U8(), Cooldown = r.Time(),
                 };
             }
+            s.Stage = r.U8(); s.StageProg = r.Unit(1f); s.Site = r.Vec();
+            s.ExtractRevealed = r.Bool(); s.ExtractContested = r.Bool(); s.ExtractPos = r.Vec(); s.ExtractController = r.U8() - 1; s.Winner = r.U8() - 1;
+            for (int i = 0; i < GameConfig.SquadCount; i++) { s.SquadStage[i] = r.U8(); s.SquadExtract[i] = r.U16() / 65535f; }
             return s;
         }
 

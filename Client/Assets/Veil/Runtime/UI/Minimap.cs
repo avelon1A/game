@@ -166,6 +166,26 @@ namespace Veil.UI
                 d.rectTransform.anchoredPosition = W(pk.Pos);
                 d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
             }
+            if (GameConfig.ExtractionMode)
+            {
+                if (snap.Stage < 4 && snap.Task != ChainTask.Collect)
+                {
+                    var d = Dot();
+                    d.sprite = Icons.Target; d.color = new Color(1f, 0.85f, 0.3f, 0.75f + Mathf.Sin(Time.time * 5) * 0.25f);
+                    d.rectTransform.sizeDelta = new Vector2(24, 24);
+                    d.rectTransform.anchoredPosition = W(snap.Site);
+                    d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
+                }
+                if (snap.ExtractRevealed)
+                {
+                    var d = Dot();
+                    d.sprite = Icons.Trophy;
+                    d.color = snap.ExtractContested ? new Color(1, 0.3f, 0.3f, 0.6f + Mathf.Sin(Time.time * 10) * 0.4f) : snap.ExtractController == m.LocalSquad ? Palette.Health : Color.white;
+                    d.rectTransform.sizeDelta = new Vector2(26, 26);
+                    d.rectTransform.anchoredPosition = W(snap.ExtractPos);
+                    d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
+                }
+            }
             foreach (var a in snap.Avatars)
             {
                 var d = Dot();

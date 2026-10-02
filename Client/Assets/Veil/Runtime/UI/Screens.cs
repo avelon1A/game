@@ -428,7 +428,7 @@ namespace Veil.UI
             _rank.rectTransform.pivot = new Vector2(0, 1);
             _rank.fontStyle = FontStyle.Italic;
             UIKit.Outline(_rank, new Color(0.5f, 0.3f, 0, 0.9f), 4);
-            var mc = UIKit.LabelAt(p, "SQUAD PLACEMENT", 26, Theme.Text, new Vector2(0, 1), new Vector2(290, -48), new Vector2(320, 34), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var mc = _placement = UIKit.LabelAt(p, "SQUAD PLACEMENT", 26, Theme.Text, new Vector2(0, 1), new Vector2(290, -48), new Vector2(320, 34), TextAnchor.MiddleLeft, UIKit.BoldFont);
             mc.rectTransform.pivot = new Vector2(0, 1);
             var ys = UIKit.LabelAt(p, "YOUR SCORE", 20, Theme.TextDim, new Vector2(0, 1), new Vector2(290, -86), new Vector2(320, 26), TextAnchor.MiddleLeft, UIKit.BoldFont);
             ys.rectTransform.pivot = new Vector2(0, 1);
@@ -469,6 +469,10 @@ namespace Veil.UI
             else App.StartOfflineMatch();
         }
 
+        private Text _placement;
+        /// <summary>Extraction mode: the squad that extracted (-1 = time ran out). Set before Fill.</summary>
+        public static int Winner = -1;
+
         public void Fill(List<PlayerResult> results, int localId, bool online)
         {
             foreach (var g in _spawned) Object.Destroy(g);
@@ -478,6 +482,13 @@ namespace Veil.UI
             PlayerResult me = null;
             foreach (var r in results) if (r.PlayerId == localId) me = r;
             if (me == null && results.Count > 0) me = results[0];
+            if (GameConfig.ExtractionMode && me != null && _placement != null)
+            {
+                _placement.supportRichText = true;
+                _placement.text = Winner < 0 ? "TIME UP · NO EXTRACTION"
+                    : Winner == me.Squad ? "<color=#7dff9a>VICTORY · EXTRACTED</color>"
+                    : $"<color=#ff5a6a>SQUAD {(char)('A' + Winner)} EXTRACTED</color>";
+            }
             _rank.text = "#" + me.SquadRank;
             _rank.fontSize = UIKit.Fs(150);
             _rank.color = me.SquadRank == 1 ? Theme.Gold : me.SquadRank == 2 ? Theme.PurpleLight : Theme.Text;

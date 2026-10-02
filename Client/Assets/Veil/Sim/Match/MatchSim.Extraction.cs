@@ -1,0 +1,178 @@
+using System;
+
+namespace Veil.Sim
+{
+    /// <summary>
+    /// Rilo extraction mode: every squad works through the same chain —
+    /// Objective 1 (hack) → Objective 2 (capture) → Objective 3 (collect) → central Vault → Extraction.
+    /// Sites are placed by rotating one layout around each squad's spawn, so every squad gets the same distances.
+    /// The first Vault completion reveals one extraction point to everyone; only squads that finished their Vault can
+    /// extract, any squad can contest. First squad to hold it for ExtractTime wins and the match ends.
+    /// </summary>
+    public sealed partial class MatchSim
+    {
+        public static readonly ChainTask[] Chain = { ChainTask.Hack, ChainTask.Capture, ChainTask.Collect, ChainTask.Vault, ChainTask.Extract };
+
+        // per-stage site relative to the squad's spawn direction: (distance from the centre, degrees off the spawn bearing)
+        private static readonly (float r, float deg)[] SiteLayout = { (44f, 26f), (30f, -32f), (0f, 0f) };
+
+        public bool ExtractRevealed { get; private set; }
+        public Vec2 ExtractPos { get; private set; }
+        public int ExtractController { get; private set; } = -1;   // squad holding it alone (-1 none)
+        public bool ExtractContested { get; private set; }
+        public int WinnerSquad { get; private set; } = -1;
+
+        public static ChainTask TaskOf(int stage) => Chain[Math.Min(stage, Chain.Length - 1)];
+
+        private void StartChain(Vec2[] anchors)
+        {
+            for (int s = 0; s < Squads.Length; s++)
+            {
+                var sq = Squads[s];
+                sq.Spawn = anchors[s % anchors.Length];
+                sq.Stage = 0;
+                EnterStage(sq);
+            }
+        }
+
+        private Vec2 SiteFor(SquadState sq, int stage)
+        {
+            if (TaskOf(stage) == ChainTask.Vault) return Map.Zones[TowerZone].Center;
+            if (stage >= SiteLayout.Length) return Vec2.Zero;
+            var (r, deg) = SiteLayout[stage];
+            Vec2 c = Vec2.FromYaw(sq.Spawn.Yaw + deg) * r;
+            if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
+            return c;
+        }
+
+        private void EnterStage(SquadState sq)
+        {
+            sq.StageProg = 0;
+            sq.Site = SiteFor(sq, sq.Stage);
+            sq.CoresAtStart = SquadCores(sq.Id);
+        }
+
+        private int SquadCores(int squad)
+        {
+            int n = 0;
+            foreach (var p in Players) if (p.Squad == squad) n += p.CoresCollected;
+            return n;
+        }
+
+        private bool Standing(PlayerState p) => p.Alive && !p.Downed;
+
+        private void UpdateChain(float dt)
+        {
+            if (!GameConfig.ExtractionMode || Ended) return;
+            foreach (var sq in Squads)
+            {
+                if (sq.Stage >= 4) continue;
+                var task = TaskOf(sq.Stage);
+                if (task == ChainTask.Collect)
+                {
+                    sq.StageProg = MathUtil.Clamp01((SquadCores(sq.Id) - sq.CoresAtStart) / (float)GameConfig.CollectCores);
+                }
+                else
+                {
+                    float radius = task == ChainTask.Hack ? GameConfig.HackRadius : task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
+                    float time = task == ChainTask.Hack ? GameConfig.HackTime : task == ChainTask.Capture ? GameConfig.PadCaptureTime : GameConfig.VaultTime;
+                    int mine = 0; bool enemy = false;
+                    float r2 = radius * radius, e2 = (radius + 2f) * (radius + 2f);
+                    foreach (var p in Players)
+                    {
+                        if (!Standing(p)) continue;
+                        float d2 = Vec2.DistSq(p.Pos, sq.Site);
+                        if (p.Squad == sq.Id) { if (d2 <= r2) mine++; }
+                        else if (d2 <= e2) enemy = true;
+                    }
+                    if (mine > 0 && !enemy)
+                    {
+                        float rate = task == ChainTask.Capture ? 1f + 0.25f * (mine - 1) : 1f;
+                        sq.StageProg = MathF.Min(1f, sq.StageProg + dt / time * rate);
+                    }
+                }
+                if (sq.StageProg >= 1f) CompleteStage(sq);
+            }
+            UpdateExtraction(dt);
+        }
+
+        private void CompleteStage(SquadState sq)
+        {
+            int done = sq.Stage;
+            foreach (var p in Players)
+            {
+                if (p.Squad != sq.Id) continue;
+                p.Score.Squad += GameConfig.StagePoints;
+                // completing a stage gives the squad a short look at enemies around the site
+                float r2 = GameConfig.StageRevealRadius * GameConfig.StageRevealRadius;
+                foreach (var o in Players)
+                    if (o.Squad != sq.Id && o.Alive && Vec2.DistSq(o.Pos, sq.Site) <= r2) o.RevealedTo[p.Id] = GameConfig.StageRevealTime;
+            }
+            Events.Add(new SimEvent(EventType.StageComplete, sq.Id, done, 0, sq.Site));
+            sq.Stage++;
+            if (sq.Stage <= 3) EnterStage(sq);
+            else
+            {
+                sq.StageProg = 1f;
+                sq.Site = ExtractRevealed ? ExtractPos : sq.Site;
+                if (!ExtractRevealed) RevealExtraction(sq);
+            }
+        }
+
+        private void RevealExtraction(SquadState first)
+        {
+            // candidates: midway between neighbouring squads' spawn bearings — equally far from two squads each
+            Vec2 best = Vec2.Zero; float bestScore = float.MinValue;
+            for (int i = 0; i < Squads.Length; i++)
+            {
+                float a = Squads[i].Spawn.Yaw, b = Squads[(i + 1) % Squads.Length].Spawn.Yaw;
+                float mid = a + MathUtil.DeltaAngle(a, b) * 0.5f;
+                Vec2 c = Vec2.FromYaw(mid) * GameConfig.ExtractDistance;
+                if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
+                // never hand it to the squad that opened the Vault: prefer the point farthest from them
+                float score = Vec2.Dist(c, first.Spawn) + Rng.Range(0, 4f);
+                if (score > bestScore) { bestScore = score; best = c; }
+            }
+            ExtractPos = best;
+            ExtractRevealed = true;
+            foreach (var sq in Squads) if (sq.Stage >= 4) sq.Site = ExtractPos;
+            Events.Add(new SimEvent(EventType.ExtractRevealed, first.Id, 0, 0, ExtractPos));
+        }
+
+        private void UpdateExtraction(float dt)
+        {
+            if (!ExtractRevealed) return;
+            int present = -1; bool many = false;
+            float r2 = GameConfig.ExtractRadius * GameConfig.ExtractRadius;
+            foreach (var p in Players)
+            {
+                if (!Standing(p) || Vec2.DistSq(p.Pos, ExtractPos) > r2) continue;
+                if (present < 0) present = p.Squad;
+                else if (present != p.Squad) many = true;
+            }
+            int controller = many ? -1 : present;
+            ExtractContested = many;
+            if (controller != ExtractController)
+            {
+                ExtractController = controller;
+                Events.Add(new SimEvent(EventType.ExtractControl, controller, many ? 1 : 0, 0, ExtractPos));
+            }
+            if (controller < 0) return;
+            var sq = Squads[controller];
+            if (!sq.VaultDone) return;     // only squads that finished their Vault can extract
+            sq.ExtractProg = MathF.Min(1f, sq.ExtractProg + dt / GameConfig.ExtractTime);
+            if (sq.ExtractProg >= 1f)
+            {
+                WinnerSquad = sq.Id;
+                EndMatch();
+            }
+        }
+
+        /// <summary>Ranking key for extraction mode: winner, then extraction progress, then chain stage, then score.</summary>
+        private float ChainRankKey(SquadState sq)
+        {
+            if (sq.Id == WinnerSquad) return 1e9f;
+            return sq.ExtractProg * 1e6f + (sq.Stage + sq.StageProg) * 1e4f + sq.Total;
+        }
+    }
+}

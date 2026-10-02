@@ -6,7 +6,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 5;
+        public const int ProtocolVersion = 6;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -42,6 +42,24 @@ namespace Veil.Sim
         public const float HealthRegenPerSec = 7f;
         public const float RespawnTime = 5f;
         public const float SpawnProtection = 2f;
+
+        // ---- extraction mode (Rilo v2): Objective 1 → 2 → 3 → central Vault → Extraction, one winning squad ----
+        public const bool ExtractionMode = true;      // false = the old score-only match
+        public const float HackTime = 8f;              // stand at your squad's terminal
+        public const float HackRadius = 3f;
+        public const float PadCaptureTime = 12f;       // hold your squad's capture pad (more members = faster)
+        public const float CaptureRadius = 5f;
+        public const int CollectCores = 3;             // energy cores picked up by the squad
+        public const float VaultTime = 10f;            // channel at the central Vault
+        public const float VaultRadius = 6f;
+        public const float ExtractTime = 60f;          // hold the extraction point uncontested
+        public const float ExtractRadius = 7f;
+        public const float ExtractDistance = 40f;      // extraction points sit between the squads' spawns
+        public const float ExtractRespawnTime = 15f;   // longer re-entry once extraction is revealed
+        public const float ExtractCircleMin = 52f;     // the collapse never closes over the extraction points
+        public const int StagePoints = 100;            // per member, per completed stage (tie-breaks)
+        public const float StageRevealRadius = 30f;    // completing a stage reveals nearby enemies...
+        public const float StageRevealTime = 4f;       // ...for this long
 
         // ---- downed & revive (Rilo v2, Milestone 1) ----
         public const float DownedHealth = 60f;        // "bleed HP": enemies must deal this much more to finish a downed player

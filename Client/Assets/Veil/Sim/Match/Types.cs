@@ -254,7 +254,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl,
     }
 
     public struct SimEvent
@@ -269,9 +269,20 @@ namespace Veil.Sim
     }
 
     /// <summary>Shared squad progress. Only the squad itself can see its objective.</summary>
+    /// <summary>Extraction mode: what the squad must do next.</summary>
+    public enum ChainTask : byte { Hack, Capture, Collect, Vault, Extract }
+
     public sealed class SquadState
     {
         public int Id;
+        // extraction mode chain
+        public int Stage;               // 0..2 objectives, 3 = Vault, 4 = vault done (can extract)
+        public float StageProg;         // 0..1
+        public Vec2 Site;               // where the current stage happens (own terminal / pad / the Vault)
+        public Vec2 Spawn;
+        public int CoresAtStart;
+        public float ExtractProg;       // 0..1, first squad to 1 wins
+        public bool VaultDone => Stage >= 4;
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;
         public int CapturedMask;

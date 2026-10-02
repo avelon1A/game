@@ -199,6 +199,30 @@ namespace Veil.Sim
             ConsiderObjective(_p.Secondary, 38, Consider);
             ConsiderObjective(_sim.Squads[_p.Squad].Objective, 44, Consider);
 
+            // ---- extraction mode chain: own objective → Vault → extraction (and contest other squads there) ----
+            if (GameConfig.ExtractionMode)
+            {
+                var sq = _sim.Squads[_p.Squad];
+                float drive = Kind switch { BotKind.Explorer => 82, BotKind.Defender => 78, BotKind.Collector => 72, BotKind.Opportunist => 64, _ => 58 };
+                if (_sim.ExtractRevealed)
+                {
+                    float de = Vec2.Dist(_sim.ExtractPos, _p.Pos);
+                    bool rival = _sim.ExtractController >= 0 && _sim.ExtractController != _p.Squad;
+                    if (sq.VaultDone) Consider(Goal.Vault, 96 - de * 0.08f, _sim.ExtractPos);
+                    else if (rival || Kind == BotKind.Hunter || Kind == BotKind.Opportunist) Consider(Goal.Vault, (rival ? 88 : 60) - de * 0.12f, _sim.ExtractPos);
+                }
+                if (sq.Stage < 4)
+                {
+                    float ds = Vec2.Dist(sq.Site, _p.Pos);
+                    if (MatchSim.TaskOf(sq.Stage) == ChainTask.Collect)
+                    {
+                        var core = NearestPickup(PickupType.Core, 200f);
+                        if (core != null) Consider(Goal.Pickup, drive - Vec2.Dist(core.Pos, _p.Pos) * 0.2f, core.Pos);
+                    }
+                    else Consider(Goal.Vault, drive + (sq.Stage == 3 ? 8 : 0) - ds * 0.12f, sq.Site);
+                }
+            }
+
             // ---- downed: crawl to the nearest standing squadmate; standing: go revive a downed one ----
             foreach (var o in _sim.Players)
             {
@@ -398,6 +422,17 @@ namespace Veil.Sim
             {
                 target = s;
                 if (_goal != Goal.Flee) dest = s.Pos;
+            }
+            else if (_goal != Goal.Flee && !_p.Downed)
+            {
+                // busy with an objective: still shoot back at the closest visible enemy
+                float bd = 24f;
+                foreach (var e in _seen.Values)
+                {
+                    if (!e.Full || !VisibleNow(e)) continue;
+                    float d = Vec2.Dist(e.Pos, _p.Pos);
+                    if (d < bd) { bd = d; target = e; }
+                }
             }
 
             // stay near zone centres with a lazy orbit so bots don't stack

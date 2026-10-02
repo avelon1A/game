@@ -150,6 +150,7 @@ namespace Veil.Sim
                 AssignObjectives(p);
             }
             foreach (var sq in Squads) AssignSquadObjective(sq);
+            StartChain(anchors.ToArray());
 
             // pickups
             SpawnAtSpots(PickupType.Core, GameConfig.ActiveCores);
@@ -214,6 +215,8 @@ namespace Veil.Sim
             UpdatePickups(dt);
             UpdateZones(dt);
             UpdateCollapse(dt);
+            UpdateChain(dt);
+            if (Ended) return;
             UpdateObjectives();
             UpdateSquadTotals();
 
@@ -276,6 +279,7 @@ namespace Veil.Sim
             if (Time < cs) CircleRadius = GameConfig.CircleStartRadius;
             else if (Time < fs) CircleRadius = MathUtil.Lerp(GameConfig.CircleStartRadius, GameConfig.CircleCollapseEnd, (Time - cs) / (fs - cs));
             else CircleRadius = MathUtil.Lerp(GameConfig.CircleCollapseEnd, GameConfig.CircleFinalRadius, MathUtil.Clamp01((Time - fs) / (Duration - fs)));
+            if (GameConfig.ExtractionMode) CircleRadius = MathF.Max(CircleRadius, GameConfig.ExtractCircleMin);
         }
 
         private void UpdateCollapse(float dt)
@@ -311,7 +315,8 @@ namespace Veil.Sim
 
             UpdateSquadTotals();
             var order = new List<SquadState>(Squads);
-            order.Sort((a, b) => b.Total.CompareTo(a.Total));
+            if (GameConfig.ExtractionMode) order.Sort((a, b) => ChainRankKey(b).CompareTo(ChainRankKey(a)));
+            else order.Sort((a, b) => b.Total.CompareTo(a.Total));
             for (int i = 0; i < order.Count; i++) order[i].Rank = i + 1;
 
             var list = new List<PlayerResult>();

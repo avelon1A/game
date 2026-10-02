@@ -75,6 +75,8 @@ namespace Veil.View
             _circle = cgo.transform;
             _circle.gameObject.SetActive(false);
 
+            if (GameConfig.ExtractionMode) BuildChainMarkers();
+
             var marker = Build.Part(Root, MeshGen.Ring(0.35f, 0.5f, 32), MaterialLib.Unlit(new Color(1, 1, 1, 0.35f), MaterialLib.Blend.Additive), Vector3.zero, Vector3.one * 0.7f, null, "AimMarker", false);
             _aimMarker = marker.transform;
 
@@ -131,6 +133,7 @@ namespace Veil.View
             UpdateLocal(dt, snap);
             UpdateRemotes(dt, snap);
             UpdateSpectate();
+            if (GameConfig.ExtractionMode) UpdateChainMarkers(snap);
             UpdateProjectiles(snap);
             UpdatePickups(dt);
             for (int i = 0; i < _zones.Count && i < snap.Zones.Length; i++) _zones[i].Update(snap.Zones[i], Match, dt);
@@ -139,6 +142,57 @@ namespace Veil.View
             bool collapsing = snap.Circle < GameConfig.CircleStartRadius - 0.5f;
             _circle.gameObject.SetActive(collapsing);
             if (collapsing) _circle.localScale = new Vector3(snap.Circle * 2, 30, snap.Circle * 2);
+        }
+
+        // ------------------------------------------------------------------ extraction mode markers
+
+        private Transform _site, _siteRing, _extract, _extractFill;
+        private Renderer _extractRing, _extractBeam;
+        private Material _xWhite, _xGreen, _xRed, _xGold;
+
+        private void BuildChainMarkers()
+        {
+            var gold = new Color(1f, 0.82f, 0.28f);
+            _xGold = MaterialLib.Unlit(new Color(gold.r, gold.g, gold.b, 0.55f), MaterialLib.Blend.Additive);
+            _xWhite = MaterialLib.Unlit(new Color(0.85f, 0.9f, 1f, 0.5f), MaterialLib.Blend.Additive);
+            _xGreen = MaterialLib.Unlit(new Color(0.35f, 1f, 0.5f, 0.55f), MaterialLib.Blend.Additive);
+            _xRed = MaterialLib.Unlit(new Color(1f, 0.3f, 0.3f, 0.6f), MaterialLib.Blend.Additive);
+
+            // own objective: gold ring on the ground + tall light beam (visible across the map)
+            _site = Build.Node(Root, "ChainSite", Vector3.zero);
+            _siteRing = Build.Part(_site, MeshGen.Ring(0.9f, 1f, 64), _xGold, new Vector3(0, 0.06f, 0), Vector3.one, null, "Ring", false).transform;
+            Build.Part(_site, MeshGen.Cylinder(16), MaterialLib.Unlit(new Color(gold.r, gold.g, gold.b, 0.18f), MaterialLib.Blend.Additive), new Vector3(0, 31.5f, 0), new Vector3(0.3f, 60f, 0.3f), null, "Beam", false);
+            Build.Part(_site, MeshGen.Octahedron, MaterialLib.Glow(gold, 3f), new Vector3(0, 4.2f, 0), new Vector3(0.45f, 0.7f, 0.45f), null, "Gem", false);
+            _site.gameObject.SetActive(false);
+
+            // extraction: big ring, beam and a fill disc that grows with your squad's progress
+            _extract = Build.Node(Root, "Extraction", Vector3.zero);
+            _extractRing = Build.Part(_extract, MeshGen.Ring(0.94f, 1f, 96), _xWhite, new Vector3(0, 0.07f, 0), Vector3.one * GameConfig.ExtractRadius, null, "Ring", false).GetComponent<Renderer>();
+            _extractBeam = Build.Part(_extract, MeshGen.Cylinder(20), _xWhite, new Vector3(0, 40f, 0), new Vector3(1.4f, 80f, 1.4f), null, "Beam", false).GetComponent<Renderer>();
+            _extractFill = Build.Part(_extract, MeshGen.Disc(64), _xGreen, new Vector3(0, 0.05f, 0), Vector3.zero, null, "Fill", false).transform;
+            _extract.gameObject.SetActive(false);
+        }
+
+        private void UpdateChainMarkers(Snapshot s)
+        {
+            bool showSite = s.Stage < 4 && s.Task != ChainTask.Collect;
+            _site.gameObject.SetActive(showSite);
+            if (showSite)
+            {
+                float r = s.Task == ChainTask.Hack ? GameConfig.HackRadius : s.Task == ChainTask.Capture ? GameConfig.CaptureRadius : GameConfig.VaultRadius;
+                _site.position = new Vector3(s.Site.X, 0, s.Site.Y);
+                _siteRing.localScale = Vector3.one * r * (1f + Mathf.Sin(Time.time * 3f) * 0.03f);
+                _site.GetChild(2).localRotation = Quaternion.Euler(0, Time.time * 90f, 0);
+            }
+            _extract.gameObject.SetActive(s.ExtractRevealed);
+            if (s.ExtractRevealed)
+            {
+                _extract.position = new Vector3(s.ExtractPos.X, 0, s.ExtractPos.Y);
+                var m = s.ExtractContested ? _xRed : s.ExtractController == Match.LocalSquad ? _xGreen : s.ExtractController >= 0 ? _xRed : _xWhite;
+                _extractRing.sharedMaterial = m; _extractBeam.sharedMaterial = m;
+                float p = s.SquadExtract[Match.LocalSquad];
+                _extractFill.localScale = new Vector3(2 * GameConfig.ExtractRadius * p, 1, 2 * GameConfig.ExtractRadius * p);
+            }
         }
 
         // ------------------------------------------------------------------ spectating (while eliminated)
