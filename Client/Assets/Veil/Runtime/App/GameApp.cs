@@ -136,6 +136,7 @@ namespace Veil.App
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
                 if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
+                if (args[i] == "-sniper") { var l = Profile.Look; l.Weapon = 1; Profile.Look = l; Stage.UpdateLook(l); }   // test: equip the sniper
             }
             if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
         }

@@ -158,6 +158,20 @@ namespace Veil.View
                     r.shadowCastingMode = _shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
                 _blasterTip = w.transform.Find("Muzzle");
+                if (Look.Weapon == 1)
+                {
+                    // sniper scope on top of the gun (barrel = +Y, top = -Z): tube, two mounts, glowing lenses
+                    var scopeMat = M(Palette.Hex("#22212b"), 0.3f, 0.6f);
+                    var lens = MaterialLib.Glow(Palette.Hex("#5fd8ff"), 2.5f);
+                    float top = -0.16f;
+                    P(_gun, MeshGen.Cylinder(12), scopeMat, new Vector3(0, 0.13f, top), new Vector3(0.065f, 0.15f, 0.065f));
+                    P(_gun, MeshGen.Cylinder(12), scopeMat, new Vector3(0, 0.27f, top), new Vector3(0.085f, 0.035f, 0.085f));
+                    P(_gun, MeshGen.Cylinder(12), scopeMat, new Vector3(0, -0.01f, top), new Vector3(0.08f, 0.03f, 0.08f));
+                    P(_gun, MeshGen.Cylinder(12), lens, new Vector3(0, 0.29f, top), new Vector3(0.07f, 0.006f, 0.07f));
+                    P(_gun, MeshGen.Cylinder(12), lens, new Vector3(0, -0.027f, top), new Vector3(0.065f, 0.006f, 0.065f));
+                    P(_gun, MeshGen.Box, scopeMat, new Vector3(0, 0.06f, top + 0.05f), new Vector3(0.03f, 0.03f, 0.06f));
+                    P(_gun, MeshGen.Box, scopeMat, new Vector3(0, 0.2f, top + 0.05f), new Vector3(0.03f, 0.03f, 0.06f));
+                }
             }
             else
             {
