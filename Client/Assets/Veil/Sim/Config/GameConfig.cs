@@ -51,7 +51,7 @@ namespace Veil.Sim
 
         // ---- Combat ----
         public const float FireCooldown = 0.3f;
-        public const float ProjectileSpeed = 90f;           // fast enough that a moving target is still there when it lands
+        public const float ProjectileSpeed = 900f;          // ~instant: covers the full range in one 30 Hz tick
         public const float ProjectileRange = 30f;
         public const float ProjectileDamage = 11f;          // quicker fire rate, similar time-to-kill
         public const float ProjectileRadius = 0.22f;

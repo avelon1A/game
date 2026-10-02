@@ -263,6 +263,7 @@ namespace Veil.View
                 av.FireSeq = fire;
                 av.Rig.TriggerFire();
                 if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], 0.4f);
+                if (av.Fade > 0.1f || local) Tracer(av, local);
                 if (av.Fade > 0.1f || local) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.55f : 0.45f);
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }
@@ -277,6 +278,36 @@ namespace Veil.View
                 av.JumpSeq = jump;
                 if (local) Sfx.Play(Sfx.Jump, 0.4f);
             }
+        }
+
+        // instant hit-scan streak from the gun to where the shot lands (local: the predicted impact point)
+        private void Tracer(AvatarView av, bool local)
+        {
+            Vector3 from = av.Rig.BlasterTip ? av.Rig.BlasterTip.position : av.Pos + Vector3.up * (GameConfig.ProjectileHeight + 0.1f);
+            Vector3 to;
+            if (local && HasShotImpact) to = ShotImpact;
+            else
+            {
+                var dir = Vec2.FromYaw(av.Yaw);
+                var start = new Vec2(av.Pos.x, av.Pos.z) + dir * 0.6f;
+                float d = 0;
+                for (; d < GameConfig.ProjectileRange; d += 0.4f)
+                    if (Match.Map.BlocksShotAt(start + dir * d, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
+                var end = start + dir * Mathf.Min(d, GameConfig.ProjectileRange);
+                to = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
+            }
+            var c = Palette.AccentColors[av.Rig.Look.Color % 8];
+            var go = new GameObject("Tracer");
+            go.transform.SetParent(Root, false);
+            var lr = go.AddComponent<LineRenderer>();
+            lr.useWorldSpace = true; lr.positionCount = 2;
+            lr.SetPosition(0, from); lr.SetPosition(1, to);
+            lr.widthMultiplier = 0.07f;
+            lr.sharedMaterial = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive);
+            lr.startColor = new Color(c.r, c.g, c.b, 0.25f); lr.endColor = c;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Fx.I.Flash(to, c, 0.25f);
+            Object.Destroy(go, 0.06f);
         }
 
         private void DriveRig(AvatarView av, float dt, bool local)

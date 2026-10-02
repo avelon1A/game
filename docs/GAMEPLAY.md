@@ -44,7 +44,7 @@ Pick a **glow colour** in **Characters**; bots get random glow colours.
 | Stat | Value |
 |---|---|
 | Health | 100, regenerates 7/s after 5 s without damage |
-| Blaster | 11 damage per hit, 0.3 s between shots, bolts fly 90 m/s, 30 m range |
+| Blaster | 11 damage per hit, 0.3 s between shots, instant hit (bolts cross the 30 m range in one tick) |
 | Knockback | small push on hit |
 | Respawn | 5 s, then 2 s spawn protection, near your squad |
 | On death | you keep 60 % of your energy |
