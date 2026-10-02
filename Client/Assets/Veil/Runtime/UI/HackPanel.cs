@@ -111,7 +111,12 @@ namespace Veil.UI
             int hackers = home ? s.HomeHackers : s.Hackers;
             bool contested = home ? s.HomeContested : s.HackContested;
             var marks = home ? GameConfig.HackInstability : GameConfig.CenterInstability;
-            bool show = GameConfig.ExtractionMode && s.Stage == 0;
+            // only while you are actually hacking: inside a terminal ring, or near one of your squad's fault nodes
+            float dHome = Vec2.Dist(me.Pos, s.HomePos), dCentre = me.Pos.Length;
+            bool inRing = dHome <= GameConfig.HomeHackRadius + 1f || dCentre <= GameConfig.HackRadius + 1f;
+            bool nearNode = false;
+            foreach (var n in s.Nodes) if (Vec2.Dist(me.Pos, n.Pos) < 20f) nearNode = true;
+            bool show = GameConfig.ExtractionMode && s.Stage == 0 && me.Alive && (inRing || nearNode);
             _root.gameObject.SetActive(show);
             if (!show) return;
 
