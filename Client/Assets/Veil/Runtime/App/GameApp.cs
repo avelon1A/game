@@ -265,7 +265,8 @@ namespace Veil.App
                 if (mob) urp.shadowCascadeCount = 1;
                 QualitySettings.lodBias = mob ? 0.6f : 1.5f;
             }
-            var mode = Profile.Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
+            // phones are always fullscreen (immersive: no navigation / status bar); the setting is for desktop only
+            var mode = Application.isMobilePlatform || Profile.Fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
             if (Screen.fullScreenMode != mode && !Application.isEditor) Screen.fullScreenMode = mode;
         }
 

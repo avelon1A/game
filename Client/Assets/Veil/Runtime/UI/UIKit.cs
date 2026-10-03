@@ -293,6 +293,67 @@ namespace Veil.UI
         }
 
         public static Text ButtonLabel(Button b) => b.GetComponentInChildren<Text>();
+
+        /// <summary>The standard "Sign in with Google" button: white, rounded, multicolour G on the left, dark label.</summary>
+        public static Button GoogleButton(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, Action onClick, int fontSize = 24)
+        {
+            var rt = At(parent, "Btn_Google", anchor, pos, size);
+            var img = Image(rt, Pill, Color.white, true);
+            var sh = rt.gameObject.AddComponent<Shadow>();
+            sh.effectColor = new Color(0, 0, 0, 0.35f); sh.effectDistance = new Vector2(0, -3);
+            var btn = rt.gameObject.AddComponent<Button>();
+            btn.targetGraphic = img;
+            var colors = btn.colors;
+            colors.highlightedColor = new Color(0.96f, 0.97f, 1f, 1); colors.pressedColor = new Color(0.86f, 0.88f, 0.92f, 1); colors.fadeDuration = 0.08f;
+            btn.colors = colors;
+            float g = size.y * 0.5f;
+            var logo = At(rt, "G", new Vector2(0, 0.5f), new Vector2(size.y * 0.5f + 6, 0), new Vector2(g, g));
+            Image(logo, GoogleG(), Color.white);
+            var label = LabelAt(rt, "Sign in with Google", fontSize, new Color(0.12f, 0.12f, 0.12f), new Vector2(0.5f, 0.5f), new Vector2(size.y * 0.35f, 0), new Vector2(size.x - size.y, size.y), TextAnchor.MiddleCenter, BodyFont);
+            btn.onClick.AddListener(() => { Audio.Sfx.Play(Audio.Sfx.Click, 0.6f); onClick?.Invoke(); });
+            rt.gameObject.AddComponent<ButtonFx>();
+            return btn;
+        }
+
+        private static Sprite _googleG;
+
+        /// <summary>Google's four-colour G, drawn once (4x supersampled) so no logo file is needed.</summary>
+        public static Sprite GoogleG()
+        {
+            if (_googleG != null) return _googleG;
+            const int n = 128, ss = 4;
+            Color blue = new Color32(0x42, 0x85, 0xF4, 255), red = new Color32(0xEA, 0x43, 0x35, 255), yellow = new Color32(0xFB, 0xBC, 0x05, 255), green = new Color32(0x34, 0xA8, 0x53, 255);
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var px = new Color[n * n];
+            const float R = 0.5f, r = 0.31f;          // outer / inner radius (texture = 1 unit)
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    Vector4 acc = Vector4.zero;
+                    for (int sy = 0; sy < ss; sy++)
+                        for (int sx = 0; sx < ss; sx++)
+                        {
+                            float u = (x + (sx + 0.5f) / ss) / n - 0.5f, v = (y + (sy + 0.5f) / ss) / n - 0.5f;
+                            float d = Mathf.Sqrt(u * u + v * v);
+                            float a = Mathf.Atan2(v, u) * Mathf.Rad2Deg; if (a < 0) a += 360f;
+                            Color c = Color.clear;
+                            if (d >= r && d <= R)
+                            {
+                                if (a >= 0 && a < 42) c = Color.clear;          // the G's opening
+                                else if (a < 140) c = red;
+                                else if (a < 220) c = yellow;
+                                else if (a < 315) c = green;
+                                else c = blue;
+                            }
+                            if (u >= -0.01f && u <= R * 0.97f && v >= -0.095f && v <= 0.095f && d <= R) c = blue;   // the bar
+                            acc += (Vector4)c;
+                        }
+                    px[y * n + x] = acc / (ss * ss);
+                }
+            tex.SetPixels(px); tex.Apply();
+            _googleG = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
+            return _googleG;
+        }
     }
 
     /// <summary>Hover/press juice for buttons.</summary>

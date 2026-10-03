@@ -26,7 +26,7 @@ namespace Veil.UI
 
         protected static Text Logo(Transform parent, Vector2 anchor, Vector2 pos, int size)
         {
-            var t = UIKit.LabelAt(parent, "VEIL", size, Color.white, anchor, pos, new Vector2(size * 3f, size * 1.2f), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            var t = UIKit.LabelAt(parent, "RILO", size, Color.white, anchor, pos, new Vector2(size * 3f, size * 1.2f), TextAnchor.MiddleLeft, UIKit.TitleFont);
             t.fontStyle = FontStyle.Italic;
             UIKit.Outline(t, new Color(0.45f, 0.2f, 0.95f, 1f), size / 22f);
             var sh = t.gameObject.AddComponent<Shadow>();
@@ -50,6 +50,18 @@ namespace Veil.UI
 
         public TitleScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Title")
         {
+            // key art (Meshy) fills the screen, cropped to any aspect — replaces the map fly-over behind the title
+            var art = Resources.Load<Texture2D>("UI/title_keyart");
+            if (art != null)
+            {
+                var artRt = UIKit.At(Root, "KeyArt", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(art.width, art.height));
+                var raw = artRt.gameObject.AddComponent<RawImage>();
+                raw.texture = art; raw.raycastTarget = false;
+                var fit = artRt.gameObject.AddComponent<AspectRatioFitter>();
+                fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+                fit.aspectRatio = (float)art.width / art.height;
+                artRt.pivot = new Vector2(0.5f, 0.25f);   // wide phones: crop the sky, keep the heroes on the cliff
+            }
             var shade = UIKit.Fill(Root, "Shade");
             UIKit.Image(shade, UIKit.GradientH, new Color(0.05f, 0.03f, 0.18f, 0.75f));
             var logo = Logo(Root, new Vector2(0, 0.5f), new Vector2(150, 90), 250);
@@ -69,7 +81,7 @@ namespace Veil.UI
             _choice = UIKit.At(Root, "SignIn", new Vector2(0.5f, 0), new Vector2(0, 190), new Vector2(560, 230));
             var head = UIKit.LabelAt(_choice, "HOW DO YOU WANT TO PLAY?", 24, Color.white, new Vector2(0.5f, 1), new Vector2(0, -14), new Vector2(560, 30), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Shadow(head, 2);
-            var g = UIKit.Button(_choice, "SIGN IN WITH GOOGLE", new Vector2(0.5f, 1), new Vector2(0, -72), new Vector2(460, 70), UIKit.ButtonStyle.Primary, Google, 26);
+            var g = UIKit.GoogleButton(_choice, new Vector2(0.5f, 1), new Vector2(0, -72), new Vector2(460, 70), Google, 26);
             _googleLabel = UIKit.ButtonLabel(g);
             UIKit.Button(_choice, "PLAY AS GUEST", new Vector2(0.5f, 1), new Vector2(0, -152), new Vector2(460, 60), UIKit.ButtonStyle.Secondary, Guest, 22);
             var note = UIKit.LabelAt(_choice, "Google keeps your progress on every device · Guest saves on this phone only", 15, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, -2), new Vector2(560, 22), TextAnchor.MiddleCenter, UIKit.BodyFont);
@@ -80,19 +92,19 @@ namespace Veil.UI
         {
             base.Show(v);
             if (!v) return;
-            bool choose = Veil.Net.GoogleSignIn.Supported && !App.SignedInWithGoogle;
+            bool choose = (Veil.Net.GoogleSignIn.Supported || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-signin-ui") >= 0) && !App.SignedInWithGoogle;
             _choice.gameObject.SetActive(choose);
             _press.gameObject.SetActive(!choose);
-            _busy = false; _googleLabel.text = "SIGN IN WITH GOOGLE";
+            _busy = false; _googleLabel.text = "Sign in with Google";
         }
 
         private void Google()
         {
             if (_busy) return;
-            _busy = true; _googleLabel.text = "SIGNING IN…";
+            _busy = true; _googleLabel.text = "Signing in…";
             App.SignInWithGoogle(ok =>
             {
-                _busy = false; _googleLabel.text = "SIGN IN WITH GOOGLE";
+                _busy = false; _googleLabel.text = "Sign in with Google";
                 if (ok) App.GoMenu(0);
             });
         }
@@ -437,6 +449,7 @@ namespace Veil.UI
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
             var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
+            if (Application.isMobilePlatform) f.Root.gameObject.SetActive(false);   // phones are always fullscreen
             // empty = automatic: the server comes from the remote boot config, so moving the server needs no new app
             var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-150, -450), "SERVER", prof.ServerOverride, v => prof.SetServerAddress(v), 340, "AUTO (recommended)");
             var upd = UIKit.Button(p, "UPDATE", new Vector2(0.5f, 1), new Vector2(330, -450), new Vector2(150, 48), UIKit.ButtonStyle.Ghost, () => App.OpenUpdate(), 18);
