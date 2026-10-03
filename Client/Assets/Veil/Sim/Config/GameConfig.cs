@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 11;
+        public const int ProtocolVersion = 12;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -49,7 +49,8 @@ namespace Veil.Sim
         public const bool ExtractionMode = true;      // false = the old score-only match
         // Hack Terminal (docs/HACK_TERMINAL.md): one shared terminal in the central plaza, every squad has its own progress
         // Objective 1 can be done at your squad's HOME terminal (slower, quiet) or the CENTRAL one (faster + bonus, contested)
-        public const float HackTime = 20f;             // home terminal, one hacker
+        public const float HackTime = 20f;             // enemy home terminal (one hacker, teammates defend)
+        public const float BotPuzzleTime = 2.5f;      // bots take this long to "solve" the circuit puzzle
         public const float CenterHackTime = 12f;       // central terminal, one hacker
         public const float HomeHackRadius = 4.5f;
         public static readonly float[] CenterInstability = { 0.5f };

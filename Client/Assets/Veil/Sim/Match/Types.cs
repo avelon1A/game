@@ -24,6 +24,7 @@ namespace Veil.Sim
         Buy1 = 1 << 6,
         Buy2 = 1 << 7,
         Buy3 = 1 << 8,
+        Hack = 1 << 9,       // start / take over a terminal hack (sent after the circuit puzzle is solved)
     }
 
     /// <summary>One tick of player intent. Move is world-space (already rotated by the camera).</summary>
@@ -166,6 +167,8 @@ namespace Veil.Sim
         public int DownedBy = -1;
         public int Reviving = -1;       // id of the downed squadmate this player is reviving (-1 none)
         public int Revives, Assists;
+        public bool HackRequest;       // pressed HACK this tick
+        public float BotHackT;         // bots: time spent "solving" the puzzle
         public readonly float[] DamagedAt = new float[GameConfig.MaxPlayers + 1];   // sim time each attacker last hit this player
 
         // abilities & combat
@@ -306,6 +309,8 @@ namespace Veil.Sim
         public float HomeProg, CenterProg;
         public int HomeGlitches, HomeHackers;
         public bool HomeContested, NodesHome;   // NodesHome: the active nodes belong to the home terminal
+        public int HomeHacker = -1, CenterHacker = -1;   // the ONE squadmate hacking each terminal (-1 none / paused)
+        public int HomeAlertPct, CenterAlertPct;
         public float LastActivity = -99f;
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;

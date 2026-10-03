@@ -97,7 +97,12 @@ namespace Veil.UI
             BuildTopLeft();
             BuildTopRight();
             BuildObjectives();
-            if (GameConfig.ExtractionMode) _hack = new HackPanel(Root, _m.LocalSquad);
+            if (GameConfig.ExtractionMode)
+            {
+                _hack = new HackPanel(Root, _m.LocalSquad) { HackerName = id => _m.NameOf(id) };
+                _hackBtn = UIKit.Button(Root, "HACK", new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(240, 80), UIKit.ButtonStyle.Primary, () => _puzzle.Show(), 34);
+                _puzzle = new CircuitPuzzle(Root);
+            }
             _compass = new CompassBar(Root);
             // sniper scope overlay: dark vignette ring + fine cross lines
             _scope = UIKit.Fill(Root, "Scope");
@@ -540,7 +545,8 @@ namespace Veil.UI
                     break;
                 }
                 case EventType.HackActivity:
-                    Feed("<color=#ffd84a>TERMINAL ACTIVITY DETECTED</color> — someone is hacking", Theme.Text);
+                    Feed($"<color=#ffd84a>TERMINAL ACTIVITY DETECTED</color> — Squad {(char)('A' + e.A)} is hacking {(e.B == 1 ? "a home" : "the CENTRAL")} terminal · {e.Value}%", Theme.Text);
+                    if (e.Value >= 50) Popup($"SQUAD {(char)('A' + e.A)} HACKING · {e.Value}%");
                     Sfx.Play(Sfx.Click, 0.5f);
                     break;
                 case EventType.CenterBonus:
@@ -690,6 +696,15 @@ namespace Veil.UI
             {
                 SetChain(s, me);
                 _hack?.Update(s, me, dt);
+                // HACK button: in a terminal ring, objective 1, and nobody from your squad is hacking that terminal yet
+                bool homeT = Vec2.Dist(me.Pos, s.HomePos) <= Vec2.Dist(me.Pos, Vec2.Zero);
+                bool inRing = homeT ? Vec2.Dist(me.Pos, s.HomePos) <= GameConfig.HomeHackRadius : me.Pos.Length <= GameConfig.HackRadius;
+                int hk = homeT ? s.HomeHacker : s.CenterHacker;
+                bool canHack = s.Stage == 0 && me.Alive && inRing && hk < 0 && !_puzzle.Open;
+                if (_hackBtn.gameObject.activeSelf != canHack) _hackBtn.gameObject.SetActive(canHack);
+                if (canHack && Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame) _puzzle.Show();
+                if (_puzzle.Open && !_puzzleDebug && (!inRing || !me.Alive || s.Stage != 0)) _puzzle.Close();
+                if (canHack) UIKit.ButtonLabel(_hackBtn).text = Application.isMobilePlatform ? "HACK" : "HACK  [F]";
                 if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK A TERMINAL", "Raid an ENEMY home terminal (20 s) or take the CENTRAL one (12 s + bonus) — you cannot hack your own", 5f); }
             }
             else
@@ -959,6 +974,11 @@ namespace Veil.UI
 
         private Text _wpSite, _wpExtract, _wpCentre;
         private HackPanel _hack;
+        private UnityEngine.UI.Button _hackBtn;
+        private CircuitPuzzle _puzzle;
+        public bool PuzzleOpen => _puzzle != null && _puzzle.Open;
+        public void DebugShowPuzzle() { _puzzleDebug = true; _puzzle?.Show(); }
+        private bool _puzzleDebug;
         private CompassBar _compass;
         private RectTransform _scope;
         private MapScreen _mapScreen;

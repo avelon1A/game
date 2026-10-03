@@ -206,6 +206,7 @@ namespace Veil.Sim
                 }
 
                 HandleActions(p, cmd);
+                if (cmd.Has(Buttons.Hack)) p.HackRequest = true;
                 Movement.Step(p, cmd, Map, dt, Events);
                 p.ZoneId = Map.ZoneAt(p.Pos);
             }
@@ -217,6 +218,7 @@ namespace Veil.Sim
             UpdateZones(dt);
             UpdateCollapse(dt);
             UpdateChain(dt);
+            foreach (var p in Players) p.HackRequest = false;
             if (Ended) return;
             UpdateObjectives();
             UpdateSquadTotals();

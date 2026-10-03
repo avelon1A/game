@@ -87,6 +87,7 @@ namespace Veil.Sim
         public float HomeProg, CenterProg;
         public int HomeHackers;
         public bool HomeContested, NodesHome;
+        public int HomeHacker = -1, CenterHacker = -1;
         public readonly float[] SquadProg = new float[GameConfig.SquadCount];   // every squad's progress on its current step (public)
     }
 
@@ -180,6 +181,7 @@ namespace Veil.Sim
             snap.Hackers = squad.Hackers; snap.HackContested = squad.Contested;
             snap.HomePos = squad.Home; snap.HomeProg = squad.HomeProg; snap.CenterProg = squad.CenterProg;
             snap.HomeHackers = squad.HomeHackers; snap.HomeContested = squad.HomeContested; snap.NodesHome = squad.NodesHome;
+            snap.HomeHacker = squad.HomeHacker; snap.CenterHacker = squad.CenterHacker;
             for (int i = 0; i < GameConfig.SquadCount; i++) snap.SquadProg[i] = sim.Squads[i].StageProg;
             snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;

@@ -681,7 +681,7 @@ namespace Veil.App
             if (kb != null && kb.f9Key.wasPressedThisFrame) _match.Driver.DebugSkip(60f);
 
             bool inputOn = !_paused && _endTimer < 0 && !_match.Driver.Autopilot && (Application.isFocused || Platform.IsMobile);
-            bool lockCursor = inputOn && !Platform.IsMobile;
+            bool lockCursor = inputOn && !Platform.IsMobile && !(_hud != null && _hud.PuzzleOpen);   // free the mouse for the circuit puzzle
             Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockCursor;
             if (_touch != null) { _touch.Update(); _hud?.SetScoreboard(_touch.ScoreboardOpen); }
@@ -1098,6 +1098,9 @@ namespace Veil.App
             yield return Shot("05_match_start");
             yield return new WaitForSeconds(12f);
             yield return Shot("06_match_action");
+            _hud?.DebugShowPuzzle();
+            yield return new WaitForSeconds(0.5f);
+            yield return Shot("06b_puzzle");
             _match.Driver.DebugSkip(70f);
             yield return new WaitForSeconds(10f);
             yield return Shot("07_competition");

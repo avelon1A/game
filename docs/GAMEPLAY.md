@@ -15,7 +15,7 @@
 ### The route (every squad, same distances)
 | Step | Task | Rule |
 |---|---|---|
-| Objective 1 | **Hack a Terminal** | **an ENEMY squad's home terminal** (raid it: 20 s, faults at 35 % / 67 %; you can NOT hack your own, its owners can defend it) **or the CENTRAL one** (Rilo plaza: 12 s, fault at 50 %, contested by everyone; bonus: all enemies revealed 10 s + 40 energy). 1/2/3/4 hackers = 100/150/175/190 %. Faults spawn Destroy / Stabilize / Override nodes (`docs/HACK_TERMINAL.md`) |
+| Objective 1 | **Hack a Terminal** | an ENEMY squad's home terminal (20 s) or the CENTRAL one (12 s + bonus: all enemies revealed 10 s, +40 energy); not your own. Stand in the ring, press **HACK** (F on Mac), solve the quick **circuit puzzle** (connect 3 coloured wires) → you are the hacker. **One hacker per squad**, teammates defend. Hacker leaves / dies or an enemy enters the ring → **paused, progress kept**; a teammate can take over with HACK. Enemies get **TERMINAL ACTIVITY DETECTED** with the squad and its % at start and every 25 %. |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
 | Vault | **Central Vault** | channel at the centre (6 m) for 10 s |

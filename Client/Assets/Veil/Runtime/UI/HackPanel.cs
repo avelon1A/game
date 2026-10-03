@@ -16,6 +16,7 @@ namespace Veil.UI
         private readonly Text _title, _pct, _state, _nodes, _squads;
         private readonly Bar _progress, _stability;
         private readonly int _localSquad;
+        public System.Func<int, string> HackerName;
         private readonly Text _log, _header;
         private static Font _mono;
         private static Font Mono => _mono ??= Font.CreateDynamicFontFromOSFont(new[] { "Menlo", "Consolas", "Courier New", "Droid Sans Mono", "monospace" }, 16);
@@ -120,64 +121,38 @@ namespace Veil.UI
             _root.gameObject.SetActive(show);
             if (!show) return;
 
-            bool unstable = s.Nodes.Count > 0 && s.NodesHome == home;
+            int hackerId = home ? s.HomeHacker : s.CenterHacker;
+            bool hacking = hackerId >= 0;
+            bool mineHack = hackerId == me.Id;
             _progress.Set(prog, dt);
-            _progress.SetColor(unstable ? new Color(1f, 0.35f, 0.4f) : contested ? new Color(1f, 0.55f, 0.2f) : Term);
+            _progress.SetColor(contested ? new Color(1f, 0.55f, 0.2f) : hacking ? Term : new Color(0.6f, 0.65f, 0.75f));
             _pct.text = $"{Mathf.FloorToInt(prog * 100)}%";
-            _pct.color = unstable ? new Color(1f, 0.4f, 0.45f) : contested ? new Color(1f, 0.6f, 0.25f) : Term;
-            _log.text = Log(s, prog, hackers, contested, marks, unstable);
-            _header.text = home ? "RILO//OS  ·  ENEMY HOME TERMINAL  ·  RAID  ·  20 s" : "RILO//OS  ·  CENTRAL TERMINAL  ·  FAST + BONUS  ·  CONTESTED";
-            float st = Stability(prog, unstable ? 1 : 0, marks);
-            _stability.Set(st, dt);
-            _stability.SetColor(st < 0.3f ? new Color(1f, 0.35f, 0.4f) : Theme.Cyan);
-
-            float pulse = 0.55f + Mathf.Sin(Time.time * 8f) * 0.45f;
-            if (unstable)
+            _pct.color = contested ? new Color(1f, 0.6f, 0.25f) : Term;
+            _log.text = Log(s, prog, hacking ? 1 : 0, contested, new[] { 0.35f, 0.67f }, false);
+            _header.text = home ? "RILO//OS  ·  ENEMY HOME TERMINAL  ·  20 s" : "RILO//OS  ·  CENTRAL TERMINAL  ·  12 s + BONUS";
+            _stability.Set(prog, dt);
+            _stability.SetColor(Theme.Cyan);
+            string who = hacking ? (mineHack ? "YOU" : HackerName?.Invoke(hackerId) ?? "squadmate") : "";
+            if (contested)
             {
-                _title.text = $"<color=#ff5a6a>TERMINAL INSTABILITY</color>";
-                _state.text = "STABILIZATION REQUIRED";
-                _back.color = new Color(0.16f, 0.02f, 0.05f, 0.92f);
-            }
-            else if (contested)
-            {
-                _title.text = $"<color=#ffa040>TERMINAL CONTESTED</color>";
-                _state.text = "<color=#ffa040>progress paused · clear the zone</color>";
+                _title.text = "<color=#ffa040>TERMINAL CONTESTED</color>";
+                _state.text = "<color=#ffa040>paused · clear the enemy</color>";
                 _back.color = new Color(0.14f, 0.07f, 0.01f, 0.92f);
             }
-            else if (hackers > 0)
+            else if (hacking)
             {
-                int pct = Mathf.RoundToInt(GameConfig.HackSpeed[Mathf.Min(hackers, GameConfig.HackSpeed.Length - 1)] * 100);
-                _title.text = home ? "RAIDING ENEMY TERMINAL" : "HACKING CENTRAL TERMINAL";
-                _state.text = $"{hackers} hacking · <color=#ffd84a>{pct}% speed</color>";
+                _title.text = mineHack ? "HACKING… STAY IN THE RING" : $"{who.ToUpper()} IS HACKING";
+                _state.text = mineHack ? "<color=#ffd84a>teammates: defend you</color>" : "<color=#7dff9a>defend the hacker</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
             else
             {
-                _title.text = home ? "ENEMY HOME TERMINAL" : "CENTRAL TERMINAL";
-                _state.text = home ? "<color=#aab0d8>step into the ring to hack</color>" : "<color=#aab0d8>enter the plaza ring · +bonus</color>";
+                _title.text = prog > 0.001f ? "HACK PAUSED" : (home ? "ENEMY HOME TERMINAL" : "CENTRAL TERMINAL");
+                _state.text = "<color=#aab0d8>press HACK to start / take over</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
-
-            if (unstable)
-            {
-                var sb = new System.Text.StringBuilder();
-                foreach (var n in s.Nodes)
-                {
-                    var c = ColorUtility.ToHtmlStringRGB(KindColor(n.Kind));
-                    string np = n.Contested ? "<color=#ffa040>contested</color>" : $"{Mathf.RoundToInt(n.Prog * 100)}%";
-                    sb.Append($"<color=#{c}>● {KindName(n.Kind)}</color> {np}    ");
-                }
-                sb.Append($"\n<size=13><color=#aab0d8>Split up: destroy = shoot · stabilize = stand · override = hold</color></size>");
-                _nodes.text = sb.ToString();
-                _nodes.color = new Color(1, 1, 1, 0.75f + pulse * 0.25f);
-            }
-            else
-            {
-                _nodes.text = hackers == 0 && !contested
-                    ? home ? "<color=#aab0d8>Home: 20 s, 2 faults, quiet · Centre: 12 s, 1 fault, +reveal +energy</color>" : "<color=#aab0d8>Centre: 12 s + bonus · everyone can contest it</color>"
-                    : home ? "<color=#aab0d8>Faults at 35% and 67% · progress is never lost</color>" : "<color=#aab0d8>Fault at 50% · progress is never lost</color>";
-                _nodes.color = Color.white;
-            }
+            _nodes.text = "<color=#aab0d8>One hacker at a time · leaving, dying or an enemy in the ring pauses it · progress is kept</color>";
+            _nodes.color = Color.white;
 
             // every squad's terminal progress (public)
             var sq = new System.Text.StringBuilder();

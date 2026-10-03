@@ -84,7 +84,11 @@ namespace Veil.Sim
         private void UpdateHack(SquadState sq, float dt)
         {
             // re-pick the enemy terminal to raid only while nobody is mid-hack there
-            if (sq.HomeHackers == 0 && !(sq.Nodes.Count > 0 && sq.NodesHome)) { sq.Home = RaidTarget(sq); sq.Site = sq.Home; }
+            if (sq.HomeHacker < 0 && sq.HomeProg <= 0f) { sq.Home = RaidTarget(sq); sq.Site = sq.Home; }
+            // bots "solve the puzzle" only while standing in a terminal ring
+            float hr2 = GameConfig.HomeHackRadius * GameConfig.HomeHackRadius, cr2 = GameConfig.HackRadius * GameConfig.HackRadius;
+            foreach (var p in Players)
+                if (p.IsBot && p.Squad == sq.Id && Vec2.DistSq(p.Pos, sq.Home) > hr2 && Vec2.DistSq(p.Pos, CenterTerminal) > cr2) p.BotHackT = 0;
             UpdateTerminal(sq, dt, true);
             UpdateTerminal(sq, dt, false);
             if (sq.CenterProg >= 1f)
@@ -102,48 +106,47 @@ namespace Veil.Sim
             else sq.StageProg = MathF.Max(sq.HomeProg, sq.CenterProg);
         }
 
+        /// <summary>One hacker per squad per terminal. Press HACK (after the circuit puzzle) inside the ring to start or take over;
+        /// teammates don't speed it up, they defend. The hacker leaving / dying, or any enemy in the ring, pauses it —
+        /// progress is never lost.</summary>
         private void UpdateTerminal(SquadState sq, float dt, bool home)
         {
             Vec2 at = home ? sq.Home : CenterTerminal;
             float radius = home ? GameConfig.HomeHackRadius : GameConfig.HackRadius;
             float r2 = radius * radius;
-            int mine = 0; bool enemy = false;
+            bool enemy = false;
             foreach (var p in Players)
-            {
-                if (!Standing(p) || Vec2.DistSq(p.Pos, at) > r2) continue;
-                if (p.Squad == sq.Id) mine++; else enemy = true;
-            }
-            bool contested = enemy && mine > 0;
-            bool was = home ? sq.HomeContested : sq.Contested;
-            if (home) { sq.HomeHackers = mine; sq.HomeContested = contested; } else { sq.Hackers = mine; sq.Contested = contested; }
-            if (contested && !was) Events.Add(new SimEvent(EventType.HackContested, sq.Id, home ? 1 : 0, 0, at));
+                if (Standing(p) && p.Squad != sq.Id && Vec2.DistSq(p.Pos, at) <= r2) enemy = true;
 
-            if (sq.Nodes.Count > 0 && sq.NodesHome == home) { UpdateNodes(sq, dt); return; }   // this terminal is unstable
-            if (mine == 0 || enemy) return;                                                     // contest pauses, never removes
-
-            if (!home)
-            {
-                // the central terminal is public: starting it is an information event for everyone else
-                if (Time - sq.LastActivity > GameConfig.HackActivityCooldown) Events.Add(new SimEvent(EventType.HackActivity, sq.Id, 0, 0, at));
-                sq.LastActivity = Time;
-            }
-
-            float rate = GameConfig.HackSpeed[Math.Min(mine, GameConfig.HackSpeed.Length - 1)];
-            float time = home ? GameConfig.HackTime : GameConfig.CenterHackTime;
-            var marks = home ? GameConfig.HackInstability : GameConfig.CenterInstability;
-            int glitches = home ? sq.HomeGlitches : sq.Glitches;
-            float prog = (home ? sq.HomeProg : sq.CenterProg) + dt / time * rate;
-            if (glitches < marks.Length && prog >= marks[glitches])
-            {
-                prog = marks[glitches];
-                if (sq.Nodes.Count == 0)
+            int hacker = home ? sq.HomeHacker : sq.CenterHacker;
+            var hp = hacker >= 0 ? Players[hacker] : null;
+            if (hp != null && (!Standing(hp) || Vec2.DistSq(hp.Pos, at) > r2)) hacker = -1;   // left / down: paused
+            // start / take over: a squadmate in the ring presses HACK (bots after their "puzzle" time)
+            if (hacker < 0)
+                foreach (var p in Players)
                 {
-                    if (home) sq.HomeGlitches++; else sq.Glitches++;
-                    SpawnInstability(sq, home, home ? sq.HomeGlitches : sq.Glitches);
+                    if (p.Squad != sq.Id || !Standing(p) || Vec2.DistSq(p.Pos, at) > r2) continue;
+                    if (p.IsBot && !enemy) { p.BotHackT += dt; if (p.BotHackT >= GameConfig.BotPuzzleTime) p.HackRequest = true; }
+                    if (!p.HackRequest) continue;
+                    hacker = p.Id; p.BotHackT = 0;
+                    Events.Add(new SimEvent(EventType.HackActivity, sq.Id, home ? 1 : 0, (int)((home ? sq.HomeProg : sq.CenterProg) * 100), at));
+                    break;
                 }
-            }
-            prog = MathF.Min(1f, prog);
+            bool contested = enemy && hacker >= 0;
+            bool was = home ? sq.HomeContested : sq.Contested;
+            if (home) { sq.HomeHacker = hacker; sq.HomeHackers = hacker >= 0 ? 1 : 0; sq.HomeContested = contested; }
+            else { sq.CenterHacker = hacker; sq.Hackers = hacker >= 0 ? 1 : 0; sq.Contested = contested; }
+            if (contested && !was) Events.Add(new SimEvent(EventType.HackContested, sq.Id, home ? 1 : 0, 0, at));
+            if (hacker < 0 || enemy) return;
+
+            float time = home ? GameConfig.HackTime : GameConfig.CenterHackTime;
+            float before = home ? sq.HomeProg : sq.CenterProg;
+            float prog = MathF.Min(1f, before + dt / time);
             if (home) sq.HomeProg = prog; else sq.CenterProg = prog;
+            // pressure: enemies hear about it every 25 %
+            int step = (int)(prog * 4f);
+            ref int alerted = ref (home ? ref sq.HomeAlertPct : ref sq.CenterAlertPct);
+            if (step > alerted && step < 4) { alerted = step; Events.Add(new SimEvent(EventType.HackActivity, sq.Id, home ? 1 : 0, step * 25, at)); }
         }
 
         private void UpdateNodes(SquadState sq, float dt)
@@ -218,7 +221,7 @@ namespace Veil.Sim
         {
             sq.Nodes.Clear();
             sq.Glitches = 0; sq.Hackers = 0; sq.Contested = false;
-            sq.HomeProg = 0; sq.CenterProg = 0; sq.HomeGlitches = 0; sq.HomeHackers = 0; sq.HomeContested = false; sq.NodesHome = false;
+            sq.HomeProg = 0; sq.CenterProg = 0; sq.HomeHacker = -1; sq.CenterHacker = -1; sq.HomeAlertPct = 0; sq.CenterAlertPct = 0; sq.HomeGlitches = 0; sq.HomeHackers = 0; sq.HomeContested = false; sq.NodesHome = false;
             sq.StageProg = 0;
             sq.Site = SiteFor(sq, sq.Stage);
             sq.CoresAtStart = SquadCores(sq.Id);

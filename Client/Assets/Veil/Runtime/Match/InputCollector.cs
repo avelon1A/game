@@ -28,7 +28,7 @@ namespace Veil.Match
                 if (kb.spaceKey.wasPressedThisFrame) _latched |= Buttons.Jump;
             }
             var m = Mouse.current;
-            if (!VirtualInput.Active && m != null && m.leftButton.wasPressedThisFrame) _latched |= Buttons.Fire;
+            if (!VirtualInput.Active && m != null && m.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) _latched |= Buttons.Fire;
             _latched |= VirtualInput.TakeLatched();
         }
 
@@ -64,7 +64,7 @@ namespace Veil.Match
                 if (kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed) b |= Buttons.Sprint;
             }
             var m = Mouse.current;
-            if (!VirtualInput.Active && m != null && m.leftButton.isPressed) b |= Buttons.Fire;
+            if (!VirtualInput.Active && m != null && m.leftButton.isPressed && Cursor.lockState == CursorLockMode.Locked) b |= Buttons.Fire;
             if (VirtualInput.FireHeld) b |= Buttons.Fire;
             if (VirtualInput.JumpHeld) b |= Buttons.Jump;
             cmd.Buttons = b;
