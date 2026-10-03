@@ -719,7 +719,9 @@ namespace Veil.App
                         // painted lobby: squad left of the squad panel / your hero left of the Characters & Leaderboard panels
                         float x = Stage.SquadMode ? 1.28f : 1.75f;
                         int key = Stage.SquadMode ? 1 : 2;
-                        CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f), Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
+                        // slow "breathing" drift so the 3D heroes and the motes move against the painted scene
+                        var breath = new Vector3(Mathf.Sin(t * 0.21f) * 0.12f, Mathf.Sin(t * 0.33f) * 0.04f, Mathf.Sin(t * 0.17f) * 0.1f);
+                        CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f) + breath, Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
                         _lobbyShot = key;
                     }
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
@@ -859,6 +861,46 @@ namespace Veil.App
         private SpriteRenderer _backdrop;
         private int _lobbyShot;   // which painted-lobby shot the camera is on (0 = none): changing shots cuts, never glides
 
+        /// <summary>Where the painted platform's centre is in lobby_bg.png (0..1, y up).</summary>
+        private static readonly Vector2 PlatformUV = new Vector2(0.5f, 0.155f);
+
+        // floating light motes in front of the painted scene + a slow camera breath: the lobby feels alive, not a picture
+        private ParticleSystem _motes;
+
+        private void UpdateLobbyFx(bool on)
+        {
+            if (on && _motes == null)
+            {
+                var go = new GameObject("LobbyMotes");
+                go.transform.SetParent(Cam.transform, false);
+                go.transform.localPosition = new Vector3(0, 0, 6f);
+                go.layer = Stage.LobbyLayer;
+                _motes = go.AddComponent<ParticleSystem>();
+                _motes.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = _motes.main;
+                main.loop = true; main.duration = 5f; main.playOnAwake = false;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(5f, 9f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.25f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.08f);
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.78f, 0.45f, 0.9f), new Color(0.8f, 0.55f, 1f, 0.9f));
+                main.maxParticles = 90;
+                main.simulationSpace = ParticleSystemSimulationSpace.World;
+                var em = _motes.emission; em.rateOverTime = 12f;
+                var sh = _motes.shape; sh.shapeType = ParticleSystemShapeType.Box; sh.scale = new Vector3(12f, 6f, 6f);
+                var vel = _motes.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
+                vel.y = new ParticleSystem.MinMaxCurve(0.05f, 0.2f); vel.x = new ParticleSystem.MinMaxCurve(-0.08f, 0.08f); vel.z = new ParticleSystem.MinMaxCurve(-0.05f, 0.05f);
+                var col = _motes.colorOverLifetime; col.enabled = true;
+                var g = new Gradient();
+                g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                          new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, 0.25f), new GradientAlphaKey(1, 0.7f), new GradientAlphaKey(0, 1) });
+                col.color = g;
+                var r = go.GetComponent<ParticleSystemRenderer>();
+                r.material = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive, Veil.UI.UIKit.Glow.texture);
+                _motes.Play();
+            }
+            if (_motes != null && _motes.gameObject.activeSelf != on) _motes.gameObject.SetActive(on);
+        }
+
         private void UpdateBackdrop()
         {
             bool on = State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode);
@@ -881,14 +923,28 @@ namespace Veil.App
                 _backdrop.gameObject.SetActive(on);
                 if (on)
                 {
+                    // the painted platform (PlatformUV in the image) is kept right under the heroes' feet on every tab,
+                    // while the image still covers the whole screen (crop, never letterbox)
                     const float D = 14f;
-                    float h = 2f * D * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-                    float imgAspect = _backdrop.sprite.rect.width / _backdrop.sprite.rect.height;
-                    float scale = Mathf.Max(h, h * Cam.aspect / imgAspect) * 1.02f;   // cover the screen (crop, never letterbox)
-                    _backdrop.transform.localPosition = new Vector3(0, 0, D);
+                    float h = 2f * D * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad), w = h * Cam.aspect;
+                    float ar = _backdrop.sprite.rect.width / _backdrop.sprite.rect.height;
+                    Vector3 vp = Cam.WorldToViewportPoint(Stage.GroupFeet());
+                    float px = (vp.x - 0.5f) * w, py = (vp.y - 0.5f) * h;
+                    float ox = PlatformUV.x - 0.5f, oy = PlatformUV.y - 0.5f;     // platform offset from the image centre (fraction)
+                    float H = Mathf.Max(h, w / ar) * 1.02f;
+                    float cx = 0, cy = 0;
+                    for (int it = 0; it < 80; it++)
+                    {
+                        cx = px - ox * H * ar; cy = py - oy * H;
+                        if (H * ar * 0.5f >= Mathf.Abs(cx) + w * 0.5f && H * 0.5f >= Mathf.Abs(cy) + h * 0.5f) break;
+                        H *= 1.03f;
+                    }
+                    _backdrop.transform.localPosition = new Vector3(cx, cy, D);
                     _backdrop.transform.localRotation = Quaternion.identity;
-                    _backdrop.transform.localScale = new Vector3(scale, scale, 1);
+                    _backdrop.transform.localScale = new Vector3(H, H, 1);
+                    UpdateLobbyFx(true);
                 }
+                else UpdateLobbyFx(false);
             }
             Cam.cullingMask = on ? (1 << Stage.LobbyLayer) : ~0;
         }
@@ -1197,6 +1253,14 @@ namespace Veil.App
         }
 
         public void SetVisible(bool v) => _root.gameObject.SetActive(v);
+
+        /// <summary>Middle of the visible heroes' feet (the painted lobby keeps its platform under this point).</summary>
+        public Vector3 GroupFeet()
+        {
+            Vector3 sum = Vector3.zero; int n = 0;
+            foreach (var r in _rigs) if (r.gameObject.activeSelf) { sum += r.transform.position; n++; }
+            return n > 0 ? sum / n : _root.position;
+        }
 
         /// <summary>World point above a stage character's head (for UI labels).</summary>
         public Vector3 HeadPoint(int i) => _rigs[i].transform.position + Vector3.up * 2.6f;

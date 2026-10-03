@@ -181,6 +181,13 @@ namespace Veil.UI
                 var o = rt.gameObject.AddComponent<Outline>();
                 o.effectColor = Theme.PanelEdge;
                 o.effectDistance = new Vector2(1.5f, -1.5f);
+                // a glowing accent line along the top edge and a soft drop shadow
+                var accent = Rect(rt, "Accent", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -1), new Vector2(-36, 3));
+                var ac = Image(accent, Pill, new Color(0.72f, 0.5f, 1f, 0.95f)); ac.raycastTarget = false;
+                var glow = Rect(rt, "AccentGlow", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, 8), new Vector2(40, 30));
+                var gl = Image(glow, Glow, new Color(0.62f, 0.38f, 1f, 0.35f)); gl.raycastTarget = false;
+                var drop = rt.gameObject.AddComponent<Shadow>();
+                drop.effectColor = new Color(0, 0, 0, 0.45f); drop.effectDistance = new Vector2(0, -6);
             }
             return img;
         }
