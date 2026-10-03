@@ -12,7 +12,7 @@ namespace Veil.Sim
             // Blaster (LMB)
             if (cmd.Has(Buttons.Fire) && p.FireCd <= 0 && p.DashT <= 0)
             {
-                var ws = GameConfig.Weapon(p.Look.Weapon);
+                var ws = GameConfig.Current(p.Look.Weapon, p.Fists);
                 p.FireCd = ws.Cooldown;
                 p.FireSeq++;
                 p.NoiseT = GameConfig.FireNoiseTime;

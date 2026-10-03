@@ -16,7 +16,7 @@ namespace Veil.EditorTools
 
         private bool IsWeapon => assetPath.StartsWith("Assets/Veil/Resources/Weapons/");
 
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         private void OnPreprocessModel()
         {
@@ -32,6 +32,13 @@ namespace Veil.EditorTools
         {
             if (!IsWeapon) return;
             var ti = (TextureImporter)assetImporter;
+            if (assetPath.Contains("meshy_"))
+            {
+                // painted Meshy texture: smooth, mipmapped, phone-sized
+                ti.filterMode = FilterMode.Bilinear; ti.mipmapEnabled = true; ti.maxTextureSize = 1024;
+                ti.textureCompression = TextureImporterCompression.Compressed;
+                return;
+            }
             ti.filterMode = FilterMode.Point;          // palette texture: keep the flat colours crisp
             ti.mipmapEnabled = false;
             ti.textureCompression = TextureImporterCompression.Uncompressed;
@@ -59,6 +66,16 @@ namespace Veil.EditorTools
             float muzzleY = top.Count > 0 ? top.Average(p => p.y) * 0.5f + b.center.y * 0.5f : b.center.y;
             var muzzle = new Vector3(alongX ? (dir > 0 ? b.max.x : b.min.x) : b.center.x, muzzleY, alongX ? b.center.z : (dir > 0 ? b.max.z : b.min.z));
             var gripPoint = new Vector3(grip.x, b.min.y + b.size.y * 0.3f, grip.z);
+            // Meshy guns carry exact "Grip" / "MuzzlePt" markers (Tools/ai3d/blender/build_meshy_weapon.py): use them
+            Transform gripT = null, muzT = null;
+            foreach (var t in g.GetComponentsInChildren<Transform>(true)) { if (t.name == "Grip") gripT = t; if (t.name == "MuzzlePt") muzT = t; }
+            if (gripT != null && muzT != null)
+            {
+                gripPoint = g.transform.InverseTransformPoint(gripT.position);
+                muzzle = g.transform.InverseTransformPoint(muzT.position);
+                var d = muzzle - gripPoint; d.y = 0;
+                barrel = d.normalized;
+            }
 
             // model (barrel, up) → rig convention (+Y, -Z)
             var q = Quaternion.LookRotation(Vector3.up, Vector3.back) * Quaternion.Inverse(Quaternion.LookRotation(barrel, Vector3.up));

@@ -207,6 +207,7 @@ namespace Veil.Sim
 
                 HandleActions(p, cmd);
                 if (cmd.Has(Buttons.Hack)) p.HackRequest = true;
+                if (cmd.Has(Buttons.Switch)) p.Fists = !p.Fists;
                 Movement.Step(p, cmd, Map, dt, Events);
                 p.ZoneId = Map.ZoneAt(p.Pos);
             }

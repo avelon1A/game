@@ -172,7 +172,7 @@ namespace Veil.Sim
             w.Time(p.TowerSightT); w.Time(p.PublicPingT); w.Time(p.NoiseT);
             w.U8((byte)p.Keys); w.U8((byte)p.CoresCollected); w.U8((byte)(p.ZoneId + 1)); w.Time(p.VaultChannel);
             w.I32(p.CapturedMask); w.F32(p.TowerControlTime); w.U8((byte)p.Deaths); w.U8((byte)p.Elims);
-            w.Bool(p.Downed); w.Time(p.BleedT); w.Unit(p.ReviveProg, 1f); w.U8((byte)(p.Reviving + 1)); w.U8((byte)p.Revives); w.U8((byte)p.Assists); w.U8((byte)(p.DownedBy + 1));
+            w.Bool(p.Downed); w.Time(p.BleedT); w.Unit(p.ReviveProg, 1f); w.U8((byte)(p.Reviving + 1)); w.U8((byte)p.Revives); w.U8((byte)p.Assists); w.U8((byte)(p.DownedBy + 1)); w.Bool(p.Fists);
             WriteObjective(w, p.Primary); WriteObjective(w, p.Secondary);
             var sc = p.Score;
             w.I32(sc.Primary); w.I32(sc.Secondary); w.I32(sc.Resources); w.I32(sc.Territory); w.I32(sc.Eliminations); w.I32(sc.Survival); w.I32(sc.Bonus); w.I32(sc.Squad);
@@ -239,7 +239,7 @@ namespace Veil.Sim
             p.TowerSightT = r.Time(); p.PublicPingT = r.Time(); p.NoiseT = r.Time();
             p.Keys = r.U8(); p.CoresCollected = r.U8(); p.ZoneId = r.U8() - 1; p.VaultChannel = r.Time();
             p.CapturedMask = r.I32(); p.TowerControlTime = r.F32(); p.Deaths = r.U8(); p.Elims = r.U8();
-            p.Downed = r.Bool(); p.BleedT = r.Time(); p.ReviveProg = r.Unit(1f); p.Reviving = r.U8() - 1; p.Revives = r.U8(); p.Assists = r.U8(); p.DownedBy = r.U8() - 1;
+            p.Downed = r.Bool(); p.BleedT = r.Time(); p.ReviveProg = r.Unit(1f); p.Reviving = r.U8() - 1; p.Revives = r.U8(); p.Assists = r.U8(); p.DownedBy = r.U8() - 1; p.Fists = r.Bool();
             ReadObjective(r, p.Primary); ReadObjective(r, p.Secondary);
             var sc = p.Score;
             sc.Primary = r.I32(); sc.Secondary = r.I32(); sc.Resources = r.I32(); sc.Territory = r.I32(); sc.Eliminations = r.I32(); sc.Survival = r.I32(); sc.Bonus = r.I32(); sc.Squad = r.I32();

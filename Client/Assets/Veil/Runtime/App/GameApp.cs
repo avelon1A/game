@@ -764,7 +764,7 @@ namespace Veil.App
                     var me = _match.Predicted;
                     float fov = (Platform.IsMobile ? 50f : 62f) + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);   // wide phone screens: narrower FOV so the world looks closer
                     // sniper scope: hold right mouse (desktop) or the SCOPE toggle (phones)
-                    Scoped = me.Alive && me.Look.Weapon == 1 && (VirtualInput.ScopeOn || (Mouse.current != null && Mouse.current.rightButton.isPressed && !Platform.IsMobile));
+                    Scoped = me.Alive && me.Look.Weapon == 1 && !(_match.Latest?.Self?.Fists ?? false) && (VirtualInput.ScopeOn || (Mouse.current != null && Mouse.current.rightButton.isPressed && !Platform.IsMobile));
                     if (Scoped) fov = GameConfig.ScopeFov;
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
@@ -803,7 +803,7 @@ namespace Veil.App
             Vector3 player = _matchView.Local.Pos;
             // ignore everything between the camera and the player
             float tMin = Mathf.Max(0.5f, Vector3.Dot(player + Vector3.up * 1.2f - ray.origin, ray.direction));
-            float tMax = GameConfig.Weapon(_match.Predicted.Look.Weapon).Range + tMin + 5f;
+            float tMax = GameConfig.Current(_match.Predicted.Look.Weapon, _match.Latest?.Self?.Fists ?? false).Range + tMin + 5f;
             float best = tMax;
 
             // enemies / decoys: vertical capsule approximation

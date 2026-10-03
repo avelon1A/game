@@ -15,6 +15,7 @@ namespace Veil.UI
     {
         public readonly RectTransform Root;
         private readonly ClientMatch _m;
+        private Button _switch;
         private readonly Joystick _stick;
         private readonly ActionButton _fire, _jump, _dash, _pulse, _decoy;
         private readonly RectTransform _market;
@@ -48,6 +49,9 @@ namespace Veil.UI
             // sniper scope: tap to zoom in / out (only shown when you carry the sniper)
             _scope = UIKit.Button(Root, "SCOPE", new Vector2(1, 0), new Vector2(-150, 300), new Vector2(120, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn, 20);
             ((RectTransform)_scope.transform).pivot = new Vector2(0.5f, 0.5f);
+            // gun <-> fists
+            _switch = UIKit.Button(Root, "FISTS", new Vector2(1, 0), new Vector2(-520, 120), new Vector2(130, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.Press(Buttons.Switch), 20);
+            ((RectTransform)_switch.transform).pivot = new Vector2(0.5f, 0.5f);
 
             // squad voice: hold to talk (push-to-talk mode)
             var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
@@ -87,9 +91,11 @@ namespace Veil.UI
             _dash.SetCooldown(me.DashCd / GameConfig.DashCooldown, me.Energy >= GameConfig.DashCost);
             _pulse.SetCooldown(me.PulseCd / GameConfig.PulseCooldown, me.Energy >= GameConfig.PulseCost);
             _decoy.SetCooldown(me.DecoyCd / GameConfig.DecoyCooldown, me.Energy >= GameConfig.DecoyCost);
-            var ws = GameConfig.Weapon(me.Look.Weapon);
+            bool fistsNow = _m.Latest?.Self?.Fists ?? false;
+            var ws = GameConfig.Current(me.Look.Weapon, fistsNow);
             _fire.SetCooldown(me.FireCd / ws.Cooldown, true);
-            bool sniper = me.Look.Weapon == 1 && me.Alive;
+            UIKit.ButtonLabel(_switch).text = fistsNow ? (me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") : "FISTS";
+            bool sniper = me.Look.Weapon == 1 && me.Alive && !fistsNow;
             if (_scope.gameObject.activeSelf != sniper) _scope.gameObject.SetActive(sniper);
             if (!sniper) VirtualInput.ScopeOn = false;
             UIKit.ButtonLabel(_scope).text = VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE";

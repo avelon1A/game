@@ -302,6 +302,7 @@ namespace Veil.View
             av.Alive = p.Alive;
             av.Downed = p.Alive && p.Downed;
             av.Reviving = snap != null && snap.Self.Reviving >= 0;
+            if (snap != null) av.Rig.SetFists(snap.Self.Fists);
             av.ReviveProg = snap != null ? snap.Self.ReviveProg : 0;
             av.Health01 = p.HealthFrac;
             av.Grounded = p.Grounded;
@@ -322,7 +323,7 @@ namespace Veil.View
                 var start = new Vec2(pos.x, pos.z) + dir * 0.6f;
                 float hitR = GameConfig.HitRadius + GameConfig.ProjectileRadius, d = 0;
                 ShotHitsAvatar = false;
-                float range = GameConfig.Weapon(p.Look.Weapon).Range;
+                float range = GameConfig.Current(p.Look.Weapon, Local != null && Local.Rig.FistsMode).Range;
                 for (; d < range && !ShotHitsAvatar; d += 0.4f)
                 {
                     var sp = start + dir * d;
@@ -397,6 +398,7 @@ namespace Veil.View
                     av.Alive = true;
                     av.Downed = src.Downed;
                     av.Reviving = src.Reviving;
+                    av.Rig.SetFists(src.Fists);
                     av.ReviveProg = src.ReviveProg;
                     TriggerSeqs(av, src.FireSeq, src.CastSeq, src.HitSeq, src.JumpSeq, false);
                     av.Fade = Mathf.MoveTowards(av.Fade, av.Vis == Visibility.Full ? 1 : 0, dt * 5f);
@@ -421,9 +423,33 @@ namespace Veil.View
             {
                 av.FireSeq = fire;
                 av.Rig.TriggerFire();
-                if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], 0.4f);
-                if (av.Fade > 0.1f || local) Tracer(av, local);
-                if (av.Fade > 0.1f || local) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.55f : 0.45f);
+                int weapon = av.Rig.FistsMode ? GameConfig.FistsWeapon : av.Rig.Look.Weapon;
+                bool seen = av.Fade > 0.1f || local;
+                if (weapon == GameConfig.FistsWeapon)
+                {
+                    // punch: whoosh + a small burst at the fist's reach
+                    if (seen)
+                    {
+                        var f = av.Pos + Quaternion.Euler(0, av.Yaw, 0) * new Vector3(0, GameConfig.ProjectileHeight + 0.35f, 1.1f);
+                        Fx.I.Flash(f, Color.white, 0.35f, 0.06f);
+                        Sfx.PlayAt(Sfx.Dash, av.Pos + Vector3.up, local ? 0.5f : 0.35f, 1.7f);
+                    }
+                }
+                else if (weapon == 1)
+                {
+                    // sniper: big muzzle flash, heavy lingering beam, deep crack, camera kick
+                    var c = Palette.AccentColors[av.Rig.Look.Color % 8];
+                    if (av.Rig.BlasterTip) { Fx.I.Flash(av.Rig.BlasterTip.position, Color.white, 1.1f, 0.1f); Fx.I.Flash(av.Rig.BlasterTip.position, c, 1.6f, 0.14f); }
+                    if (seen) Tracer(av, local);
+                    if (seen) { Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.95f : 0.75f, 0.55f); Sfx.PlayAt(Sfx.Hit, av.Pos + Vector3.up, local ? 0.4f : 0.3f, 0.5f); }
+                    if (local) _cam.Shake(0.45f);
+                }
+                else
+                {
+                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], 0.4f);
+                    if (seen) Tracer(av, local);
+                    if (seen) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.55f : 0.45f);
+                }
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }
             if (hit != av.HitSeq)
@@ -450,13 +476,14 @@ namespace Veil.View
                 var dir = Vec2.FromYaw(av.Yaw);
                 var start = new Vec2(av.Pos.x, av.Pos.z) + dir * 0.6f;
                 float d = 0;
-                float range = GameConfig.Weapon(av.Rig.Look.Weapon).Range;
+                float range = GameConfig.Current(av.Rig.Look.Weapon, av.Rig.FistsMode).Range;
                 for (; d < range; d += 0.4f)
                     if (Match.Map.BlocksShotAt(start + dir * d, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
                 var end = start + dir * Mathf.Min(d, range);
                 to = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
             }
             var c = Palette.AccentColors[av.Rig.Look.Color % 8];
+            if (av.Rig.Look.Weapon == 1 && !av.Rig.FistsMode) { SniperBeam(from, to, c); return; }
             var go = new GameObject("Tracer");
             go.transform.SetParent(Root, false);
             var lr = go.AddComponent<LineRenderer>();
@@ -468,6 +495,32 @@ namespace Veil.View
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Fx.I.Flash(to, c, 0.25f);
             Object.Destroy(go, 0.06f);
+        }
+
+        /// <summary>Sniper shot: white-hot core + coloured glow that linger and thin out, sparks and a burst where it lands.</summary>
+        private void SniperBeam(Vector3 from, Vector3 to, Color c)
+        {
+            var go = new GameObject("SniperBeam");
+            go.transform.SetParent(Root, false);
+            LineRenderer Line(float width, Color a, Color b)
+            {
+                var g = new GameObject("L"); g.transform.SetParent(go.transform, false);
+                var lr = g.AddComponent<LineRenderer>();
+                lr.useWorldSpace = true; lr.positionCount = 2;
+                lr.SetPosition(0, from); lr.SetPosition(1, to);
+                lr.widthMultiplier = width;
+                lr.sharedMaterial = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive);
+                lr.startColor = a; lr.endColor = b;
+                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                lr.numCapVertices = 4;
+                return lr;
+            }
+            var glow = Line(0.32f, new Color(c.r, c.g, c.b, 0.35f), new Color(c.r, c.g, c.b, 0.9f));
+            var core = Line(0.09f, new Color(1, 1, 1, 0.6f), Color.white);
+            go.AddComponent<BeamFade>().Init(new[] { glow, core }, 0.45f);
+            Fx.I.Flash(to, Color.white, 0.8f, 0.1f);
+            Fx.I.Flash(to, c, 1.4f, 0.18f);
+            Fx.I.Sparks(to, c, 14, 9f);
         }
 
         private void DriveRig(AvatarView av, float dt, bool local)
@@ -796,6 +849,29 @@ namespace Veil.View
             _dashed.SetVertices(v); _dashed.SetUVs(0, uv); _dashed.SetTriangles(t, 0);
             _dashed.RecalculateBounds();
             return _dashed;
+        }
+    }
+
+    /// <summary>Thins and fades a set of beam lines, then removes them.</summary>
+    public sealed class BeamFade : MonoBehaviour
+    {
+        private LineRenderer[] _lines;
+        private float[] _w;
+        private float _life, _t;
+
+        public void Init(LineRenderer[] lines, float life)
+        {
+            _lines = lines; _life = life;
+            _w = new float[lines.Length];
+            for (int i = 0; i < lines.Length; i++) _w[i] = lines[i].widthMultiplier;
+        }
+
+        private void Update()
+        {
+            _t += Time.deltaTime;
+            float k = 1f - Mathf.Clamp01(_t / _life);
+            for (int i = 0; i < _lines.Length; i++) _lines[i].widthMultiplier = _w[i] * k * k;
+            if (_t >= _life) Destroy(gameObject);
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using UnityEngine;
 using Veil.Sim;
@@ -82,6 +83,24 @@ namespace Veil.View
         public static readonly string[] WeaponNames = { "blaster-m", "blaster-a", "blaster-n", "blaster-j", "blaster-g" };
         private static Material _weaponMat;
 
+        private static readonly Dictionary<string, Material> _meshyMats = new Dictionary<string, Material>();
+
+        private static Material MeshyWeaponMaterial(string name)
+        {
+            if (_meshyMats.TryGetValue(name, out var m)) return m;
+            m = new Material(Shader.Find("Veil/Toon")) { name = name, enableInstancing = true };
+            m.SetTexture("_BaseMap", Resources.Load<Texture2D>("Weapons/" + name + "_tex"));
+            m.SetColor("_BaseColor", Color.white);
+            m.SetColor("_ShadeColor", new Color(0.72f, 0.72f, 0.88f));
+            m.SetColor("_RimColor", new Color(1, 1, 1, 0.2f));
+            m.SetFloat("_Ramp", 0.35f);
+            m.SetFloat("_ArtKeep", 0.6f);
+            m.SetFloat("_ShadowStrength", 0.6f);
+            m.SetColor("_EmissionColor", Color.black);
+            _meshyMats[name] = m;
+            return m;
+        }
+
         private static Material WeaponMaterial()
         {
             if (_weaponMat != null) return _weaponMat;
@@ -99,7 +118,23 @@ namespace Veil.View
         public bool IsModel => _anim != null;
 
         private Animator _anim;
-        private Transform _boneRUpper, _boneRLower;
+        private Transform _boneRUpper, _boneRLower, _boneLUpper, _boneLLower, _handLB;
+        // fists: a quick jab with alternating hands (procedural, on top of the animator)
+        private const float PunchTime = 0.28f;
+        private float _punchT;
+        private bool _punchLeft;
+        private bool _fists;
+        private bool Fists => _fists;
+        public bool FistsMode => _fists;
+
+        /// <summary>In a match: bare hands (gun hidden, jabs) or the chosen gun.</summary>
+        public void SetFists(bool on)
+        {
+            if (_fists == on) return;
+            _fists = on;
+            if (_gun) _gun.gameObject.SetActive(!on);
+            if (_anim) _anim.SetBool("Aiming", false);
+        }
         private float _dist, _deadT;
 
         // heroes with lobby_act clips (CharacterBuilder) do one of them every few seconds while idling in menus
@@ -137,6 +172,9 @@ namespace Veil.View
             _boneRUpper = Bone(HumanBodyBones.RightUpperArm, "UpperArm.R") ?? FindBone(inst.transform, "upperarm_r");
             _boneRLower = Bone(HumanBodyBones.RightLowerArm, "LowerArm.R") ?? FindBone(inst.transform, "lowerarm_r");
             _handR = Bone(HumanBodyBones.RightHand, "Hand.R") ?? FindBone(inst.transform, "hand_r");
+            _boneLUpper = Bone(HumanBodyBones.LeftUpperArm, "UpperArm.L") ?? FindBone(inst.transform, "upperarm_l");
+            _boneLLower = Bone(HumanBodyBones.LeftLowerArm, "LowerArm.L") ?? FindBone(inst.transform, "lowerarm_l");
+            _handLB = Bone(HumanBodyBones.LeftHand, "Hand.L") ?? FindBone(inst.transform, "hand_l");
             _footL = Bone(HumanBodyBones.LeftFoot, "Foot.L") ?? FindBone(inst.transform, "foot_l");
             _footR = Bone(HumanBodyBones.RightFoot, "Foot.R") ?? FindBone(inst.transform, "foot_r");
 
@@ -146,7 +184,10 @@ namespace Veil.View
             var dark = M(Palette.Hex("#1f1d26"), 0.25f, 0.4f);
             var rbox = MeshGen.RoundBox(0.4f);
             _gun = Build.Node(_body, "Blaster", Vector3.zero);
-            var weapon = Resources.Load<GameObject>("Weapons/" + (Look.Weapon == 1 ? SniperModel : WeaponNames[Look.Outfit % WeaponNames.Length]));
+            // Meshy guns (meshy_rifle / meshy_sniper, own texture) when present, else the Kenney blasters
+            string meshyName = Look.Weapon == 1 ? "meshy_sniper" : "meshy_rifle";
+            var meshy = Resources.Load<GameObject>("Weapons/" + meshyName);
+            var weapon = meshy ?? Resources.Load<GameObject>("Weapons/" + (Look.Weapon == 1 ? SniperModel : WeaponNames[Look.Outfit % WeaponNames.Length]));
             if (weapon != null)
             {
                 // Kenney Blaster Kit gun (CC0), re-centred on import: grip at the pivot, barrel along +Y (Editor/WeaponImport.cs)
@@ -154,11 +195,11 @@ namespace Veil.View
                 w.transform.localPosition = Vector3.zero; w.transform.localRotation = Quaternion.identity; w.transform.localScale = Vector3.one;
                 foreach (var r in w.GetComponentsInChildren<Renderer>())
                 {
-                    r.sharedMaterial = WeaponMaterial();
+                    r.sharedMaterial = meshy != null ? MeshyWeaponMaterial(meshyName) : WeaponMaterial();
                     r.shadowCastingMode = _shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
                 _blasterTip = w.transform.Find("Muzzle");
-                if (Look.Weapon == 1)
+                if (Look.Weapon == 1 && meshy == null)   // the Meshy sniper has its own scope
                 {
                     // sniper scope on top of the gun (barrel = +Y, top = -Z): tube, two mounts, glowing lenses
                     var scopeMat = M(Palette.Hex("#22212b"), 0.3f, 0.6f);
@@ -203,7 +244,8 @@ namespace Veil.View
             bool aiming = (s.Aiming || _aimT > 0) && !s.Dead && !s.Downed && !s.Reviving;
             _aimW = Mathf.MoveTowards(_aimW, aiming ? 1f : 0f, dt * 9f);
             _fireKick = Mathf.MoveTowards(_fireKick, 0, dt * 8f);
-            _anim.SetBool("Aiming", aiming);
+            _anim.SetBool("Aiming", aiming && !Fists);   // fists: no rifle pose, the jab is procedural
+            _punchT = Mathf.Max(0, _punchT - dt);
             _anim.SetBool("Dead", s.Dead);
             _anim.SetBool("Downed", s.Downed && !s.Dead);
             _anim.SetBool("Reviving", s.Reviving && !s.Downed && !s.Dead);
@@ -248,6 +290,27 @@ namespace Veil.View
             if (_anim == null) return;
             // aim override: point the right arm (and blaster) straight down the aim direction
             Vector3 fwd = transform.forward;
+            if (Fists)
+            {
+                if (_punchT > 0)
+                {
+                    // jab: the arm shoots out along the aim direction and comes back (sin curve)
+                    float w = Mathf.Sin(Mathf.PI * (1f - _punchT / PunchTime));
+                    var up = _punchLeft ? _boneLUpper : _boneRUpper;
+                    var lo = _punchLeft ? _boneLLower : _boneRLower;
+                    var hand = _punchLeft ? _handLB : _handR;
+                    if (up && lo && hand)
+                    {
+                        Vector3 dir = (fwd + Vector3.up * 0.08f).normalized;
+                        var q = Quaternion.FromToRotation(hand.position - up.position, dir);
+                        up.rotation = Quaternion.Slerp(Quaternion.identity, q, w) * up.rotation;
+                        var q2 = Quaternion.FromToRotation(hand.position - lo.position, dir);
+                        lo.rotation = Quaternion.Slerp(Quaternion.identity, q2, w) * lo.rotation;
+                    }
+                }
+                if (_blasterTip && _handR) _blasterTip.position = (_punchLeft && _handLB ? _handLB : _handR).position;
+                return;
+            }
             if (_aimW > 0.01f && _boneRUpper && _boneRLower && _handR)
             {
                 var q = Quaternion.FromToRotation(_handR.position - _boneRUpper.position, fwd);
@@ -629,7 +692,11 @@ namespace Veil.View
 
         // ================================================================== triggers
 
-        public void TriggerFire() { _fireKick = 1f; _aimT = 0.9f; }
+        public void TriggerFire()
+        {
+            _fireKick = 1f; _aimT = 0.9f;
+            if (Fists) { _punchT = PunchTime; _punchLeft = !_punchLeft; }
+        }
         public void TriggerCast() { _castT = 0.55f; }
         public void TriggerHit() { _hitT = 0.3f; if (_anim) _anim.SetTrigger("Hit"); }
         public void TriggerLand(float strength = 1f) { _squashVel -= 3.5f * strength; _crouch = Mathf.Max(_crouch, 0.6f * strength); }

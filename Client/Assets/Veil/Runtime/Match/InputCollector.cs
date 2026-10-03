@@ -26,6 +26,7 @@ namespace Veil.Match
                 if (kb.digit2Key.wasPressedThisFrame) _latched |= Buttons.Buy2;
                 if (kb.digit3Key.wasPressedThisFrame) _latched |= Buttons.Buy3;
                 if (kb.spaceKey.wasPressedThisFrame) _latched |= Buttons.Jump;
+                if (kb.xKey.wasPressedThisFrame) _latched |= Buttons.Switch;   // gun <-> fists
             }
             var m = Mouse.current;
             if (!VirtualInput.Active && m != null && m.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) _latched |= Buttons.Fire;

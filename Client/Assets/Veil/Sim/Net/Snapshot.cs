@@ -18,7 +18,7 @@ namespace Veil.Sim
 
     public static class AvatarState
     {
-        public const byte Downed = 1, Reviving = 2;
+        public const byte Downed = 1, Reviving = 2, Fists = 4;
     }
 
     /// <summary>A visible character. Decoys are sent exactly like players (OwnerId = the player they imitate).</summary>
@@ -36,6 +36,7 @@ namespace Veil.Sim
 
         public bool Downed => (State & AvatarState.Downed) != 0;
         public bool Reviving => (State & AvatarState.Reviving) != 0;
+        public bool Fists => (State & AvatarState.Fists) != 0;
 
         public AvatarSnap Clone() => (AvatarSnap)MemberwiseClone();
     }
@@ -157,6 +158,7 @@ namespace Veil.Sim
                 if (p.Squad == viewer.Squad) a.Flags |= AvatarFlags.Ally;
                 if (p.Downed) { a.State |= AvatarState.Downed; a.ReviveProg = p.ReviveProg; }
                 if (p.Reviving >= 0) a.State |= AvatarState.Reviving;
+                if (p.Fists) a.State |= AvatarState.Fists;
                 snap.Avatars.Add(a);
             }
             foreach (var d in sim.Decoys)

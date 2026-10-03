@@ -701,7 +701,8 @@ namespace Veil.UI
             _cores.text = me.CoresCollected.ToString();
 
             // abilities
-            SetAbility(_abilities[0], me.FireCd, GameConfig.Weapon(me.Look.Weapon).Cooldown, 0, me);
+            _abilities[0].Name = (s.Self.Fists ? "FISTS" : me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") + (_mobile ? "" : "  X⇄");
+            SetAbility(_abilities[0], me.FireCd, GameConfig.Current(me.Look.Weapon, s.Self.Fists).Cooldown, 0, me);
             SetAbility(_abilities[1], me.DashCd, GameConfig.DashCooldown, GameConfig.DashCost, me);
             SetAbility(_abilities[2], me.PulseCd, GameConfig.PulseCooldown, GameConfig.PulseCost, me);
             SetAbility(_abilities[3], me.DecoyCd, GameConfig.DecoyCooldown, GameConfig.DecoyCost, me);

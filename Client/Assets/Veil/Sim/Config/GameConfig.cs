@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 13;
+        public const int ProtocolVersion = 14;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -110,14 +110,18 @@ namespace Veil.Sim
         public const float ProjectileRadius = 0.22f;
 
         // ---- weapons (chosen in Characters → WEAPON, stored in Appearance.Weapon) ----
-        public static readonly string[] WeaponNames = { "RIFLE", "SNIPER" };
+        public static readonly string[] WeaponNames = { "RIFLE", "SNIPER", "FISTS" };
+        public const int FistsWeapon = 2;
         public struct WeaponStats { public float Cooldown, Damage, Range, Speed; }
         public static readonly WeaponStats[] Weapons =
         {
             new WeaponStats { Cooldown = FireCooldown, Damage = ProjectileDamage, Range = ProjectileRange, Speed = ProjectileSpeed },
             new WeaponStats { Cooldown = 1.25f, Damage = 48f, Range = 75f, Speed = 1500f },   // sniper: 3 hits kill, slow, long reach
+            new WeaponStats { Cooldown = 0.42f, Damage = 22f, Range = 2.4f, Speed = 900f },   // fists: close range only, quick, hits hard
         };
         public static WeaponStats Weapon(int w) => Weapons[Math.Clamp(w, 0, Weapons.Length - 1)];
+        /// <summary>What a player fires right now: fists when switched to them, else the chosen gun (rifle / sniper).</summary>
+        public static WeaponStats Current(int gun, bool fists) => fists ? Weapons[FistsWeapon] : Weapons[Math.Clamp(gun, 0, FistsWeapon - 1)];
         public const float ScopeFov = 26f;
         public const float ProjectileHeight = 1.0f;
         public const float HitRadius = 0.55f;

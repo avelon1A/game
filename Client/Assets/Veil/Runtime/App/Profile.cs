@@ -85,7 +85,7 @@ namespace Veil.App
                 HairColor = (byte)PlayerPrefs.GetInt("hairColor", 0),
                 Accessory = (byte)PlayerPrefs.GetInt("accessory", 0),
                 Color = (byte)PlayerPrefs.GetInt("color", 0),
-                Weapon = (byte)PlayerPrefs.GetInt("weapon", 0),
+                Weapon = (byte)Mathf.Min(PlayerPrefs.GetInt("weapon", 0), 1),   // 0 rifle, 1 sniper (fists = in-match switch)
             };
             return p;
         }
