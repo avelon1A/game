@@ -224,6 +224,12 @@ namespace Veil.EditorTools
             plist.root.SetString("NSLocalNetworkUsageDescription", "VEIL connects to game servers on your local network for multiplayer matches.");
             plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
             plist.WriteToFile(plistPath);
+            // Google sign-in (Plugins/iOS/RiloGoogleSignIn.mm) uses ASWebAuthenticationSession
+            string projPath = UnityEditor.iOS.Xcode.PBXProject.GetPBXProjectPath(path);
+            var proj = new UnityEditor.iOS.Xcode.PBXProject();
+            proj.ReadFromFile(projPath);
+            proj.AddFrameworkToProject(proj.GetUnityFrameworkTargetGuid(), "AuthenticationServices.framework", false);
+            proj.WriteToFile(projPath);
         }
     }
 #endif
