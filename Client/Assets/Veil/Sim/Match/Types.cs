@@ -259,7 +259,7 @@ namespace Veil.Sim
     {
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
-        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested, CenterBonus,
+        AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested, CenterBonus, ExtractOpen, ExtractAlert, ExtractFinal,
     }
 
     public struct SimEvent
@@ -299,6 +299,7 @@ namespace Veil.Sim
         public Vec2 Spawn;
         public int CoresAtStart;
         public float ExtractProg;       // 0..1, first squad to 1 wins
+        public int ExtractAlertPct;
         public bool VaultDone => Stage >= 4;
         public readonly System.Collections.Generic.List<HackNode> Nodes = new System.Collections.Generic.List<HackNode>();   // active stabilization nodes
         public int Glitches;            // instabilities already triggered this hack

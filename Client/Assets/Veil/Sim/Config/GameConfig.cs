@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 12;
+        public const int ProtocolVersion = 13;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -74,6 +74,10 @@ namespace Veil.Sim
         public const float ExtractTime = 60f;          // hold the extraction point uncontested
         public const float ExtractRadius = 7f;
         public const float ExtractDistance = IslandMap ? 160f : 40f;      // extraction points sit between the squads' spawns
+        public const float ExtractUnlockDelay = 20f;   // revealed, then locked this long: everyone gets time to rotate
+        public const float ExtractSecureTime = 3f;     // a squad must be ALONE in the zone this long before progress counts
+        public const float ExtractFinalAt = 0.8f;      // last 12 s of 60: final phase (holders always visible, alarms)
+        public const float ExtractPingEvery = 8f;      // while extracting, holders are pinged to every squad this often
         public const float ExtractRespawnTime = 15f;   // longer re-entry once extraction is revealed
         public const float ExtractCircleMin = IslandMap ? 172f : 52f;     // the collapse never closes over the extraction points
         public const int StagePoints = 100;            // per member, per completed stage (tie-breaks)

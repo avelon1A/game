@@ -74,7 +74,8 @@ namespace Veil.Sim
         public int Stage;
         public float StageProg;
         public Vec2 Site;
-        public bool ExtractRevealed, ExtractContested;
+        public bool ExtractRevealed, ExtractContested, ExtractFinal;
+        public float ExtractLockT, ExtractSecure;
         public Vec2 ExtractPos;
         public int ExtractController = -1, Winner = -1;
         public readonly byte[] SquadStage = new byte[GameConfig.SquadCount];
@@ -185,6 +186,7 @@ namespace Veil.Sim
             for (int i = 0; i < GameConfig.SquadCount; i++) snap.SquadProg[i] = sim.Squads[i].StageProg;
             snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
+            snap.ExtractFinal = sim.ExtractFinal; snap.ExtractLockT = sim.ExtractLockT; snap.ExtractSecure = sim.ExtractSecure;
             for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
 
             snap.Projectiles.Clear();
@@ -225,6 +227,9 @@ namespace Veil.Sim
                     return true;
                 case EventType.ExtractRevealed:
                 case EventType.ExtractControl:
+                case EventType.ExtractOpen:
+                case EventType.ExtractAlert:
+                case EventType.ExtractFinal:
                     return true;
                 case EventType.HackGlitch:
                 case EventType.HackContested:

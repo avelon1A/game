@@ -22,8 +22,11 @@
 | Extraction | **Hold the point** | 60 s, only squads that opened their Vault progress |
 
 - Enemies near your site **pause** your progress (contest). Completing a step briefly reveals enemies near it.
-- The first Vault opening **reveals the extraction point to everyone** (between two squads, away from the opener).
-- Extraction: one squad inside = it progresses; two squads inside = **contested**, nobody progresses; leaving pauses it.
+- The first Vault opening **reveals the extraction point to everyone**. It is picked from where the squads *are*: open ground with cover around it, reachable by every squad, about the same walking distance from each, and never closest to the opener.
+- It stays **locked for 20 s** after the reveal so every squad can decide: rotate, set up an ambush, block, or keep doing its chain.
+- Extraction: a squad must be **alone in the circle for 3 s (securing)** before progress counts; any enemy entering = **contested**, progress pauses and securing restarts. Progress is never lost.
+- Holders are **pinged to everyone every 8 s**; alerts at 25 / 50 / 75 %.
+- **Final phase** (last 12 s, 80 %+): holders are visible to everyone all the time, red pulsing beam, alarm and red screen edge for all players.
 - After the reveal, re-entry takes **15 s** instead of 5 s. The collapse never closes over the extraction point.
 - HUD: current step + distance, route dots and every rival squad's step, extraction status; gold beam = your site, big ring = extraction.
 

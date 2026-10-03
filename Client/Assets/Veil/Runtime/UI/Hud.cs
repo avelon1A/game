@@ -102,6 +102,7 @@ namespace Veil.UI
                 _hack = new HackPanel(Root, _m.LocalSquad) { HackerName = id => _m.NameOf(id) };
                 _hackBtn = UIKit.Button(Root, "HACK", new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(240, 80), UIKit.ButtonStyle.Primary, () => _puzzle.Show(), 34);
                 _puzzle = new CircuitPuzzle(Root);
+                _extractPanel = new ExtractPanel(Root, _m.LocalSquad, mobile);
             }
             _compass = new CompassBar(Root);
             // sniper scope overlay: dark vignette ring + fine cross lines
@@ -557,8 +558,22 @@ namespace Veil.UI
                     Popup(e.B == 1 ? "ENEMY TERMINAL CONTESTED" : "CENTRAL TERMINAL CONTESTED");
                     break;
                 case EventType.ExtractRevealed:
-                    Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? "Hold it for 60 s to win" : $"Squad {(char)('A' + e.A)} opened the Vault — stop them!", 4f);
+                    Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? $"Opens in {e.Value} s — get there and hold it 60 s" : $"Squad {(char)('A' + e.A)} opened the Vault · opens in {e.Value} s — rotate, ambush or block", 4.5f);
                     Sfx.Play(Sfx.Capture, 0.9f);
+                    break;
+                case EventType.ExtractOpen:
+                    Popup("EXTRACTION OPEN");
+                    Sfx.Play(Sfx.Objective, 0.8f);
+                    break;
+                case EventType.ExtractAlert:
+                    Feed(e.A == _m.LocalSquad ? $"<color=#7dff9a>Extracting · {e.Value}%</color>" : $"<color=#ff5a6a>Squad {(char)('A' + e.A)} extracting · {e.Value}%</color>", Theme.Text);
+                    if (e.A != _m.LocalSquad && e.Value >= 50) Popup($"SQUAD {(char)('A' + e.A)} EXTRACTING · {e.Value}%");
+                    Sfx.Play(Sfx.Click, 0.6f);
+                    break;
+                case EventType.ExtractFinal:
+                    if (e.A == _m.LocalSquad) Banner("FINAL PHASE", "12 seconds to win — HOLD THE CIRCLE", 3f);
+                    else Banner("FINAL PHASE", $"Squad {(char)('A' + e.A)} is about to win — CONTEST NOW!", 3f);
+                    Sfx.Play(Sfx.Reveal, 1f);
                     break;
                 case EventType.ExtractControl:
                     if (e.B == 1) Feed("<color=#ff5a6a>Extraction CONTESTED</color>", Theme.Text);
@@ -696,6 +711,17 @@ namespace Veil.UI
             {
                 SetChain(s, me);
                 _hack?.Update(s, me, dt);
+                _extractPanel?.Update(s, me);
+                // keep banners clear of the extraction strip
+                float by = _extractPanel != null && _extractPanel.Visible ? -(_extractPanel.Bottom + 60) : -150;
+                ((RectTransform)_banner.transform.parent).anchoredPosition = new Vector2(0, by);
+                _bannerSub.rectTransform.anchoredPosition = new Vector2(0, by - 60);
+                // final phase: alarm every second + red pulsing screen edge for everyone
+                if (s.ExtractFinal && s.Winner < 0)
+                {
+                    _sirenT -= dt;
+                    if (_sirenT <= 0) { _sirenT = 1f; Sfx.Play(Sfx.Beep, 0.55f, s.ExtractController == _m.LocalSquad ? 1.3f : 0.8f); }
+                }
                 // HACK button: in a terminal ring, objective 1, and nobody from your squad is hacking that terminal yet
                 bool homeT = Vec2.Dist(me.Pos, s.HomePos) <= Vec2.Dist(me.Pos, Vec2.Zero);
                 bool inRing = homeT ? Vec2.Dist(me.Pos, s.HomePos) <= GameConfig.HomeHackRadius : me.Pos.Length <= GameConfig.HackRadius;
@@ -735,6 +761,7 @@ namespace Veil.UI
             _vignette.color = new Color(1, 0.1f, 0.15f, Mathf.Max(Mathf.Clamp01(_damageT) * 0.7f, lowHp, s.Circle < me.Pos.Length ? 0.5f : 0));
             _revealT -= dt;
             _revealEdge.color = new Color(0.6f, 0.3f, 1f, Mathf.Clamp01(_revealT) * 0.6f);
+            if (s.ExtractFinal && s.Winner < 0) _vignette.color = new Color(1, 0.1f, 0.15f, Mathf.Max(_vignette.color.a, 0.18f + 0.22f * (0.5f + 0.5f * Mathf.Sin(Time.time * 6.3f))));
             _crosshair.enabled = me.Alive && !_m.Driver.Autopilot;
 
             if (!me.Alive) _respawn.text = $"ELIMINATED\n<size=28><color=#ffffff>Respawning in {Mathf.Max(0, me.RespawnT):0.0}</color></size>" +
@@ -877,7 +904,8 @@ namespace Veil.UI
             else
             {
                 float de = Vec2.Dist(me.Pos, s.ExtractPos);
-                string holder = s.ExtractContested ? "<color=#ff5a6a>CONTESTED</color>"
+                string holder = s.ExtractLockT > 0 ? $"<color=#ffd84a>opens in {s.ExtractLockT:0}s</color>"
+                    : s.ExtractContested ? "<color=#ff5a6a>CONTESTED</color>"
                     : s.ExtractController < 0 ? "nobody holding"
                     : s.ExtractController == _m.LocalSquad ? "<color=#7dff9a>YOU HOLD IT</color>" : $"<color=#ff5a6a>SQUAD {(char)('A' + s.ExtractController)} HOLDS IT</color>";
                 x.Desc.text = $"{holder} · {de:0} m" + (s.Stage < 4 ? " · open the Vault to extract" : "");
@@ -974,6 +1002,8 @@ namespace Veil.UI
 
         private Text _wpSite, _wpExtract, _wpCentre;
         private HackPanel _hack;
+        private ExtractPanel _extractPanel;
+        private float _sirenT;
         private UnityEngine.UI.Button _hackBtn;
         private CircuitPuzzle _puzzle;
         public bool PuzzleOpen => _puzzle != null && _puzzle.Open;
@@ -1031,7 +1061,7 @@ namespace Veil.UI
                     var nd = on ? s.Nodes[i] : null;
                     Waypoint(ref _wpNodes[i], on, on ? nd.Pos : Vec2.Zero, on ? $"{HackPanel.KindName(nd.Kind)} {Mathf.RoundToInt(nd.Prog * 100)}%" : "", on ? HackPanel.KindColor(nd.Kind) : Color.white, me);
                 }
-                Waypoint(ref _wpExtract, s.ExtractRevealed, s.ExtractPos, "EXTRACTION",
+                Waypoint(ref _wpExtract, s.ExtractRevealed && Vec2.Dist(me.Pos, s.ExtractPos) > GameConfig.ExtractRadius, s.ExtractPos, "EXTRACTION",
                     s.ExtractContested || (s.ExtractController >= 0 && s.ExtractController != _m.LocalSquad) ? new Color(1f, 0.35f, 0.35f) : s.ExtractController == _m.LocalSquad ? new Color(0.45f, 1f, 0.55f) : Color.white, me);
             }
             var canvasRt = (RectTransform)Root;

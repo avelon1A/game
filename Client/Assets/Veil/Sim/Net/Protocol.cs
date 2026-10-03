@@ -207,6 +207,7 @@ namespace Veil.Sim
             w.U8((byte)(s.HomeHacker + 1)); w.U8((byte)(s.CenterHacker + 1));
             for (int i = 0; i < GameConfig.SquadCount; i++) w.Unit(s.SquadProg[i], 1f);
             w.Bool(s.ExtractRevealed); w.Bool(s.ExtractContested); w.Vec(s.ExtractPos); w.U8((byte)(s.ExtractController + 1)); w.U8((byte)(s.Winner + 1));
+            w.Bool(s.ExtractFinal); w.U8((byte)MathF.Ceiling(s.ExtractLockT)); w.Unit(s.ExtractSecure, 1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { w.U8(s.SquadStage[i]); w.U16((ushort)MathF.Round(s.SquadExtract[i] * 65535f)); }
         }
 
@@ -273,6 +274,7 @@ namespace Veil.Sim
             s.HomeHacker = r.U8() - 1; s.CenterHacker = r.U8() - 1;
             for (int i = 0; i < GameConfig.SquadCount; i++) s.SquadProg[i] = r.Unit(1f);
             s.ExtractRevealed = r.Bool(); s.ExtractContested = r.Bool(); s.ExtractPos = r.Vec(); s.ExtractController = r.U8() - 1; s.Winner = r.U8() - 1;
+            s.ExtractFinal = r.Bool(); s.ExtractLockT = r.U8(); s.ExtractSecure = r.Unit(1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { s.SquadStage[i] = r.U8(); s.SquadExtract[i] = r.U16() / 65535f; }
             return s;
         }

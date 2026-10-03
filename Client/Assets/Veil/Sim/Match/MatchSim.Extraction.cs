@@ -295,29 +295,124 @@ namespace Veil.Sim
             }
         }
 
+        public float ExtractLockT { get; private set; }      // > 0: revealed but not open yet
+        public float ExtractSecure { get; private set; }     // 0..1 the controller securing the zone
+        public bool ExtractFinal { get; private set; }       // controller is in the last 20% — final phase
+        private float _extractPingT;
+        private readonly System.Collections.Generic.List<Vec2> _pathTmp = new System.Collections.Generic.List<Vec2>();
+
+        /// <summary>Where a squad is right now: the average of its living members (its spawn if all are down).</summary>
+        private Vec2 SquadCentroid(SquadState sq)
+        {
+            Vec2 sum = Vec2.Zero; int n = 0;
+            foreach (var p in Players) if (p.Squad == sq.Id && p.Alive) { sum += p.Pos; n++; }
+            return n > 0 ? sum * (1f / n) : sq.Spawn;
+        }
+
+        private float PathLength(Vec2 from, Vec2 to)
+        {
+            if (!Map.Nav.FindPath(from, to, _pathTmp, 20000)) return -1f;
+            float len = 0; Vec2 prev = from;
+            foreach (var w in _pathTmp) { len += Vec2.Dist(prev, w); prev = w; }
+            return len;
+        }
+
+        /// <summary>Open ground (the zone itself) with some cover around it (to fight over), 0 = unusable.</summary>
+        private float SiteQuality(Vec2 c)
+        {
+            int open = 0, total = 0;
+            for (int k = 0; k < 16; k++)
+                foreach (float rr in new[] { 2.5f, 5f, GameConfig.ExtractRadius })
+                { total++; if (Map.Nav.Walkable(c + Vec2.FromYaw(k * 22.5f) * rr)) open++; }
+            if (open < total * 0.85f) return 0f;
+            int cover = 0;
+            foreach (var o in Map.Obstacles)
+            {
+                if (!o.BlocksShots || o.Kind == ObstacleKind.Water) continue;
+                float d = Vec2.Dist(o.Center, c) - o.BoundRadius;
+                if (d > GameConfig.ExtractRadius + 1f && d < 26f) cover++;
+            }
+            return 1f + MathF.Min(cover, 10);
+        }
+
+        /// <summary>Fairness: every squad about the same distance away, and the Vault opener never the closest.</summary>
+        private static float Fairness(float[] d, int opener)
+        {
+            float min = float.MaxValue, max = 0, others = 0; int n = 0;
+            for (int i = 0; i < d.Length; i++)
+            {
+                min = MathF.Min(min, d[i]); max = MathF.Max(max, d[i]);
+                if (i != opener) { others += d[i]; n++; }
+            }
+            others /= MathF.Max(1, n);
+            return -(max - min) - MathF.Max(0, others - d[opener]) * 2f;
+        }
+
+        /// <summary>Pick the extraction point from where the squads ARE (not where they spawned): candidates on a ring
+        /// around the centre, open ground with cover nearby, reachable by everyone, about equally far (walking) from every
+        /// squad, and never handed to the squad that opened the Vault.</summary>
         private void RevealExtraction(SquadState first)
         {
-            // candidates: midway between neighbouring squads' spawn bearings — equally far from two squads each
+            int ns = Squads.Length;
+            var at = new Vec2[ns];
+            for (int i = 0; i < ns; i++) at[i] = SquadCentroid(Squads[i]);
+            var cands = new System.Collections.Generic.List<(Vec2 c, float q, float score)>();
+            var d = new float[ns];
+            for (int b = 0; b < 24; b++)
+                foreach (float rf in new[] { 0.8f, 0.95f, 1.08f })
+                {
+                    Vec2 c = Vec2.FromYaw(b * 15f) * (GameConfig.ExtractDistance * rf);
+                    float q = SiteQuality(c);
+                    if (q <= 0) continue;
+                    for (int i = 0; i < ns; i++) d[i] = Vec2.Dist(at[i], c);
+                    cands.Add((c, q, Fairness(d, first.Id) + q * 3f + Rng.Range(0, 3f)));
+                }
+            cands.Sort((x, y) => y.score.CompareTo(x.score));
             Vec2 best = Vec2.Zero; float bestScore = float.MinValue;
-            for (int i = 0; i < Squads.Length; i++)
+            for (int k = 0; k < cands.Count && k < 6; k++)
             {
-                float a = Squads[i].Spawn.Yaw, b = Squads[(i + 1) % Squads.Length].Spawn.Yaw;
-                float mid = a + MathUtil.DeltaAngle(a, b) * 0.5f;
-                Vec2 c = Vec2.FromYaw(mid) * GameConfig.ExtractDistance;
-                if (!Map.Nav.Walkable(c)) c = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(c)));
-                // never hand it to the squad that opened the Vault: prefer the point farthest from them
-                float score = Vec2.Dist(c, first.Spawn) + Rng.Range(0, 4f);
+                var (c, q, _) = cands[k];
+                bool ok = true;
+                for (int i = 0; i < ns && ok; i++) { d[i] = PathLength(at[i], c); ok = d[i] >= 0; }
+                if (!ok) continue;
+                float score = Fairness(d, first.Id) + q * 3f;
                 if (score > bestScore) { bestScore = score; best = c; }
+            }
+            if (bestScore == float.MinValue)   // nothing passed: old rule, between two spawns
+            {
+                float a = Squads[0].Spawn.Yaw, b2 = Squads[1 % ns].Spawn.Yaw;
+                best = Vec2.FromYaw(a + MathUtil.DeltaAngle(a, b2) * 0.5f) * GameConfig.ExtractDistance;
+                if (!Map.Nav.Walkable(best)) best = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(best)));
             }
             ExtractPos = best;
             ExtractRevealed = true;
+            ExtractLockT = GameConfig.ExtractUnlockDelay;
             foreach (var sq in Squads) if (sq.Stage >= 4) sq.Site = ExtractPos;
-            Events.Add(new SimEvent(EventType.ExtractRevealed, first.Id, 0, 0, ExtractPos));
+            Events.Add(new SimEvent(EventType.ExtractRevealed, first.Id, 0, (int)GameConfig.ExtractUnlockDelay, ExtractPos));
+        }
+
+        /// <summary>Test only: every squad has opened its Vault, extraction is open and <paramref name="squad"/> stands in it at 82%.</summary>
+        public void DebugExtraction(int squad)
+        {
+            foreach (var sq in Squads) { sq.Stage = 4; sq.StageProg = 1f; }
+            if (!ExtractRevealed) RevealExtraction(Squads[squad]);
+            ExtractLockT = 0f;
+            Squads[squad].ExtractProg = 0.82f;
+            Squads[squad].ExtractAlertPct = 75;
+            foreach (var p in Players)
+                if (p.Squad == squad && p.Alive) p.Pos = ExtractPos + Vec2.FromYaw(p.Id * 90f) * 2f;
+                else if (p.Alive && Vec2.Dist(p.Pos, ExtractPos) < GameConfig.ExtractRadius + 4f) p.Pos = ExtractPos + Vec2.FromYaw(p.Id * 40f) * 30f;
         }
 
         private void UpdateExtraction(float dt)
         {
             if (!ExtractRevealed) return;
+            if (ExtractLockT > 0)
+            {
+                ExtractLockT = MathF.Max(0, ExtractLockT - dt);
+                if (ExtractLockT <= 0) Events.Add(new SimEvent(EventType.ExtractOpen, -1, 0, 0, ExtractPos));
+                return;
+            }
             int present = -1; bool many = false;
             float r2 = GameConfig.ExtractRadius * GameConfig.ExtractRadius;
             foreach (var p in Players)
@@ -331,17 +426,37 @@ namespace Veil.Sim
             if (controller != ExtractController)
             {
                 ExtractController = controller;
+                ExtractSecure = 0f;     // a new holder (or a contest) always starts securing from zero
                 Events.Add(new SimEvent(EventType.ExtractControl, controller, many ? 1 : 0, 0, ExtractPos));
             }
-            if (controller < 0) return;
-            var sq = Squads[controller];
-            if (!sq.VaultDone) return;     // only squads that finished their Vault can extract
-            sq.ExtractProg = MathF.Min(1f, sq.ExtractProg + dt / GameConfig.ExtractTime);
-            if (sq.ExtractProg >= 1f)
+            bool final = false;
+            if (controller >= 0 && Squads[controller].VaultDone)
             {
-                WinnerSquad = sq.Id;
-                EndMatch();
+                var sq = Squads[controller];
+                if (ExtractSecure < 1f) ExtractSecure = MathF.Min(1f, ExtractSecure + dt / GameConfig.ExtractSecureTime);
+                else
+                {
+                    sq.ExtractProg = MathF.Min(1f, sq.ExtractProg + dt / GameConfig.ExtractTime);
+                    int pct = (int)(sq.ExtractProg * 4) * 25;
+                    if (pct > sq.ExtractAlertPct && pct < 100) { sq.ExtractAlertPct = pct; Events.Add(new SimEvent(EventType.ExtractAlert, sq.Id, 0, pct, ExtractPos)); }
+                    // holders are pinged to everyone — and in the final phase they are visible all the time
+                    final = sq.ExtractProg >= GameConfig.ExtractFinalAt;
+                    _extractPingT -= dt;
+                    if (final || _extractPingT <= 0)
+                    {
+                        _extractPingT = GameConfig.ExtractPingEvery;
+                        foreach (var h in Players)
+                        {
+                            if (h.Squad != sq.Id || !Standing(h) || Vec2.DistSq(h.Pos, ExtractPos) > r2) continue;
+                            foreach (var v in Players) if (v.Squad != sq.Id) v.RevealedTo[h.Id] = MathF.Max(v.RevealedTo[h.Id], final ? 0.6f : 2.5f);
+                        }
+                    }
+                    if (sq.ExtractProg >= 1f) { WinnerSquad = sq.Id; EndMatch(); }
+                }
             }
+            else ExtractSecure = 0f;
+            if (final && !ExtractFinal) Events.Add(new SimEvent(EventType.ExtractFinal, controller, 0, 0, ExtractPos));
+            ExtractFinal = final;
         }
 
         /// <summary>Ranking key for extraction mode: winner, then extraction progress, then chain stage, then score.</summary>

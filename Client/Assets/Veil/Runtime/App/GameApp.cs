@@ -1104,6 +1104,12 @@ namespace Veil.App
             _match.Driver.DebugSkip(70f);
             yield return new WaitForSeconds(10f);
             yield return Shot("07_competition");
+            if (_match.Driver is LocalMatchDriver ld)
+            {
+                ld.Sim.DebugExtraction(_match.LocalSquad);
+                yield return new WaitForSeconds(3.2f);
+                yield return Shot("07b_extract_final");
+            }
             CamRig.Pitch = 55f; CamRig.Distance = 14f;
             yield return new WaitForSeconds(2f);
             yield return Shot("08_overview");

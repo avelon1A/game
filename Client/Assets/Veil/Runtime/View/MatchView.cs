@@ -247,6 +247,11 @@ namespace Veil.View
                 _extract.position = new Vector3(s.ExtractPos.X, 0, s.ExtractPos.Y);
                 var m = s.ExtractContested ? _xRed : s.ExtractController == Match.LocalSquad ? _xGreen : s.ExtractController >= 0 ? _xRed : _xWhite;
                 _extractRing.sharedMaterial = m; _extractBeam.sharedMaterial = m;
+                // locked: thin beam; final phase: thick pulsing beam + throbbing ring so everyone sees someone's about to win
+                float beam = s.ExtractLockT > 0 ? 0.6f : s.ExtractFinal ? 2.6f + Mathf.Sin(Time.time * 6.3f) * 0.9f : 1.4f;
+                _extractBeam.transform.localScale = new Vector3(beam, 80f, beam);
+                _extractRing.transform.localScale = Vector3.one * GameConfig.ExtractRadius * (s.ExtractFinal ? 1f + 0.04f * Mathf.Sin(Time.time * 12f) : 1f);
+                if (s.ExtractFinal) { _extractRing.sharedMaterial = _xRed; _extractBeam.sharedMaterial = _xRed; }
                 float p = s.SquadExtract[Match.LocalSquad];
                 _extractFill.localScale = new Vector3(2 * GameConfig.ExtractRadius * p, 1, 2 * GameConfig.ExtractRadius * p);
             }
