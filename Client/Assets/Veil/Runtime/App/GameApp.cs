@@ -442,15 +442,15 @@ namespace Veil.App
         }
 
         /// <summary>Links this player to a Google account (keeps guest progress) or switches to the account that owns it.</summary>
-        public void SignInWithGoogle()
+        public void SignInWithGoogle(Action<bool> finished = null)
         {
-            if (!Gateway.Online) { _toasts?.Notice("Connecting to the server — try again in a moment"); GoOnline(); return; }
+            if (!Gateway.Online) { _toasts?.Notice("Connecting to the server — try again in a moment"); GoOnline(); finished?.Invoke(false); return; }
             GoogleSignIn.SignIn(GoogleClientId, r =>
             {
-                if (!r.Ok) { if (!r.Cancelled) _toasts?.Notice($"<color=#ff9a8a>Google sign-in failed</color> ({r.Error})", 6f); return; }
+                if (!r.Ok) { if (!r.Cancelled) _toasts?.Notice($"<color=#ff9a8a>Google sign-in failed</color> ({r.Error})", 6f); finished?.Invoke(false); return; }
                 Gateway.RequestData(Gw.AuthGoogle, new GwGoogleAuth { idToken = r.IdToken }, (ok, err, data) =>
                 {
-                    if (!ok) { _toasts?.Notice($"<color=#ff9a8a>{err}</color>", 6f); return; }
+                    if (!ok) { _toasts?.Notice($"<color=#ff9a8a>{err}</color>", 6f); finished?.Invoke(false); return; }
                     var a = JsonUtility.FromJson<GwAuthResult>(data);
                     Profile.GoogleEmail = a.email;
                     if (a.switched)
@@ -466,6 +466,7 @@ namespace Veil.App
                         _toasts?.Notice($"Signed in with Google ({a.email}) — your progress is saved", 6f);
                     }
                     AccountChanged?.Invoke();
+                    finished?.Invoke(true);
                 });
             });
         }
@@ -654,7 +655,7 @@ namespace Veil.App
                 case AppState.Title:
                     _title.Update(dt);
                     var ts = Touchscreen.current;
-                    if (!_autotest && ((kb != null && kb.anyKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame) ||
+                    if (!_autotest && !_title.Choosing && ((kb != null && kb.anyKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame) ||
                                        (ts != null && ts.primaryTouch.press.wasPressedThisFrame)))
                     {
                         Sfx.Play(Sfx.Click);

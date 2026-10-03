@@ -41,6 +41,12 @@ namespace Veil.UI
     public sealed class TitleScreen : ScreenBase
     {
         private readonly Text _press;
+        private readonly RectTransform _choice;
+        private readonly Text _googleLabel;
+        private bool _busy;
+
+        /// <summary>Phones, not signed in: the title shows GOOGLE / GUEST instead of "press any key".</summary>
+        public bool Choosing => _choice.gameObject.activeSelf;
 
         public TitleScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Title")
         {
@@ -58,7 +64,40 @@ namespace Veil.UI
             UIKit.Shadow(_press, 3);
             var foot = UIKit.LabelAt(Root, "Observe → Predict → Decide → Execute → Adapt", 20, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(900, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
             UIKit.Shadow(foot);
+
+            // sign-in choice: 1) Google (progress saved to your account)  2) Guest (this device only)
+            _choice = UIKit.At(Root, "SignIn", new Vector2(0.5f, 0), new Vector2(0, 190), new Vector2(560, 230));
+            var head = UIKit.LabelAt(_choice, "HOW DO YOU WANT TO PLAY?", 24, Color.white, new Vector2(0.5f, 1), new Vector2(0, -14), new Vector2(560, 30), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            UIKit.Shadow(head, 2);
+            var g = UIKit.Button(_choice, "SIGN IN WITH GOOGLE", new Vector2(0.5f, 1), new Vector2(0, -72), new Vector2(460, 70), UIKit.ButtonStyle.Primary, Google, 26);
+            _googleLabel = UIKit.ButtonLabel(g);
+            UIKit.Button(_choice, "PLAY AS GUEST", new Vector2(0.5f, 1), new Vector2(0, -152), new Vector2(460, 60), UIKit.ButtonStyle.Secondary, Guest, 22);
+            var note = UIKit.LabelAt(_choice, "Google keeps your progress on every device · Guest saves on this phone only", 15, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, -2), new Vector2(560, 22), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            UIKit.Shadow(note);
         }
+
+        public override void Show(bool v)
+        {
+            base.Show(v);
+            if (!v) return;
+            bool choose = Veil.Net.GoogleSignIn.Supported && !App.SignedInWithGoogle;
+            _choice.gameObject.SetActive(choose);
+            _press.gameObject.SetActive(!choose);
+            _busy = false; _googleLabel.text = "SIGN IN WITH GOOGLE";
+        }
+
+        private void Google()
+        {
+            if (_busy) return;
+            _busy = true; _googleLabel.text = "SIGNING IN…";
+            App.SignInWithGoogle(ok =>
+            {
+                _busy = false; _googleLabel.text = "SIGN IN WITH GOOGLE";
+                if (ok) App.GoMenu(0);
+            });
+        }
+
+        private void Guest() { if (!_busy) App.GoMenu(0); }
 
         public override void Update(float dt)
         {
