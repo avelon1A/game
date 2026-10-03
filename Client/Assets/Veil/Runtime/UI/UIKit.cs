@@ -233,6 +233,17 @@ namespace Veil.UI
             return t;
         }
 
+        /// <summary>Shrink the text (down to minSize) so it always fits inside its box instead of spilling out.</summary>
+        public static Text Fit(Text t, int minSize = 10)
+        {
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Truncate;
+            t.resizeTextMaxSize = t.fontSize;
+            t.resizeTextMinSize = Mathf.Min(Fs(minSize), t.fontSize);
+            t.resizeTextForBestFit = true;
+            return t;
+        }
+
         public static void Shadow(Graphic g, float dist = 2f, float alpha = 0.6f)
         {
             var s = g.gameObject.AddComponent<Shadow>();

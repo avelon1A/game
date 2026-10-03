@@ -252,6 +252,7 @@ namespace Veil.UI
             var title = UIKit.LabelAt(p, "CHARACTER", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
             var note = UIKit.LabelAt(p, CharacterRig.HasModel(0) ? "Pick your hero — cosmetic only, no gameplay advantage. Right-drag to rotate." : "Cosmetic only — no gameplay advantage. Right-drag the character to rotate.", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -68), new Vector2(700, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            note.rectTransform.sizeDelta = new Vector2(660, 24); UIKit.Fit(note, 11);
             note.rectTransform.pivot = new Vector2(0, 1);
 
             var prof = App.Profile;
@@ -388,11 +389,12 @@ namespace Veil.UI
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -200), "MUSIC", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             // one-tap music pause next to the volume slider
             UnityEngine.UI.Button mt = null;
-            mt = UIKit.Button(p, prof.MusicOn ? "MUSIC ON" : "MUSIC OFF", new Vector2(0.5f, 1), new Vector2(380, -200), new Vector2(150, 44), UIKit.ButtonStyle.Secondary, () =>
+            mt = UIKit.Button(p, prof.MusicOn ? "MUSIC ON" : "MUSIC OFF", new Vector2(1, 1), new Vector2(-225, -30), new Vector2(150, 48), UIKit.ButtonStyle.Secondary, () =>
             {
                 prof.MusicOn = !prof.MusicOn; Save();
                 UIKit.ButtonLabel(mt).text = prof.MusicOn ? "MUSIC ON" : "MUSIC OFF";
             }, 18);
+            ((RectTransform)mt.transform).pivot = new Vector2(1, 1);
             Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
             var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);

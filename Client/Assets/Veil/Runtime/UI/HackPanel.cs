@@ -59,6 +59,7 @@ namespace Veil.UI
             _state.supportRichText = true;
 
             _nodes = UIKit.LabelAt(_root, "", 15, Color.white, new Vector2(0, 1), new Vector2(20, -110), new Vector2(560, 40), TextAnchor.UpperLeft, UIKit.BoldFont);
+            UIKit.Fit(_nodes, 11);
             _nodes.rectTransform.pivot = new Vector2(0, 1);
             _nodes.supportRichText = true;
 
@@ -151,7 +152,7 @@ namespace Veil.UI
                 _state.text = "<color=#aab0d8>press HACK to start / take over</color>";
                 _back.color = new Color(0.01f, 0.05f, 0.035f, 0.9f);
             }
-            _nodes.text = "<color=#aab0d8>One hacker at a time · leaving, dying or an enemy in the ring pauses it · progress is kept</color>";
+            _nodes.text = "<color=#aab0d8>One hacker at a time · leaving, dying or an enemy pauses it · progress is kept</color>";
             _nodes.color = Color.white;
 
             // every squad's terminal progress (public)

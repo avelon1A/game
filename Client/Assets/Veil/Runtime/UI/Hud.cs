@@ -144,13 +144,13 @@ namespace Veil.UI
                 t.localScale = Vector3.one * scale;
             }
             Move("Vitals", new Vector2(0.5f, 1), new Vector2(0, -20), 0.85f);
-            Move("Objective0", new Vector2(0, 0.5f), new Vector2(24, 110), 0.8f);
-            Move("Objective1", new Vector2(0, 0.5f), new Vector2(24, 25), 0.8f);
-            Move("Objective2", new Vector2(0, 0.5f), new Vector2(24, -60), 0.8f);
-            Move("Squad", new Vector2(0, 1), new Vector2(24, -196), 0.8f);
+            // left column, top to bottom: pills, phase, score, squad (3 mates), objectives — scaled so nothing overlaps
+            Move("Squad", new Vector2(0, 1), new Vector2(24, -178), 0.72f);
+            for (int i = 0; i < 3; i++) Move("Objective" + i, new Vector2(0, 1), new Vector2(24, -346 - i * 72), 0.72f);
             for (int i = 0; i < 4; i++) { var a = Root.Find("Ability" + i); if (a) a.gameObject.SetActive(false); }
             foreach (var t in Root.GetComponentsInChildren<Text>(true))
-                if (t.text == "OBJECTIVES") { t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0, 0.5f); t.rectTransform.anchoredPosition = new Vector2(28, 165); t.alignment = TextAnchor.MiddleLeft; }
+                if (t.text == "OBJECTIVES") { t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0, 0.5f); t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0, 1); t.rectTransform.anchoredPosition = new Vector2(28, -322); t.alignment = TextAnchor.MiddleLeft; }
+            _status.rectTransform.anchoredPosition = new Vector2(190, -138);
             var feed = (RectTransform)Root.Find("Feed");
             if (feed) feed.localScale = Vector3.one * 0.85f;
             var prompt = (RectTransform)Root.Find("Prompt");
@@ -169,7 +169,7 @@ namespace Veil.UI
             UIKit.Image(ic, icon, Theme.Text);
             var t = UIKit.LabelAt(rt, text, 24, Theme.Text, new Vector2(0, 0.5f), new Vector2(48, 0), new Vector2(width - 56, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
             t.rectTransform.pivot = new Vector2(0, 0.5f);
-            return t;
+            return UIKit.Fit(t, 12);
         }
 
         private void BuildTopLeft()
@@ -179,7 +179,7 @@ namespace Veil.UI
             var phaseRt = UIKit.At(Root, "Phase", new Vector2(0, 1), new Vector2(24, -82), new Vector2(358, 44));
             UIKit.Image(phaseRt, UIKit.RoundedSmall, new Color(0.07f, 0.08f, 0.16f, 0.7f));
             _phase = UIKit.LabelAt(phaseRt, "EXPLORATION", 18, Theme.PurpleLight, new Vector2(0, 1), new Vector2(14, -4), new Vector2(300, 24), TextAnchor.UpperLeft, UIKit.BoldFont);
-            _phase.rectTransform.pivot = new Vector2(0, 1);
+            _phase.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(_phase);
             var fillRt = UIKit.Rect(phaseRt, "Fill", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 0), new Vector2(0, 8), new Vector2(-28, 6));
             fillRt.anchoredPosition = new Vector2(14, 8);
             UIKit.Image(fillRt, UIKit.Pill, new Color(1, 1, 1, 0.12f));
@@ -218,13 +218,13 @@ namespace Veil.UI
                 var ic = UIKit.At(iconBack, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
                 c.Icon = UIKit.Image(ic, Icons.Tower, Color.white);
                 c.Title = UIKit.LabelAt(c.Root, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(82, -10), new Vector2(260, 24), TextAnchor.UpperLeft, UIKit.BoldFont);
-                c.Title.rectTransform.pivot = new Vector2(0, 1);
+                c.Title.rectTransform.pivot = new Vector2(0, 1); c.Title.rectTransform.sizeDelta = new Vector2(250, 24); UIKit.Fit(c.Title);
                 c.Desc = UIKit.LabelAt(c.Root, "", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(82, -36), new Vector2(265, 22), TextAnchor.UpperLeft);
-                c.Desc.rectTransform.pivot = new Vector2(0, 1);
+                c.Desc.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(c.Desc, 9);
                 c.Bar = new Bar(c.Root, new Vector2(0, 0), new Vector2(82, 14), new Vector2(200, 12), i == 0 ? Theme.Purple : i == 2 ? Theme.Green : Theme.Cyan, new Color(1, 1, 1, 0.1f));
                 c.Bar.Root.pivot = new Vector2(0, 0);
                 c.Progress = UIKit.LabelAt(c.Root, "", 15, Theme.Text, new Vector2(0, 0), new Vector2(292, 10), new Vector2(80, 20), TextAnchor.LowerLeft, UIKit.BoldFont);
-                c.Progress.rectTransform.pivot = new Vector2(0, 0);
+                c.Progress.rectTransform.pivot = new Vector2(0, 0); c.Progress.rectTransform.sizeDelta = new Vector2(80, 20); UIKit.Fit(c.Progress, 9);
                 var chk = UIKit.At(c.Root, "Check", new Vector2(1, 1), new Vector2(-10, -10), new Vector2(26, 26));
                 chk.pivot = new Vector2(1, 1);
                 c.Check = UIKit.Image(chk, UIKit.Circle, Theme.Green);
@@ -262,7 +262,7 @@ namespace Veil.UI
                 c.Face.texture = PortraitStudio.Get(r.Look);
                 c.Face.raycastTarget = false;
                 c.Name = UIKit.LabelAt(c.Root, r.Name, 16, Theme.Text, new Vector2(0, 1), new Vector2(54, -4), new Vector2(150, 20), TextAnchor.UpperLeft, UIKit.BoldFont);
-                c.Name.rectTransform.pivot = new Vector2(0, 1);
+                c.Name.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(c.Name);
                 c.State = UIKit.LabelAt(c.Root, "", 13, Theme.TextDim, new Vector2(1, 1), new Vector2(-8, -5), new Vector2(90, 18), TextAnchor.UpperRight, UIKit.BoldFont);
                 c.State.rectTransform.pivot = new Vector2(1, 1);
                 c.State.supportRichText = true;
@@ -545,7 +545,7 @@ namespace Veil.UI
                     break;
                 }
                 case EventType.HackActivity:
-                    Feed($"<color=#ffd84a>TERMINAL ACTIVITY DETECTED</color> — Squad {(char)('A' + e.A)} is hacking {(e.B == 1 ? "a home" : "the CENTRAL")} terminal · {e.Value}%", Theme.Text);
+                    Feed($"<color=#ffd84a>TERMINAL ACTIVITY</color> · Squad {(char)('A' + e.A)} → {(e.B == 1 ? "home" : "CENTRE")} {e.Value}%", Theme.Text);
                     if (e.Value >= 50) Popup($"SQUAD {(char)('A' + e.A)} HACKING · {e.Value}%");
                     Sfx.Play(Sfx.Click, 0.5f);
                     break;
