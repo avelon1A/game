@@ -161,11 +161,44 @@ namespace Veil.View
             }
         }
 
+        /// <summary>Top-down "how deep is the water here" map for the water shader: 0 at any shore (coast, river and
+        /// moat banks), 1 far out at sea. Drives shallow colour and shore foam without a depth texture.</summary>
+        private void BakeShoreMap(Material m)
+        {
+            const int N = 384;
+            float ext = _map.Half + 70f, size = ext * 2f;
+            var tex = new Texture2D(N, N, TextureFormat.R8, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "ShoreMap" };
+            var px = new byte[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    var p = new Vec2(-ext + (x + 0.5f) / N * size, -ext + (y + 0.5f) / N * size);
+                    float coast = IslandMap.CoastRadius(p.Yaw) - p.Length;     // > 0 inside the island
+                    float d;
+                    if (coast < 0) d = Mathf.Clamp01(-coast / 45f);           // open sea: deeper with distance
+                    else
+                    {
+                        float sd = WaterSd(p);
+                        d = sd < 0 ? Mathf.Clamp01(-sd / 1.6f) * 0.5f : 0f;     // rivers / moat: quickly mid-blue, never ocean-deep
+                    }
+                    px[y * N + x] = (byte)(d * 255f);
+                }
+            tex.SetPixelData(px, 0); tex.Apply(false, true);
+            m.SetTexture("_ShoreTex", tex);
+            m.SetVector("_ShoreRect", new Vector4(-ext, -ext, size, 1));
+            m.SetColor("_DeepColor", new Color(0.03f, 0.27f, 0.55f));
+            m.SetColor("_MidColor", new Color(0.07f, 0.55f, 0.78f));
+            m.SetColor("_ShallowColor", new Color(0.36f, 0.9f, 0.86f));
+            m.SetFloat("_WaveHeight", 0.05f);
+        }
+
         private void BuildIslandSurroundings()
         {
             BuildIslandDetail();
             // the sea: one plane at water level (rivers, moat and coast are terrain dips under it)
-            var sea = Build.Part(Root, MeshGen.GroundQuad, MaterialLib.Water(), new Vector3(0, WaterLevel, 0), new Vector3(1600, 1, 1600), null, "Sea", false);
+            var seaMat = new Material(MaterialLib.Water());
+            BakeShoreMap(seaMat);
+            var sea = Build.Part(Root, MeshGen.GroundQuad, seaMat, new Vector3(0, WaterLevel, 0), new Vector3(1600, 1, 1600), null, "Sea", false);
             // small islets on the horizon
             var rock = MaterialLib.Toon(Palette.Cliff, 0.15f);
             var grass = MaterialLib.Toon(Palette.GrassDark, 0.1f);
