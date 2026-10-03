@@ -59,7 +59,8 @@ namespace Veil.UI
                 raw.texture = art; raw.raycastTarget = false;
                 var fit = artRt.gameObject.AddComponent<AspectRatioFitter>();
                 fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-                fit.aspectRatio = (float)art.width / art.height;
+                fit.aspectRatio = 1344f / 768f;              // source image aspect (never the imported texture's)
+                artRt.pivot = new Vector2(0.5f, 0.3f);       // wide phones: crop more sky than cliff, keep the heroes
                 artRt.pivot = new Vector2(0.5f, 0.25f);   // wide phones: crop the sky, keep the heroes on the cliff
             }
             var shade = UIKit.Fill(Root, "Shade");
