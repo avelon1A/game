@@ -578,46 +578,75 @@ namespace Veil.UI
 
     // ====================================================================== RESULTS
 
+    /// <summary>
+    /// End-of-match results (concept from Meshy, pro shooter style): big placement + winner banner, your score with the
+    /// level bar, your squad's objective chain, stat tiles, your squad's player cards, PLAY AGAIN / LOBBY, and the top 3
+    /// heroes on glowing podiums in front of the painted island deck.
+    /// </summary>
     public sealed class ResultsScreen : ScreenBase
     {
-        private readonly Text _rank, _score, _breakdown, _extra, _full;
-        private readonly RectTransform _cards, _fullPanel;
+        private readonly Text _rank, _placed, _title, _sub, _score, _level, _full;
+        private readonly Bar _xp;
+        private readonly RectTransform _chain, _tiles, _squad, _fullPanel;
         private readonly List<GameObject> _spawned = new List<GameObject>();
         private readonly List<RectTransform> _podiumTags = new List<RectTransform>();
         private float _t;
         private int _targetScore;
 
+        /// <summary>Extraction mode: the squad that extracted (-1 = time ran out). Set before Fill.</summary>
+        public static int Winner = -1;
+        /// <summary>Chain stage reached by each squad at the end (0..4, 4 = Vault opened). Set before Fill.</summary>
+        public static byte[] SquadStages;
+
+        private static readonly Color Ink = new Color(0.03f, 0.04f, 0.1f, 0.78f);
+
         public ResultsScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Results")
         {
-            var panel = UIKit.Panel(Root, "Summary", new Vector2(0, 0.5f), new Vector2(60, 60), new Vector2(620, 720));
-            var p = panel.transform;
-            _rank = UIKit.LabelAt(p, "#1", 150, Theme.Gold, new Vector2(0, 1), new Vector2(30, -10), new Vector2(260, 170), TextAnchor.MiddleLeft, UIKit.TitleFont);
-            _rank.rectTransform.pivot = new Vector2(0, 1);
-            _rank.fontStyle = FontStyle.Italic;
-            UIKit.Outline(_rank, new Color(0.5f, 0.3f, 0, 0.9f), 4);
-            var mc = _placement = UIKit.LabelAt(p, "SQUAD PLACEMENT", 26, Theme.Text, new Vector2(0, 1), new Vector2(290, -48), new Vector2(320, 34), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            mc.rectTransform.pivot = new Vector2(0, 1);
-            var ys = UIKit.LabelAt(p, "YOUR SCORE", 20, Theme.TextDim, new Vector2(0, 1), new Vector2(290, -86), new Vector2(320, 26), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            // ---- header: #4 PLACED | SQUAD D WINS / EXTRACTION COMPLETE
+            var head = UIKit.At(Root, "Header", new Vector2(0, 1), new Vector2(0, -24), new Vector2(1180, 150));
+            head.pivot = new Vector2(0, 1);
+            var hb = UIKit.Image(head, UIKit.GradientH, new Color(0.03f, 0.03f, 0.1f, 0.85f));
+            _rank = UIKit.LabelAt(head, "#1", 112, Theme.PurpleLight, new Vector2(0, 1), new Vector2(30, 4), new Vector2(230, 116), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _rank.rectTransform.pivot = new Vector2(0, 1); _rank.fontStyle = FontStyle.Italic;
+            UIKit.Shadow(_rank, 4, 0.7f);
+            _placed = UIKit.LabelAt(head, "PLACED", 22, Theme.Gold, new Vector2(0, 0), new Vector2(145, 18), new Vector2(200, 28), TextAnchor.MiddleCenter, UIKit.BoldFont);
+            var div = UIKit.At(head, "Div", new Vector2(0, 0.5f), new Vector2(290, 0), new Vector2(3, 104));
+            UIKit.Image(div, UIKit.Square, new Color(1f, 0.82f, 0.3f, 0.8f));
+            _title = UIKit.LabelAt(head, "", 64, Theme.Gold, new Vector2(0, 1), new Vector2(330, -14), new Vector2(820, 76), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _title.rectTransform.pivot = new Vector2(0, 1); _title.fontStyle = FontStyle.Italic; UIKit.Fit(_title, 30);
+            UIKit.Shadow(_title, 3, 0.6f);
+            _sub = UIKit.LabelAt(head, "", 28, new Color(0.3f, 0.95f, 1f), new Vector2(0, 1), new Vector2(334, -94), new Vector2(820, 36), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _sub.rectTransform.pivot = new Vector2(0, 1); _sub.fontStyle = FontStyle.Italic; UIKit.Fit(_sub, 14);
+
+            // ---- main card: score + level, objective chain, stat tiles
+            var card = UIKit.Panel(Root, "Card", new Vector2(0, 1), new Vector2(40, -196), new Vector2(720, 470), Ink).rectTransform;
+            card.pivot = new Vector2(0, 1);
+            var ys = UIKit.LabelAt(card, "YOUR SCORE", 18, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -20), new Vector2(300, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
             ys.rectTransform.pivot = new Vector2(0, 1);
-            _score = UIKit.LabelAt(p, "0", 64, Theme.Gold, new Vector2(0, 1), new Vector2(288, -108), new Vector2(320, 70), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _score = UIKit.LabelAt(card, "0", 60, Theme.Gold, new Vector2(0, 1), new Vector2(26, -42), new Vector2(330, 70), TextAnchor.MiddleLeft, UIKit.TitleFont);
             _score.rectTransform.pivot = new Vector2(0, 1);
-            _breakdown = UIKit.LabelAt(p, "", 24, Theme.Text, new Vector2(0, 1), new Vector2(40, -210), new Vector2(540, 330), TextAnchor.UpperLeft, UIKit.BodyFont);
-            _breakdown.rectTransform.pivot = new Vector2(0, 1);
-            _breakdown.supportRichText = true;
-            _breakdown.lineSpacing = 1.25f;
-            _extra = UIKit.LabelAt(p, "", 18, Theme.PurpleLight, new Vector2(0, 1), new Vector2(40, -540), new Vector2(560, 60), TextAnchor.UpperLeft, UIKit.BodyFont);
-            _extra.rectTransform.pivot = new Vector2(0, 1);
-            _extra.supportRichText = true;
-            _extra.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _extra.verticalOverflow = VerticalWrapMode.Overflow;
+            _level = UIKit.LabelAt(card, "", 18, Theme.Text, new Vector2(1, 1), new Vector2(-28, -24), new Vector2(330, 26), TextAnchor.MiddleRight, UIKit.BoldFont);
+            _level.rectTransform.pivot = new Vector2(1, 1); _level.supportRichText = true; UIKit.Fit(_level, 11);
+            _xp = new Bar(card, new Vector2(0, 1), new Vector2(28, -126), new Vector2(664, 12), new Color(0.3f, 0.95f, 1f), new Color(1, 1, 1, 0.1f));
+            _xp.Root.pivot = new Vector2(0, 1);
+            var ct = UIKit.LabelAt(card, "SQUAD OBJECTIVES", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -152), new Vector2(300, 22), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            ct.rectTransform.pivot = new Vector2(0, 1);
+            _chain = UIKit.At(card, "Chain", new Vector2(0, 1), new Vector2(28, -180), new Vector2(664, 110));
+            _chain.pivot = new Vector2(0, 1);
+            _tiles = UIKit.At(card, "Tiles", new Vector2(0, 0), new Vector2(28, 24), new Vector2(664, 132));
+            _tiles.pivot = Vector2.zero;
 
-            var again = UIKit.Button(p, "PLAY AGAIN", new Vector2(0, 0), new Vector2(30, 30), new Vector2(330, 80), UIKit.ButtonStyle.Primary, PlayAgain, 40);
-            ((RectTransform)again.transform).pivot = new Vector2(0, 0);
-            var menu = UIKit.Button(p, "MENU", new Vector2(1, 0), new Vector2(-30, 30), new Vector2(220, 80), UIKit.ButtonStyle.Secondary, () => App.GoMenu(0), 26);
-            ((RectTransform)menu.transform).pivot = new Vector2(1, 0);
+            // ---- your squad's cards (bottom left)
+            _squad = UIKit.At(Root, "Squad", new Vector2(0, 0), new Vector2(40, 28), new Vector2(1000, 132));
+            _squad.pivot = Vector2.zero;
 
-            _cards = UIKit.At(Root, "Cards", new Vector2(1, 0), new Vector2(-60, 60), new Vector2(1060, 150));
-            var fullBtn = UIKit.Button(Root, "VIEW FULL RESULTS", new Vector2(1, 0), new Vector2(-60, 220), new Vector2(280, 46), UIKit.ButtonStyle.Ghost, ToggleFull, 18);
+            // ---- buttons (bottom right)
+            var again = UIKit.Button(Root, "PLAY AGAIN", new Vector2(1, 0), new Vector2(-40, 120), new Vector2(380, 84), UIKit.ButtonStyle.Primary, PlayAgain, 38);
+            ((RectTransform)again.transform).pivot = new Vector2(1, 0);
+            var lobby = UIKit.Button(Root, "LOBBY", new Vector2(1, 0), new Vector2(-40, 28), new Vector2(380, 76), UIKit.ButtonStyle.Secondary, () => App.GoMenu(0), 28);
+            ((RectTransform)lobby.transform).pivot = new Vector2(1, 0);
+            var fullBtn = UIKit.Button(Root, "FULL RESULTS", new Vector2(1, 1), new Vector2(-40, -40), new Vector2(240, 50), UIKit.ButtonStyle.Ghost, ToggleFull, 18);
+            ((RectTransform)fullBtn.transform).pivot = new Vector2(1, 1);
 
             _fullPanel = UIKit.At(Root, "Full", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100, 800));
             UIKit.Image(_fullPanel, UIKit.Rounded, new Color(0.05f, 0.06f, 0.14f, 0.97f), true);
@@ -636,9 +665,17 @@ namespace Veil.UI
             else App.StartOfflineMatch();
         }
 
-        private Text _placement;
-        /// <summary>Extraction mode: the squad that extracted (-1 = time ran out). Set before Fill.</summary>
-        public static int Winner = -1;
+        /// <summary>Who stands on the podium: the squad that extracted (else the best squad), MVP first.</summary>
+        public static List<PlayerResult> PodiumSquad(List<PlayerResult> results)
+        {
+            if (results.Count == 0) return new List<PlayerResult>();
+            int sq = Winner >= 0 ? Winner : results[0].Squad;
+            var squad = results.FindAll(r => r.Squad == sq);
+            squad.Sort((a, b) => b.Total.CompareTo(a.Total));
+            return squad;
+        }
+
+        private T Keep<T>(T c) where T : Component { _spawned.Add(c.gameObject); return c; }
 
         public void Fill(List<PlayerResult> results, int localId, bool online)
         {
@@ -649,90 +686,146 @@ namespace Veil.UI
             PlayerResult me = null;
             foreach (var r in results) if (r.PlayerId == localId) me = r;
             if (me == null && results.Count > 0) me = results[0];
-            if (GameConfig.ExtractionMode && me != null && _placement != null)
-            {
-                _placement.supportRichText = true;
-                _placement.text = Winner < 0 ? "TIME UP · NO EXTRACTION"
-                    : Winner == me.Squad ? "<color=#7dff9a>VICTORY · EXTRACTED</color>"
-                    : $"<color=#ff5a6a>SQUAD {(char)('A' + Winner)} EXTRACTED</color>";
-            }
-            _rank.text = "#" + me.SquadRank;
-            _rank.fontSize = UIKit.Fs(150);
-            _rank.color = me.SquadRank == 1 ? Theme.Gold : me.SquadRank == 2 ? Theme.PurpleLight : Theme.Text;
             PlayerResult mvp = results[0];
             foreach (var r in results) if (r.Total > mvp.Total) mvp = r;
+
+            // header
+            bool won = Winner >= 0 && Winner == me.Squad;
+            _rank.text = "#" + me.SquadRank;
+            _rank.fontSize = UIKit.Fs(112);
+            _rank.color = me.SquadRank == 1 ? Theme.Gold : Theme.PurpleLight;
+            if (!GameConfig.ExtractionMode) { _title.text = me.SquadRank == 1 ? "VICTORY" : $"SQUAD {(char)('A' + me.Squad)}"; _sub.text = "MATCH COMPLETE"; }
+            else if (Winner < 0) { _title.text = "TIME UP"; _sub.text = "NO SQUAD EXTRACTED"; }
+            else if (won) { _title.text = "VICTORY"; _sub.text = "YOUR SQUAD EXTRACTED"; }
+            else { _title.text = $"SQUAD {(char)('A' + Winner)} WINS"; _sub.text = "EXTRACTION COMPLETE"; }
+
+            // score + level
             _targetScore = me.Total;
             _t = 0;
-            string Row(string label, int v) => $"{label,-22}<color=#ffd84a>+{v}</color>\n";
-            _breakdown.text =
-                Row("Primary Objective", me.Primary) + Row("Secondary Objective", me.Secondary) + Row("Resources", me.Resources) +
-                Row("Territory Control", me.Territory) + Row("Eliminations", me.Eliminations) + Row("Survival", me.Survival) + Row("Bonus", me.Bonus) +
-                Row("Squad Objective", me.SquadPoints);
-            string pObj = $"{ObjectiveState.Title(me.PrimaryType)} {(me.PrimaryDone ? "<color=#7dff9a>✓</color>" : "<color=#ff7a8a>✗</color>")}";
-            string sObj = $"{ObjectiveState.Title(me.SecondaryType)} {(me.SecondaryDone ? "<color=#7dff9a>✓</color>" : "<color=#ff7a8a>✗</color>")}";
-            _extra.text = $"Squad {(char)('A' + me.Squad)} total <color=#ffd84a>{me.SquadTotal:N0}</color>   ·   MVP <color=#ffd84a>{mvp.Name}</color> ({mvp.Total:N0})\n" +
-                          $"{pObj}   ·   {sObj}   ·   K/D {me.Elims}/{me.Deaths}";
+            var op = App.OnlineProfile;
+            _level.text = online && op != null ? $"LEVEL <color=#ffd84a>{op.level}</color>   {op.xp}/{op.xpToNext} XP" : "<color=#8a90b8>Offline match · no XP</color>";
+            _xp.Root.gameObject.SetActive(online && op != null);
+            if (op != null) _xp.Set(op.xpToNext > 0 ? (float)op.xp / op.xpToNext : 0, 10f);
             if (online) App.StartCoroutine(RefreshOnline());
 
-            // cards for ranks 2..8 (top 3 stand on the podium)
-            for (int i = 1; i < Mathf.Min(results.Count, 8); i++)
+            // objective chain: HACK → CAPTURE → COLLECT → VAULT → EXTRACT
+            string[] steps = { "HACK", "CAPTURE", "COLLECT", "VAULT", "EXTRACT" };
+            Sprite[] icons = { Icons.Target, Icons.Tower, Icons.Core, Icons.Vault, Icons.Trophy };
+            int stage = SquadStages != null && me.Squad < SquadStages.Length ? SquadStages[me.Squad] : 0;
+            for (int i = 0; i < 5; i++)
             {
-                var r = results[i];
-                var card = UIKit.At(_cards, "Card", new Vector2(1, 0), new Vector2(-(7 - i) * 150, 0), new Vector2(140, 150));
-                card.pivot = new Vector2(1, 0);
-                UIKit.Image(card, UIKit.Rounded, r.PlayerId == localId ? new Color(0.62f, 0.38f, 1f, 0.6f) : Theme.Panel);
-                var face = UIKit.At(card, "Face", new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(84, 84));
-                face.pivot = new Vector2(0.5f, 1);
-                var raw = face.gameObject.AddComponent<RawImage>();
-                raw.texture = PortraitStudio.Get(r.Look);
-                raw.raycastTarget = false;
-                var rk = UIKit.LabelAt(card, $"{(char)('A' + r.Squad)}", 22, r.Squad == me.Squad ? Theme.Green : Theme.Gold, new Vector2(0, 1), new Vector2(10, -6), new Vector2(40, 30), TextAnchor.UpperLeft, UIKit.TitleFont);
-                rk.rectTransform.pivot = new Vector2(0, 1);
-                UIKit.Shadow(rk);
-                UIKit.LabelAt(card, r.Name, 16, Theme.Text, new Vector2(0.5f, 0), new Vector2(0, 38), new Vector2(136, 22), TextAnchor.MiddleCenter, UIKit.BoldFont);
-                UIKit.LabelAt(card, r.Total.ToString("N0"), 20, Theme.Gold, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(136, 24), TextAnchor.MiddleCenter, UIKit.TitleFont);
-                _spawned.Add(card.gameObject);
-            }
-            // podium labels (world positions are static on the stage)
-            for (int i = 0; i < Mathf.Min(3, results.Count); i++)
-            {
-                var r = results[i];
-                var tag = UIKit.At(Root, "Podium" + i, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(260, 70));
-                _podiumTags.Add(tag);
-                var n = UIKit.LabelAt(tag, $"{r.Name}", 22, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, 0), new Vector2(260, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
-                UIKit.Outline(n, new Color(0, 0, 0, 0.8f), 2);
-                var s = UIKit.LabelAt(tag, $"{r.Total:N0}", 30, i == 0 ? Theme.Gold : Theme.Text, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(260, 36), TextAnchor.MiddleCenter, UIKit.TitleFont);
-                UIKit.Outline(s, new Color(0, 0, 0, 0.8f), 2);
-                _spawned.Add(tag.gameObject);
+                bool done = i < 4 ? stage > i : won;
+                float x = i * 133f + 54f;
+                if (i > 0)
+                {
+                    var link = Keep(UIKit.At(_chain, "Link", new Vector2(0, 1), new Vector2(x - 102, -33), new Vector2(71, 4)));
+                    UIKit.Image(link, UIKit.Square, done ? new Color(0.3f, 0.95f, 1f, 0.9f) : new Color(1, 1, 1, 0.15f));
+                }
+                var hex = Keep(UIKit.At(_chain, "Step", new Vector2(0, 1), new Vector2(x - 31, -4), new Vector2(62, 62)));
+                UIKit.Image(hex, UIKit.Circle, done ? new Color(0.62f, 0.38f, 1f, 1f) : new Color(1, 1, 1, 0.08f));
+                var ring = UIKit.Fill(hex, "Ring", 0);
+                UIKit.Image(ring, UIKit.Ring, done ? new Color(0.3f, 0.95f, 1f) : new Color(1, 1, 1, 0.25f));
+                var ic = UIKit.At(hex, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(32, 32));
+                UIKit.Image(ic, icons[i], done ? Color.white : new Color(1, 1, 1, 0.35f));
+                var lb = Keep(UIKit.LabelAt(_chain, steps[i], 15, done ? Color.white : Theme.TextDim, new Vector2(0, 1), new Vector2(x - 65, -74), new Vector2(130, 20), TextAnchor.MiddleCenter, UIKit.BoldFont));
+                UIKit.Fit(lb, 10);
             }
 
-            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL   PRIM  SEC   RES  TERR  ELIM  SURV  SQUAD   K/A/D  REV</color>\n");
+            // stat tiles
+            (string label, string value, Sprite icon, Color c)[] tiles =
+            {
+                ("ELIMINATIONS", $"{me.Elims}<size=16> / {me.Assists} / {me.Deaths}</size>", Icons.Target, new Color(1f, 0.4f, 0.45f)),
+                ("RESOURCES", $"+{me.Resources}", Icons.Core, new Color(0.3f, 0.95f, 1f)),
+                ("SURVIVAL", $"+{me.Survival}", Icons.Shield, new Color(0.45f, 1f, 0.55f)),
+                ("BONUS", $"+{me.Bonus + me.SquadPoints}", Icons.Trophy, Theme.Gold),
+            };
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                var tl = Keep(UIKit.At(_tiles, "Tile", new Vector2(0, 0), new Vector2(i * 168f, 0), new Vector2(160, 132)));
+                tl.pivot = Vector2.zero;
+                UIKit.Image(tl, UIKit.RoundedSmall, new Color(1, 1, 1, 0.05f));
+                var ol = tl.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(tiles[i].c.r, tiles[i].c.g, tiles[i].c.b, 0.35f); ol.effectDistance = new Vector2(1, -1);
+                var ic = UIKit.At(tl, "Icon", new Vector2(0.5f, 1), new Vector2(0, -14), new Vector2(34, 34));
+                ic.pivot = new Vector2(0.5f, 1);
+                UIKit.Image(ic, tiles[i].icon, tiles[i].c);
+                var v = UIKit.LabelAt(tl, tiles[i].value, 30, Color.white, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(150, 40), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                v.supportRichText = true; UIKit.Fit(v, 14);
+                var l = UIKit.LabelAt(tl, tiles[i].label, 14, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 16), new Vector2(150, 20), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                UIKit.Fit(l, 9);
+            }
+
+            // your squad's player cards
+            var mates = results.FindAll(r => r.Squad == me.Squad);
+            PlayerResult squadMvp = mates.Count > 0 ? mates[0] : me;
+            foreach (var r in mates) if (r.Total > squadMvp.Total) squadMvp = r;
+            for (int i = 0; i < mates.Count && i < 4; i++)
+            {
+                var r = mates[i];
+                bool mine = r.PlayerId == localId;
+                var pc = Keep(UIKit.At(_squad, "Mate", new Vector2(0, 0), new Vector2(i * 252f, 0), new Vector2(240, 120)));
+                pc.pivot = Vector2.zero;
+                UIKit.Image(pc, UIKit.RoundedSmall, mine ? new Color(0.62f, 0.38f, 1f, 0.55f) : Ink);
+                var ol = pc.gameObject.AddComponent<Outline>(); ol.effectColor = mine ? new Color(0.8f, 0.6f, 1f, 0.9f) : new Color(1, 1, 1, 0.12f); ol.effectDistance = new Vector2(1.5f, -1.5f);
+                var face = SocialUi.Portrait(pc, r.Look, 84, new Vector2(10, 0));
+                var nm = UIKit.LabelAt(pc, r.Name, 19, Color.white, new Vector2(0, 1), new Vector2(102, -14), new Vector2(132, 26), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                nm.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(nm, 11);
+                var k = UIKit.LabelAt(pc, $"KILLS  <color=#ffffff>{r.Elims}</color>", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(102, -46), new Vector2(132, 22), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                k.rectTransform.pivot = new Vector2(0, 1); k.supportRichText = true;
+                var sc = UIKit.LabelAt(pc, $"SCORE  <color=#ffd84a>{r.Total:N0}</color>", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(102, -70), new Vector2(132, 22), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                sc.rectTransform.pivot = new Vector2(0, 1); sc.supportRichText = true; UIKit.Fit(sc, 10);
+                if (r == squadMvp)
+                {
+                    var badge = UIKit.At(pc, "MVP", new Vector2(0, 0), new Vector2(14, 8), new Vector2(76, 24));
+                    badge.pivot = Vector2.zero;
+                    UIKit.Image(badge, UIKit.Pill, Theme.Gold);
+                    UIKit.LabelAt(badge, "★ MVP", 14, new Color(0.15f, 0.1f, 0.2f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(76, 24), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                }
+            }
+
+            // podium name tags (follow the heroes' heads): the winning squad, MVP first
+            var podium = PodiumSquad(results);
+            for (int i = 0; i < Mathf.Min(1, podium.Count); i++)   // the MVP only (close-up)
+            {
+                var r = podium[i];
+                var tag = Keep(UIKit.At(Root, "Podium" + i, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(260, 70)));
+                _podiumTags.Add(tag);
+                var mv = UIKit.LabelAt(tag, $"★ MVP · SQUAD {(char)('A' + r.Squad)}", 18, Theme.Gold, new Vector2(0.5f, 1), new Vector2(0, 30), new Vector2(260, 24), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                UIKit.Outline(mv, new Color(0, 0, 0, 0.8f), 2);
+                var n = UIKit.LabelAt(tag, r.Name, 26, Color.white, new Vector2(0.5f, 1), Vector2.zero, new Vector2(260, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                UIKit.Outline(n, new Color(0, 0, 0, 0.8f), 2);
+                var s2 = UIKit.LabelAt(tag, $"{r.Total:N0}", 30, i == 0 ? Theme.Gold : Theme.Text, new Vector2(0.5f, 0), Vector2.zero, new Vector2(260, 36), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                UIKit.Outline(s2, new Color(0, 0, 0, 0.8f), 2);
+            }
+
+            // full table
+            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL    RES  ELIM  SURV  BONUS   K/A/D</color>\n");
             int lastSquad = -1;
             foreach (var r in results)
             {
                 if (r.Squad != lastSquad)
                 {
                     lastSquad = r.Squad;
-                    sb.Append($"\n<color={(r.Squad == me.Squad ? "#7dff9a" : "#c7a6ff")}>#{r.SquadRank}  SQUAD {(char)('A' + r.Squad)}  ·  {r.SquadTotal:N0}</color>\n");
+                    sb.Append($"\n<color={(r.Squad == me.Squad ? "#7dff9a" : "#c7a6ff")}>#{r.SquadRank}  SQUAD {(char)('A' + r.Squad)}  ·  {r.SquadTotal:N0}{(r.Squad == Winner ? "  · EXTRACTED" : "")}</color>\n");
                 }
-                string line = $"    {r.Name,-15} {r.Total,5}   {r.Primary,4}  {r.Secondary,3}  {r.Resources,4}  {r.Territory,4}  {r.Eliminations,4}  {r.Survival,4}  {r.SquadPoints,5}   {r.Elims}/{r.Assists}/{r.Deaths}  {r.Revives,3}{(r == mvp ? "  MVP" : "")}";
+                string line = $"    {r.Name,-15} {r.Total,5}   {r.Resources,4}  {r.Eliminations,4}  {r.Survival,4}  {r.Bonus + r.SquadPoints,5}   {r.Elims}/{r.Assists}/{r.Deaths}{(r == mvp ? "  MVP" : "")}";
                 sb.Append(r.PlayerId == localId ? $"<color=#ffd84a>{line}</color>\n" : line + "\n");
             }
             _full.text = sb.ToString();
-            Sfx.Play(me.SquadRank == 1 ? Sfx.Objective : Sfx.Capture, 0.9f);
+            Sfx.Play(won || me.SquadRank == 1 ? Sfx.Objective : Sfx.Capture, 0.9f);
         }
 
         private IEnumerator RefreshOnline()
         {
             yield return new WaitForSeconds(1f);
-            var id = App.Profile.BackendId;
-            if (string.IsNullOrEmpty(id)) yield break;
+            if (string.IsNullOrEmpty(App.Profile.BackendId)) yield break;
             int oldRating = App.OnlineProfile != null ? App.OnlineProfile.rating : 0;
             App.FetchProfile(p =>
             {
                 App.OnlineProfile = p;
                 int d = p.rating - oldRating;
-                _extra.text += $"\n<color=#ffd84a>LEVEL {p.level}</color>  {p.xp}/{p.xpToNext} XP   ·   RATING {p.rating} ({(d >= 0 ? "+" : "")}{d})";
+                _level.text = $"LEVEL <color=#ffd84a>{p.level}</color>   {p.xp}/{p.xpToNext} XP   ·   RATING {p.rating} <color={(d >= 0 ? "#7dff9a" : "#ff7a8a")}>({(d >= 0 ? "+" : "")}{d})</color>";
+                _xp.Root.gameObject.SetActive(true);
+                _xp.Set(p.xpToNext > 0 ? (float)p.xp / p.xpToNext : 0, 10f);
             }, e => { });
         }
 
@@ -742,11 +835,14 @@ namespace Veil.UI
             {
                 var sp = App.Cam.WorldToScreenPoint(App.Stage.HeadPoint(i));
                 RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)Root, sp, null, out var lp);
-                _podiumTags[i].anchoredPosition = lp + new Vector2(0, 40);
+                // close-up: the head is near the top edge — keep the MVP tag on screen, beside the face
+                float top = ((RectTransform)Root).rect.height * 0.5f - 150f;
+                _podiumTags[i].anchoredPosition = new Vector2(lp.x + 260f, Mathf.Min(lp.y + 40f, top));
             }
             _t += dt;
             float k = Mathf.Clamp01(_t / 1.6f);
             _score.text = Mathf.RoundToInt(_targetScore * (1 - Mathf.Pow(1 - k, 3))).ToString("N0");
+            _xp.Set(_xp.Value, dt);
         }
     }
 

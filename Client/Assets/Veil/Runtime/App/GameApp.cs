@@ -604,11 +604,12 @@ namespace Veil.App
         {
             bool online = IsOnlineMatch;
             ResultsScreen.Winner = _match?.Latest?.Winner ?? -1;
+            ResultsScreen.SquadStages = _match?.Latest != null ? (byte[])_match.Latest.SquadStage.Clone() : null;
             EndMatchCleanup();
             HideAll();
             State = AppState.Results;
             Stage.SetVisible(true);
-            Stage.Podium(results);
+            Stage.Podium(ResultsScreen.PodiumSquad(results));
             _results.Show(true);
             _results.Fill(results, localId, online);
             Cursor.lockState = CursorLockMode.None;
@@ -727,7 +728,9 @@ namespace Veil.App
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
                     break;
                 case AppState.Results:
-                    CamRig.Shot(Stage.Origin + new Vector3(-2.4f, 2.3f, -7.6f), Stage.Origin + new Vector3(-2.4f, 1.6f, 0), dt, 3f);
+                    // podium on the right of the screen, the results card on the left (stage local +X is screen-left)
+                    // MVP close-up on the right of the screen, the results card on the left
+                    CamRig.Shot(Stage.Origin + new Vector3(-0.62f, 1.62f, -1.75f) + new Vector3(Mathf.Sin(t * 0.21f) * 0.03f, Mathf.Sin(t * 0.33f) * 0.01f, 0), Stage.Origin + new Vector3(-0.62f, 1.52f, 0), dt, 3f);   // waist-up
                     break;
                 case AppState.Match:
                     if (_match == null || _matchView == null) break;
@@ -903,7 +906,7 @@ namespace Veil.App
 
         private void UpdateBackdrop()
         {
-            bool on = State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode);
+            bool on = (State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode)) || State == AppState.Results;
             if (on && _backdrop == null)
             {
                 var tex = Resources.Load<Texture2D>("UI/lobby_bg");
@@ -1194,7 +1197,7 @@ namespace Veil.App
         public readonly Vector3 Origin = new Vector3(0, 0, -9.5f);
         private readonly Transform _root;
         private readonly CharacterRig[] _rigs = new CharacterRig[5];
-        private readonly Transform[] _pedestals = new Transform[3];
+        private readonly Transform[] _pedestals = new Transform[4];
         private readonly GameObject _squadStage;
         private bool _podium;
         private float _t;
@@ -1212,11 +1215,15 @@ namespace Veil.App
             var gold = MaterialLib.Toon(Palette.Gold, 0.4f, 0.8f);
             var silver = MaterialLib.Toon(Palette.Hex("#d8dcef"), 0.4f, 0.8f);
             var bronze = MaterialLib.Toon(Palette.Hex("#e0955a"), 0.4f, 0.8f);
-            Material[] mats = { gold, silver, bronze };
-            for (int i = 0; i < 3; i++)
+            var podiumBody = MaterialLib.Toon(Palette.Hex("#25204a"), 0.35f, 0.6f);
+            Material[] mats = { podiumBody, podiumBody, podiumBody, podiumBody };   // dark metal; the glowing top: gold = MVP, cyan = squad
+            for (int i = 0; i < 4; i++)
             {
-                var p = Build.Part(_root, MeshGen.Cylinder(20), mats[i], Vector3.zero, new Vector3(1.6f, 1, 1.6f), null, "Pedestal" + i);
+                var p = Build.Part(_root, MeshGen.Cylinder(6), mats[i], Vector3.zero, new Vector3(1.6f, 1, 1.6f), null, "Pedestal" + i);
                 _pedestals[i] = p.transform;
+                // glowing hex rim on top (child of a unit-height pedestal: sits at its top face)
+                var rimC = i == 0 ? Palette.Gold : Palette.Hex("#4fe3ff");
+                Build.Part(p.transform, MeshGen.Cylinder(6), MaterialLib.Glow(rimC, 0.8f), new Vector3(0, 0.5f, 0), new Vector3(1.06f, 0.05f, 1.06f), null, "Rim", false);
                 p.SetActive(false);
             }
             // squad lobby platform: dark disc with a glowing rim, and a glow ring under each squad slot
@@ -1379,25 +1386,32 @@ namespace Veil.App
             if (SquadMode || SoloMode) SetLayer(_rigs[0].transform, LobbyLayer);   // rebuilt parts must stay on the lobby layer
         }
 
-        public void Podium(List<PlayerResult> results)
+        /// <summary>Results: the winning squad's players on glowing podiums — MVP (index 0) on the tall gold one in the
+        /// middle, squadmates either side. Index order = name-tag order in ResultsScreen.</summary>
+        public void Podium(List<PlayerResult> squad)
         {
             _podium = true;
             SquadMode = false;
             SoloMode = false;
             _squadStage.SetActive(false);
             SetLayer(_root, 0);
-            float[] x = { 0, 1.8f, -1.8f }; // stage faces the camera: local +X is screen-left
-            float[] h = { 0.9f, 0.55f, 0.3f };
-            for (int i = 0; i < 5; i++) _rigs[i].gameObject.SetActive(i < 3 && i < results.Count);
-            for (int i = 0; i < 3 && i < results.Count; i++)
+            // stage faces the camera: local +X is screen-left. MVP centre, then right, left, far right
+            float[] x = { 0f, -1.55f, 1.55f, -3.1f };
+            float[] h = { 0f, 0f, 0f, 0f };
+            float[] z = { 0f, 0.3f, 0.3f, 0.6f };
+            int n = Mathf.Min(1, squad.Count);   // close-up: only the MVP
+            for (int i = 0; i < 5; i++) _rigs[i].gameObject.SetActive(i < n);
+            for (int i = 0; i < 4; i++) _pedestals[i].gameObject.SetActive(false);   // close-up: no podium
+            for (int i = 0; i < n; i++)
             {
-                _rigs[i].Rebuild(results[i].Look);
-                _rigs[i].transform.localPosition = new Vector3(x[i], h[i], 0);
-                _rigs[i].transform.localRotation = Quaternion.identity;
+                _rigs[i].Rebuild(squad[i].Look);
+                _rigs[i].transform.localPosition = new Vector3(x[i], h[i], z[i]);
+                _rigs[i].transform.localRotation = Quaternion.Euler(0, 18f, 0);   // facing the close-up camera
                 _rigs[i].ResetPose();
-                _pedestals[i].gameObject.SetActive(true);
-                _pedestals[i].localPosition = new Vector3(x[i], h[i] / 2, 0);
-                _pedestals[i].localScale = new Vector3(1.6f, h[i], 1.6f);
+                _pedestals[i].localPosition = new Vector3(x[i], h[i] / 2, z[i]);
+                _pedestals[i].localScale = new Vector3(1.45f, h[i], 1.45f);
+                // in front of the painted island deck (the camera renders only the lobby layer here)
+                SetLayer(_rigs[i].transform, LobbyLayer); SetLayer(_pedestals[i], LobbyLayer);
             }
         }
 
@@ -1409,7 +1423,7 @@ namespace Veil.App
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
                 if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Aiming = _aimPreview, Velocity = _aimPreview ? Vector3.zero : _rigs[i].transform.forward * 2.2f }, dt);
-                else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _podium && i == 0, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
+                else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = false, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
                 _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);
