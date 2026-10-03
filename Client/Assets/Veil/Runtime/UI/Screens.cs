@@ -142,7 +142,6 @@ namespace Veil.UI
         private InputField _nameField;
 
         // leaderboard
-        private Text _board, _myStats;
 
         public MenuScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Menu")
         {
@@ -367,40 +366,142 @@ namespace Veil.UI
 
         // ------------------------------------------------------------------ LEADERBOARD tab
 
+        private RectTransform _lbContent;
+        private Text _lbStatus;
+        private bool _lbFriends;
+        private ProfileDto[] _lbPlayers;
+        private readonly Button[] _lbTabs = new Button[2];
+
+        /// <summary>Leaderboard (concept from Meshy): GLOBAL / FRIENDS, your profile card, top-3 podium, ranked rows, your row highlighted.</summary>
         private void BuildLeaderboard(RectTransform tab)
         {
             var panel = UIKit.Panel(tab, "Board", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
             EnterFx.Add(panel, new Vector2(56, 0));
             var p = panel.transform;
-            var title = UIKit.LabelAt(p, "LEADERBOARD", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            var title = UIKit.LabelAt(p, "LEADERBOARD", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -24), new Vector2(400, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
-            _myStats = UIKit.LabelAt(p, "", 19, Theme.Text, new Vector2(0, 1), new Vector2(30, -84), new Vector2(700, 110), TextAnchor.UpperLeft, UIKit.BodyFont);
-            _myStats.rectTransform.pivot = new Vector2(0, 1);
-            _myStats.supportRichText = true;
-            _board = UIKit.LabelAt(p, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(30, -210), new Vector2(700, 560), TextAnchor.UpperLeft, UIKit.BodyFont);
-            _board.rectTransform.pivot = new Vector2(0, 1);
-            _board.supportRichText = true;
+            for (int i = 0; i < 2; i++)
+            {
+                int k = i;
+                _lbTabs[i] = UIKit.Button(p, i == 0 ? "GLOBAL" : "FRIENDS", new Vector2(1, 1), new Vector2(-30 - (1 - i) * 150, -28), new Vector2(140, 40), UIKit.ButtonStyle.Ghost, () => { _lbFriends = k == 1; RenderLeaderboard(); }, 16);
+                ((RectTransform)_lbTabs[i].transform).pivot = new Vector2(1, 1);
+            }
+            _lbContent = UIKit.Rect(p, "Content", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _lbStatus = UIKit.LabelAt(p, "", 18, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 160), new Vector2(680, 60), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            _lbStatus.supportRichText = true;
         }
 
         private void FetchLeaderboard()
         {
-            _board.text = "Loading from backend…";
-            var op = App.OnlineProfile;
-            _myStats.text = op == null
-                ? "<color=#aab0d8>Connect to a server (PLAY → ONLINE) once to create your profile.\nProgression tracks mastery: level, rating, objectives — never power.</color>"
-                : $"<color=#ffd84a>{op.name}</color>   LEVEL {op.level}  ({op.xp}/{op.xpToNext} XP)   RATING {op.rating}\n" +
-                  $"Matches {op.matches}   Wins {op.wins}   Top-3 {op.top3}   Best {op.bestScore}   Avg {op.avgScore}\n" +
-                  $"Eliminations {op.eliminations}   Objectives {op.objectives}";
-            App.FetchLeaderboard(lb =>
+            _lbStatus.text = "Loading…";
+            RenderLeaderboard();
+            App.FetchLeaderboard(lb => { _lbPlayers = lb.players ?? new ProfileDto[0]; _lbStatus.text = ""; RenderLeaderboard(); },
+                e => { _lbPlayers = null; _lbStatus.text = "<color=#ff9a8a>Can't reach the server</color>\n<color=#8a90b8>Go online (PLAY) and try again</color>"; RenderLeaderboard(); });
+        }
+
+        private static readonly Color Gold = new Color(1f, 0.8f, 0.25f), Silver = new Color(0.82f, 0.85f, 0.95f), Bronze = new Color(0.9f, 0.58f, 0.35f);
+
+        private void RenderLeaderboard()
+        {
+            for (int i = _lbContent.childCount - 1; i >= 0; i--) Object.Destroy(_lbContent.GetChild(i).gameObject);
+            for (int i = 0; i < 2; i++)
             {
-                var sb = new System.Text.StringBuilder("<color=#aab0d8>#    PLAYER                 RATING   LV   WINS   BEST</color>\n\n");
-                int i = 1;
-                if (lb.players != null)
-                    foreach (var pl in lb.players)
-                        sb.Append($"{i++,-4} {pl.name,-22} {pl.rating,6}   {pl.level,3}   {pl.wins,4}   {pl.bestScore,5}\n");
-                if (i == 1) sb.Append("<color=#8a90b8>No ranked matches yet — play an online match!</color>");
-                _board.text = sb.ToString();
-            }, e => _board.text = $"<color=#ff9a8a>Server not reachable at {App.Profile.ServerAddress}</color>\n<color=#8a90b8>PLAY → ONLINE connects you; start the server with Server/run-server.sh</color>");
+                bool on = (i == 1) == _lbFriends;
+                ((Image)_lbTabs[i].targetGraphic).color = on ? new Color(0.62f, 0.38f, 1f, 0.9f) : new Color(1, 1, 1, 0.08f);
+                UIKit.ButtonLabel(_lbTabs[i]).color = on ? Color.white : Theme.TextDim;
+            }
+            var me = App.OnlineProfile;
+            string myId = me != null ? me.id : App.Profile.BackendId;
+
+            // ---- your profile card
+            var card = UIKit.At(_lbContent, "Me", new Vector2(0.5f, 1), new Vector2(0, -86), new Vector2(700, 138));
+            card.pivot = new Vector2(0.5f, 1);
+            UIKit.Image(card, UIKit.Rounded, new Color(0.62f, 0.38f, 1f, 0.16f));
+            var ol = card.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0.7f, 0.45f, 1f, 0.7f); ol.effectDistance = new Vector2(1.5f, -1.5f);
+            var face = SocialUi.Portrait(card, App.Profile.Look, 92, new Vector2(16, 14));
+            ((RectTransform)face.transform.parent).anchorMin = ((RectTransform)face.transform.parent).anchorMax = new Vector2(0, 0.5f);
+            var nm = UIKit.LabelAt(card, me != null ? me.name : App.Profile.Name, 26, Color.white, new Vector2(0, 1), new Vector2(124, -14), new Vector2(330, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            nm.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(nm, 14);
+            var lv = UIKit.LabelAt(card, me != null ? $"LEVEL {me.level}  ·  {me.xp}/{me.xpToNext} XP" : "Play online to get ranked", 15, Theme.PurpleLight, new Vector2(0, 1), new Vector2(124, -48), new Vector2(330, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            lv.rectTransform.pivot = new Vector2(0, 1);
+            var trophy = UIKit.At(card, "Trophy", new Vector2(1, 1), new Vector2(-24, -20), new Vector2(34, 34));
+            trophy.pivot = new Vector2(1, 1);
+            UIKit.Image(trophy, Icons.Trophy, Gold);
+            var rating = UIKit.LabelAt(card, me != null ? me.rating.ToString() : "—", 40, Color.white, new Vector2(1, 1), new Vector2(-66, -14), new Vector2(200, 46), TextAnchor.MiddleRight, UIKit.TitleFont);
+            rating.rectTransform.pivot = new Vector2(1, 1);
+            string[] stat = { "MATCHES", "WINS", "TOP 3", "ELIMS" };
+            int[] val = me != null ? new[] { me.matches, me.wins, me.top3, me.eliminations } : new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                var chip = UIKit.At(card, "Stat", new Vector2(0, 0), new Vector2(124 + i * 140, 12), new Vector2(132, 40));
+                chip.pivot = Vector2.zero;
+                UIKit.Image(chip, UIKit.RoundedSmall, new Color(0, 0, 0, 0.3f));
+                var t = UIKit.LabelAt(chip, $"<color=#9aa0c8>{stat[i]}</color>  {val[i]}", 15, Color.white, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(128, 36), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                t.supportRichText = true; UIKit.Fit(t, 10);
+            }
+
+            // ---- list (global or you + your friends)
+            var list = new System.Collections.Generic.List<ProfileDto>();
+            if (_lbPlayers != null)
+            {
+                var friendIds = new System.Collections.Generic.HashSet<string>();
+                foreach (var f in App.Gateway.Friends.friends) friendIds.Add(f.id);
+                foreach (var pl in _lbPlayers) if (!_lbFriends || pl.id == myId || friendIds.Contains(pl.id)) list.Add(pl);
+            }
+            if (_lbPlayers != null && list.Count == 0) _lbStatus.text = _lbFriends ? "<color=#8a90b8>No friends ranked yet — add friends in FRIENDS</color>" : "<color=#8a90b8>No ranked matches yet — play an online match!</color>";
+            else if (_lbPlayers != null) _lbStatus.text = "";
+
+            // ---- podium: 2nd · 1st · 3rd
+            int[] order = { 1, 0, 2 };
+            float[] px = { -220, 0, 220 }, ph = { 70, 96, 56 };
+            Color[] pc = { Silver, Gold, Bronze };
+            for (int k = 0; k < 3; k++)
+            {
+                int r = order[k];
+                if (r >= list.Count) continue;
+                var pl = list[r];
+                var col = UIKit.At(_lbContent, "Podium" + r, new Vector2(0.5f, 1), new Vector2(px[k], -246), new Vector2(200, 220));
+                col.pivot = new Vector2(0.5f, 1);
+                var block = UIKit.At(col, "Block", new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(196, ph[k]));
+                block.pivot = new Vector2(0.5f, 0);
+                UIKit.Image(block, UIKit.RoundedSmall, new Color(pc[k].r * 0.75f, pc[k].g * 0.75f, pc[k].b * 0.75f, 0.95f));
+                var bn = UIKit.LabelAt(block, pl.name, 18, new Color(0.1f, 0.08f, 0.16f), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(184, 24), TextAnchor.MiddleCenter, UIKit.TitleFont); UIKit.Fit(bn, 11);
+                var br = UIKit.LabelAt(block, $"{pl.rating}", 15, new Color(0.15f, 0.1f, 0.2f), new Vector2(0.5f, 1), new Vector2(0, -38), new Vector2(184, 20), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                var ring = UIKit.At(col, "Ring", new Vector2(0.5f, 0), new Vector2(0, ph[k] + 8), new Vector2(84, 84));
+                ring.pivot = new Vector2(0.5f, 0);
+                UIKit.Image(ring, UIKit.Circle, pc[k]);
+                var f2 = SocialUi.Portrait(ring, SocialUi.ParseLook(pl.appearance), 76, new Vector2(4, 0));
+                var crown = UIKit.At(col, "Crown", new Vector2(0.5f, 0), new Vector2(0, ph[k] + 90), new Vector2(r == 0 ? 44 : 34, r == 0 ? 36 : 28));
+                crown.pivot = new Vector2(0.5f, 0);
+                UIKit.Image(crown, Icons.Crown, pc[k]);
+            }
+
+            // ---- ranked rows from 4th; your row is always visible (pinned last if you're further down)
+            const int rows = 6;
+            int myIdx = list.FindIndex(x => x.id == myId);
+            var show = new System.Collections.Generic.List<int>();
+            for (int i = 3; i < list.Count && show.Count < rows; i++) show.Add(i);
+            if (myIdx >= 3 && !show.Contains(myIdx)) { if (show.Count == rows) show[rows - 1] = myIdx; else show.Add(myIdx); }
+            for (int n = 0; n < show.Count; n++)
+            {
+                int i = show[n];
+                var pl = list[i];
+                bool mine = i == myIdx;
+                var row = UIKit.At(_lbContent, "Row", new Vector2(0.5f, 1), new Vector2(0, -486 - n * 50), new Vector2(700, 44));
+                row.pivot = new Vector2(0.5f, 1);
+                UIKit.Image(row, UIKit.RoundedSmall, mine ? new Color(1f, 0.82f, 0.25f, 0.95f) : new Color(1, 1, 1, n % 2 == 0 ? 0.06f : 0.03f));
+                Color ink = mine ? new Color(0.12f, 0.08f, 0.2f) : Color.white, dim = mine ? new Color(0.25f, 0.18f, 0.3f) : Theme.TextDim;
+                var rk = UIKit.LabelAt(row, $"{i + 1}", 18, dim, new Vector2(0, 0.5f), new Vector2(26, 0), new Vector2(40, 30), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                UIKit.Fit(rk, 11);
+                SocialUi.Portrait(row, SocialUi.ParseLook(pl.appearance), 36, new Vector2(70, 0));
+                var rn = UIKit.LabelAt(row, mine ? pl.name + "  (YOU)" : pl.name, 18, ink, new Vector2(0, 0.5f), new Vector2(116, 0), new Vector2(300, 30), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                rn.rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(rn, 11);
+                var rl = UIKit.LabelAt(row, $"LV {pl.level}", 15, dim, new Vector2(1, 0.5f), new Vector2(-250, 0), new Vector2(90, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                var rw = UIKit.LabelAt(row, $"{pl.wins} W", 15, dim, new Vector2(1, 0.5f), new Vector2(-160, 0), new Vector2(80, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                var rr = UIKit.LabelAt(row, pl.rating.ToString(), 20, ink, new Vector2(1, 0.5f), new Vector2(-56, 0), new Vector2(90, 30), TextAnchor.MiddleRight, UIKit.TitleFont);
+                var ti = UIKit.At(row, "Trophy", new Vector2(1, 0.5f), new Vector2(-24, 0), new Vector2(22, 22));
+                UIKit.Image(ti, Icons.Trophy, mine ? new Color(0.45f, 0.3f, 0.05f) : Gold);
+            }
         }
 
         // ------------------------------------------------------------------ SETTINGS tab

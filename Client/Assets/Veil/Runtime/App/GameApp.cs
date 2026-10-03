@@ -1146,6 +1146,9 @@ namespace Veil.App
             _menu.SelectTab(1);
             yield return new WaitForSeconds(2.5f);
             yield return Shot("03_characters");
+            _menu.SelectTab(2);
+            yield return new WaitForSeconds(3f);
+            yield return Shot("03b_leaderboard");
             _menu.SelectTab(3);
             yield return new WaitForSeconds(1f);
             yield return Shot("04_settings");
