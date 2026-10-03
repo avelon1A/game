@@ -1009,6 +1009,7 @@ namespace Veil.UI
         private CircuitPuzzle _puzzle;
         public bool PuzzleOpen => _puzzle != null && _puzzle.Open;
         public void DebugShowPuzzle() { _puzzleDebug = true; _puzzle?.Show(); }
+        public void DebugHidePuzzle() { _puzzleDebug = false; _puzzle?.Close(); }
         private bool _puzzleDebug;
         private CompassBar _compass;
         private RectTransform _scope;

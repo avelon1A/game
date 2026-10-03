@@ -34,3 +34,4 @@ Tools/playit/
 # downloaded third-party packs (re-download: Quaternius, see Tools/ai3d/blender/build_ranger.py)
 Tools/assets_dl/
 *.key
+PlayStore/source/

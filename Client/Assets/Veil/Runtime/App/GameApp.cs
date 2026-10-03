@@ -1165,6 +1165,7 @@ namespace Veil.App
             _hud?.DebugShowPuzzle();
             yield return new WaitForSeconds(0.5f);
             yield return Shot("06b_puzzle");
+            _hud?.DebugHidePuzzle();
             _match.Driver.DebugSkip(70f);
             yield return new WaitForSeconds(10f);
             yield return Shot("07_competition");
