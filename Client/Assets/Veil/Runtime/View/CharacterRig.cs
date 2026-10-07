@@ -124,6 +124,8 @@ namespace Veil.View
         private float _punchT;
         private bool _punchLeft;
         private bool _fists;
+        // gun on the back while running (not shooting); _slingW 0 = in the hands, 1 = slung
+        private float _moveSpeed, _slingW;
         private bool Fists => _fists;
         public bool FistsMode => _fists;
 
@@ -236,6 +238,7 @@ namespace Veil.View
         {
             Vector3 hv = new Vector3(s.Velocity.x, 0, s.Velocity.z);
             float speed = hv.magnitude;
+            _moveSpeed = s.Dead ? 0 : speed;
             _anim.SetFloat("Speed", s.Dead ? 0 : speed, 0.07f, dt);
             _anim.SetFloat("VSpeed", s.VerticalVelocity);
             _anim.SetBool("Grounded", s.Grounded || s.Dead);
@@ -322,7 +325,33 @@ namespace Veil.View
             {
                 var relaxed = transform.rotation * Quaternion.Euler(150, 0, 0);
                 var aimed = transform.rotation * Quaternion.Euler(90 - _fireKick * 12f, 0, 0);
-                _gun.SetPositionAndRotation(_handR.position + fwd * 0.04f, Quaternion.Slerp(relaxed, aimed, _aimW));
+                var handPos = _handR.position + fwd * 0.04f;
+                var handRot = Quaternion.Slerp(relaxed, aimed, _aimW);
+
+                // running without shooting: the gun goes on the back, diagonally, barrel up over the right shoulder
+                bool sling = _moveSpeed > 1.2f && _aimW < 0.05f;
+                _slingW = Mathf.MoveTowards(_slingW, sling ? 1f : 0f, Time.deltaTime * (sling ? 4f : 10f));
+                if (_slingW > 0.001f && _chest)
+                {
+                    Vector3 right = transform.right, up = transform.up;
+                    Vector3 barrel = (up * 0.82f + right * 0.57f).normalized;          // ~35° off vertical
+                    var backRot = Quaternion.LookRotation(fwd, barrel);                // gun: +Y barrel, -Z top → top faces away from the back
+                    var backPos = _chest.position - fwd * 0.2f - right * 0.14f - up * 0.22f;
+                    handPos = Vector3.Lerp(handPos, backPos, _slingW);
+                    handRot = Quaternion.Slerp(handRot, backRot, _slingW);
+                }
+                _gun.SetPositionAndRotation(handPos, handRot);
+
+                // shooting: the big gun is held with BOTH hands — left hand reaches the foregrip
+                if (_aimW > 0.01f && _boneLUpper && _boneLLower && _handLB)
+                {
+                    float reach = Look.Weapon == 1 ? 0.42f : 0.27f;                   // sniper foregrip sits further out
+                    Vector3 grip = _gun.position + _gun.up * reach;
+                    var q = Quaternion.FromToRotation(_handLB.position - _boneLUpper.position, grip - _boneLUpper.position);
+                    _boneLUpper.rotation = Quaternion.Slerp(Quaternion.identity, q, _aimW) * _boneLUpper.rotation;
+                    var q2 = Quaternion.FromToRotation(_handLB.position - _boneLLower.position, grip - _boneLLower.position);
+                    _boneLLower.rotation = Quaternion.Slerp(Quaternion.identity, q2, _aimW) * _boneLLower.rotation;
+                }
             }
         }
 

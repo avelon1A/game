@@ -67,8 +67,14 @@ namespace Veil.Sim
         {
             // Objective 1: the squad's home terminal is the default waypoint (the central one is the risky alternative)
             if (TaskOf(stage) == ChainTask.Hack) return sq.Home;
-            // the Vault is shared: the central plaza (cover, low walls, pillars, bridges)
-            if (TaskOf(stage) == ChainTask.Vault) return CenterTerminal;
+            // every squad has its OWN Vault inside its own region (never a shared spot where all 16 players pile up):
+            // on the spawn bearing, between the spawn and the ring road — 45° away from its capture pad
+            if (TaskOf(stage) == ChainTask.Vault)
+            {
+                Vec2 v = Vec2.FromYaw(sq.Spawn.Yaw) * (Map.Island ? 100f : 30f);
+                if (!Map.Nav.Walkable(v)) v = Map.Nav.CellCenter(Map.Nav.NearestWalkable(Map.Nav.CellOf(v)));
+                return v;
+            }
             if (stage >= SiteLayout.Length) return Vec2.Zero;
             var (r, deg) = SiteLayout[stage];
             if (Map.Island && TaskOf(stage) == ChainTask.Capture) { r = 100f; deg = 45f; }   // island: the neighbouring cardinal region, inside the ring road

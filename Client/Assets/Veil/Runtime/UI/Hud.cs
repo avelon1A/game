@@ -527,7 +527,7 @@ namespace Veil.UI
                     if (e.A == _m.LocalSquad)
                     {
                         if (e.B == 0) Popup("ENEMY ACTIVITY DETECTED · nearby squads revealed");
-                        Banner(e.B < 3 ? $"OBJECTIVE {e.B + 1} COMPLETE" : "VAULT OPENED", e.B < 2 ? $"Next: {TaskTitle(MatchSim.TaskOf(e.B + 1))}" : e.B == 2 ? "Next: open the Central Vault" : "Get to the extraction!", 3f);
+                        Banner(e.B < 3 ? $"OBJECTIVE {e.B + 1} COMPLETE" : "VAULT OPENED", e.B < 2 ? $"Next: {TaskTitle(MatchSim.TaskOf(e.B + 1))}" : e.B == 2 ? "Next: open your squad's Vault" : "Get to the extraction!", 3f);
                         Sfx.Play(Sfx.Objective, 0.8f);
                     }
                     else Feed($"{sq} completed {what}", e.B >= 3 ? Theme.Red : Theme.TextDim);
@@ -828,7 +828,7 @@ namespace Veil.UI
             ChainTask.Hack => "HACK TERMINAL",
             ChainTask.Capture => "CAPTURE ZONE",
             ChainTask.Collect => "COLLECT CORES",
-            ChainTask.Vault => "CENTRAL VAULT",
+            ChainTask.Vault => "SQUAD VAULT",
             _ => "EXTRACTION",
         };
 
@@ -851,14 +851,14 @@ namespace Veil.UI
             var task = s.Task;
             if (s.Stage < 4)
             {
-                c.Title.text = s.Stage < 3 ? $"OBJ {s.Stage + 1}/3 · {TaskTitle(task)}" : "OPEN THE CENTRAL VAULT";
+                c.Title.text = s.Stage < 3 ? $"OBJ {s.Stage + 1}/3 · {TaskTitle(task)}" : "OPEN YOUR VAULT";
                 c.Desc.text = task switch
                 {
                     ChainTask.Hack when s.Nodes.Count > 0 => $"<color=#ff5a8a>Instability: {s.Nodes.Count} node(s) to resolve</color>",
                     ChainTask.Hack => $"Enemy {Mathf.RoundToInt(s.HomeProg * 100)}% · {dist:0} m  |  Centre {Mathf.RoundToInt(s.CenterProg * 100)}% · {me.Pos.Length:0} m",
                     ChainTask.Capture => $"Hold your capture zone · {dist:0} m",
                     ChainTask.Collect => $"Pick up {GameConfig.CollectCores} energy cores as a squad",
-                    _ => $"Channel at the Vault in the centre · {dist:0} m",
+                    _ => $"Channel at your squad's Vault · {dist:0} m",
                 };
                 c.Progress.text = task == ChainTask.Collect ? $"{Mathf.RoundToInt(s.StageProg * GameConfig.CollectCores)}/{GameConfig.CollectCores}" : $"{Mathf.RoundToInt(s.StageProg * 100)}%";
             }

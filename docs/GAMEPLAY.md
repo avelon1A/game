@@ -18,7 +18,7 @@
 | Objective 1 | **Hack a Terminal** | an ENEMY squad's home terminal (20 s) or the CENTRAL one (12 s + bonus: all enemies revealed 10 s, +40 energy); not your own. Stand in the ring, press **HACK** (F on Mac), solve the quick **circuit puzzle** (connect 3 coloured wires) → you are the hacker. **One hacker per squad**, teammates defend. Hacker leaves / dies or an enemy enters the ring → **paused, progress kept**; a teammate can take over with HACK. Enemies get **TERMINAL ACTIVITY DETECTED** with the squad and its % at start and every 25 %. |
 | Objective 2 | **Capture Zone** | hold your zone (5 m) for 12 s, faster with more squadmates |
 | Objective 3 | **Collect Cores** | your squad picks up 3 energy cores |
-| Vault | **Central Vault** | channel at the centre (6 m) for 10 s |
+| Vault | **Squad Vault** | each squad has its own Vault in its own region (6 m) — channel 10 s. No objective ever sends all squads to one spot |
 | Extraction | **Hold the point** | 60 s, only squads that opened their Vault progress |
 
 - Enemies near your site **pause** your progress (contest). Completing a step briefly reveals enemies near it.
