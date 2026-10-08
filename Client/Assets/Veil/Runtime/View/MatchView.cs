@@ -152,54 +152,81 @@ namespace Veil.View
         private Transform _heli, _heliRotor, _heliTail;
         private float _heliH = 32f, _heliYaw;
         private bool _heliCalled;
-        private Quaternion _rotorBase = Quaternion.identity;   // an eligible squad reached the zone: the helicopter has come down and stays down
+        private Quaternion _rotorBase = Quaternion.identity;
+        private Transform _heliBeacon;   // an eligible squad reached the zone: the helicopter has come down and stays down
 
         /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
         private void BuildHelicopter()
         {
+            // RILO rescue helicopter, built from primitives (nose = +Z): rounded navy cabin with a yellow belly band,
+            // glass bubble, tapered tail boom with fin + stabiliser, open side door, curved skids, 4-blade rotor, nav lights
             _heli = Build.Node(Root, "Helicopter", Vector3.zero);
-            // Meshy model (Tools/ai3d/blender/build_meshy_vehicle.py: nose forward, spinning "Rotor" split off); procedural fallback below
-            var prefab = Resources.Load<GameObject>("Vehicles/meshy_heli");
-            if (prefab != null)
-            {
-                var inst = Object.Instantiate(prefab, _heli, false);
-                inst.transform.localPosition = Vector3.zero;
-                var mat = new Material(Shader.Find("Veil/Toon")) { name = "meshy_heli" };
-                mat.SetTexture("_BaseMap", Resources.Load<Texture2D>("Vehicles/meshy_heli_tex"));
-                mat.SetColor("_BaseColor", Color.white);
-                mat.SetColor("_ShadeColor", new Color(0.72f, 0.72f, 0.88f));
-                mat.SetColor("_RimColor", new Color(1, 1, 1, 0.2f));
-                mat.SetFloat("_Ramp", 0.35f); mat.SetFloat("_ArtKeep", 0.6f); mat.SetFloat("_ShadowStrength", 0.6f);
-                mat.SetColor("_EmissionColor", Color.black);
-                foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = mat;
-                _heliRotor = FindChild(inst.transform, "Rotor") ?? Build.Node(_heli, "Rotor", Vector3.up * 4f);
-                _rotorBase = _heliRotor.localRotation;   // keep the import orientation, spin about the vertical
-                _heliTail = Build.Node(_heli, "TailRotor", Vector3.zero);
-                _heli.gameObject.SetActive(false);
-                return;
-            }
-            var body = MaterialLib.Toon(Palette.Hex("#2b2f3d"), 0.35f, 0.6f);
-            var yellow = MaterialLib.Toon(Palette.Hex("#ffc93a"), 0.3f, 0.5f);
-            var glass = MaterialLib.Toon(Palette.Hex("#7fd6ff"), 0.9f, 0.9f);
-            var dark = MaterialLib.Toon(Palette.Hex("#15161c"), 0.3f, 0.4f);
-            Build.Part(_heli, MeshGen.Sphere, body, new Vector3(0, 1.6f, 0), new Vector3(2.4f, 2.1f, 4.4f), null, "Body");
-            Build.Part(_heli, MeshGen.Sphere, glass, new Vector3(0, 1.95f, 1.45f), new Vector3(1.9f, 1.4f, 1.9f), null, "Cockpit");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.45f, 0), new Vector3(2.42f, 0.35f, 3.2f), null, "Stripe");
-            Build.Part(_heli, MeshGen.Box, body, new Vector3(0, 1.9f, -3.6f), new Vector3(0.45f, 0.5f, 4.2f), null, "Boom");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 2.6f, -5.5f), new Vector3(0.15f, 1.5f, 0.9f), null, "Fin");
+            var navy = MaterialLib.Toon(Palette.Hex("#22305e"), 0.45f, 0.7f);
+            var navyD = MaterialLib.Toon(Palette.Hex("#172042"), 0.35f, 0.6f);
+            var yellow = MaterialLib.Toon(Palette.Hex("#ffc93a"), 0.35f, 0.6f);
+            var glass = MaterialLib.Toon(Palette.Hex("#8fe3ff"), 0.95f, 1f);
+            var metal = MaterialLib.Toon(Palette.Hex("#3a3f4f"), 0.6f, 0.8f);
+            var dark = MaterialLib.Toon(Palette.Hex("#121319"), 0.3f, 0.4f);
+            var inside = MaterialLib.Toon(Palette.Hex("#0b0d16"), 0.1f, 0.2f);
+            Quaternion along = Quaternion.Euler(90, 0, 0);   // cylinders/cones point along Y → lay them along Z
+
+            // cabin: three overlapping rounded volumes give a fat, toy-like body
+            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 1.75f, 0.2f), new Vector3(2.5f, 2.2f, 4.2f), null, "Cabin");
+            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 1.6f, 1.55f), new Vector3(2.1f, 1.8f, 2.4f), null, "Nose");
+            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 2.35f, -0.3f), new Vector3(1.9f, 1.4f, 2.6f), null, "Engine");
+            Build.Part(_heli, MeshGen.Sphere, yellow, new Vector3(0, 1.25f, 0.25f), new Vector3(2.56f, 1.0f, 4.0f), null, "Belly");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.9f, 0.1f), new Vector3(2.52f, 0.28f, 2.6f), null, "Stripe");
+            // glass: front bubble + side windows
+            Build.Part(_heli, MeshGen.Sphere, glass, new Vector3(0, 2.0f, 1.85f), new Vector3(1.75f, 1.25f, 1.8f), null, "Bubble");
             foreach (float x in new[] { -1f, 1f })
             {
-                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x, 0.12f, 0), new Vector3(0.14f, 0.12f, 3.6f), null, "Skid");
-                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x * 0.85f, 0.45f, 0.9f), new Vector3(0.1f, 0.7f, 0.1f), null, "Strut");
-                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x * 0.85f, 0.45f, -0.9f), new Vector3(0.1f, 0.7f, 0.1f), null, "Strut");
+                Build.Part(_heli, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.2f, 2.15f, 0.5f), new Vector3(0.06f, 0.55f, 0.75f), null, "Window");
+                Build.Part(_heli, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.15f, 2.2f, -0.6f), new Vector3(0.06f, 0.45f, 0.55f), null, "Window");
             }
-            Build.Part(_heli, MeshGen.Cylinder(10), dark, new Vector3(0, 2.85f, 0), new Vector3(0.3f, 0.4f, 0.3f), null, "Mast");
-            _heliRotor = Build.Node(_heli, "Rotor", new Vector3(0, 3.1f, 0));
-            Build.Part(_heliRotor, MeshGen.Box, dark, Vector3.zero, new Vector3(9.5f, 0.06f, 0.35f), null, "Blade", false);
-            Build.Part(_heliRotor, MeshGen.Box, dark, Vector3.zero, new Vector3(0.35f, 0.06f, 9.5f), null, "Blade", false);
-            _heliTail = Build.Node(_heli, "TailRotor", new Vector3(0.28f, 2.6f, -5.6f));
-            Build.Part(_heliTail, MeshGen.Box, dark, Vector3.zero, new Vector3(0.05f, 1.6f, 0.18f), null, "Blade", false);
-            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.75f, -0.4f), Vector3.one * 0.25f, null, "Beacon", false);
+            // open side door (right side, where the squad boards)
+            Build.Part(_heli, MeshGen.Box, inside, new Vector3(1.12f, 1.65f, -0.1f), new Vector3(0.12f, 1.25f, 1.25f), null, "Door");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, -0.82f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, 0.62f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
+            // RILO plate on the nose
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.55f, 2.75f), new Vector3(0.9f, 0.32f, 0.06f), null, "Plate");
+
+            // tail: tapered boom, fin, stabiliser, tail rotor guard
+            Build.Part(_heli, MeshGen.Cone(16, 0.45f), navy, new Vector3(0, 2.15f, -3.6f), new Vector3(1.0f, 4.6f, 0.9f), along * Quaternion.Euler(180, 0, 0), "Boom");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 2.2f, -3.3f), new Vector3(0.62f, 0.14f, 2.4f), null, "BoomStripe");
+            Build.Part(_heli, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 3.0f, -5.7f), new Vector3(0.18f, 1.6f, 0.9f), Quaternion.Euler(-18, 0, 0), "Fin");
+            Build.Part(_heli, MeshGen.RoundBox(0.3f), yellow, new Vector3(0, 3.55f, -5.95f), new Vector3(0.2f, 0.4f, 0.7f), Quaternion.Euler(-18, 0, 0), "FinTip");
+            Build.Part(_heli, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 2.15f, -5.0f), new Vector3(1.9f, 0.12f, 0.55f), null, "Stabiliser");
+            _heliTail = Build.Node(_heli, "TailRotor", new Vector3(0.22f, 2.75f, -5.75f));
+            for (int b = 0; b < 2; b++)
+                Build.Part(_heliTail, MeshGen.RoundBox(0.4f), dark, Vector3.zero, new Vector3(0.05f, 1.5f, 0.14f), Quaternion.Euler(b * 90f, 0, 0), "Blade", false);
+            Build.Part(_heliTail, MeshGen.Cylinder(10), metal, Vector3.zero, new Vector3(0.18f, 0.08f, 0.18f), Quaternion.Euler(0, 0, 90), "Hub", false);
+
+            // skids: two rails with curled-up fronts on four struts
+            foreach (float x in new[] { -1.05f, 1.05f })
+            {
+                Build.Part(_heli, MeshGen.Cylinder(10), metal, new Vector3(x, 0.1f, 0.2f), new Vector3(0.14f, 3.2f, 0.14f), along, "Skid");
+                Build.Part(_heli, MeshGen.Cylinder(10), metal, new Vector3(x, 0.25f, 1.92f), new Vector3(0.14f, 0.38f, 0.14f), Quaternion.Euler(55, 0, 0), "SkidTip");
+                foreach (float z in new[] { -0.8f, 1.0f })
+                    Build.Part(_heli, MeshGen.Cylinder(8), metal, new Vector3(x * 0.85f, 0.55f, z), new Vector3(0.1f, 0.5f, 0.1f), Quaternion.Euler(0, 0, x > 0 ? -18 : 18), "Strut");
+            }
+
+            // main rotor: mast, hub, four tapered blades with yellow tips
+            Build.Part(_heli, MeshGen.Cylinder(12), metal, new Vector3(0, 3.05f, -0.2f), new Vector3(0.32f, 0.35f, 0.32f), null, "Mast");
+            _heliRotor = Build.Node(_heli, "Rotor", new Vector3(0, 3.3f, -0.2f));
+            Build.Part(_heliRotor, MeshGen.Cylinder(12), metal, Vector3.zero, new Vector3(0.55f, 0.16f, 0.55f), null, "Hub", false);
+            for (int b = 0; b < 4; b++)
+            {
+                var q = Quaternion.Euler(0, b * 90f, 0);
+                Build.Part(_heliRotor, MeshGen.RoundBox(0.25f), dark, q * new Vector3(0, 0.02f, 2.6f), new Vector3(0.38f, 0.05f, 4.9f), q, "Blade", false);
+                Build.Part(_heliRotor, MeshGen.RoundBox(0.25f), yellow, q * new Vector3(0, 0.03f, 4.85f), new Vector3(0.4f, 0.06f, 0.4f), q, "Tip", false);
+            }
+            _rotorBase = Quaternion.identity;
+
+            // lights: red beacon under the belly, green / red nav lights on the sides, white on the tail
+            _heliBeacon = Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.62f, -0.2f), Vector3.one * 0.26f, null, "Beacon", false).transform;
+            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(0.3f, 1f, 0.45f), 3f), new Vector3(1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavR", false);
+            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.3f, 0.3f), 3f), new Vector3(-1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavL", false);
+            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(Color.white, 3f), new Vector3(0, 3.9f, -6.1f), Vector3.one * 0.14f, null, "TailLight", false);
             _heli.gameObject.SetActive(false);
         }
 
@@ -268,12 +295,13 @@ namespace Veil.View
 
         // ------------------------------------------------------------------ escape cinematic
 
-        public const float EscapeLength = 9f;
+        public const float EscapeLength = 10.5f;
         public float EscapeT { get; private set; } = -1f;
         public int EscapeSquad { get; private set; } = -1;
         private Vector3 _escPos, _escDir;
         private readonly List<AvatarView> _boarders = new List<AvatarView>();
         private readonly List<Vector3> _boardFrom = new List<Vector3>();
+        private readonly List<bool> _aboard = new List<bool>();
 
         /// <summary>The winners walk to the helicopter, board, and it flies them off the island.</summary>
         public void StartEscape(int squad, Vec2 at)
@@ -285,70 +313,94 @@ namespace Veil.View
             var outward = new Vector3(at.X, 0, at.Y);
             _escDir = outward.sqrMagnitude > 1f ? outward.normalized : Vector3.forward;
             _heliH = Mathf.Min(_heliH, 6f);
-            _boarders.Clear(); _boardFrom.Clear();
+            _boarders.Clear(); _boardFrom.Clear(); _aboard.Clear();
             foreach (var av in Avatars.Values)
                 if (av.AvatarId < 1000 && av.Alive && Match.SquadOf(av.OwnerId) == squad && Vector3.Distance(av.Pos, _escPos) < 30f) { _boarders.Add(av); _boardFrom.Add(av.Pos); }
             if (Local.Alive && Match.LocalSquad == squad && Vector3.Distance(Local.Pos, _escPos) < 30f) { _boarders.Add(Local); _boardFrom.Add(Local.Pos); }
             Sfx.Play(Sfx.Objective, 1f);
         }
 
+        private float _dustT;
+        private Vector3 _letGo;   // shot 4: where the camera stops and lets the helicopter fly off
+
         private void UpdateEscape(float dt)
         {
             EscapeT += dt;
             float t = EscapeT;
-            // helicopter: settled on the ground until everyone is aboard, then up and away towards the sea
-            float lift = Mathf.Clamp01((t - 2.6f) / 6f);
-            float climb = lift * lift * 60f;
-            float fly = Mathf.Max(0, t - 3.4f);
-            Vector3 heliPos = _escPos + Vector3.up * (0.05f + climb) + _escDir * (fly * fly * 4.5f);
+            // helicopter: on the ground while the squad boards (0–3 s), lifts and hovers (3–4.6 s), then climbs out to sea banking
+            float lift = Mathf.Clamp01((t - 3.0f) / 1.6f);
+            float climb = Mathf.SmoothStep(0, 1, lift) * 6f + Mathf.Max(0, t - 4.6f) * Mathf.Max(0, t - 4.6f) * 2.2f;
+            float fly = Mathf.Max(0, t - 4.4f);
+            var side = Vector3.Cross(Vector3.up, _escDir);
+            Vector3 heliPos = _escPos + Vector3.up * (0.05f + climb) + _escDir * (fly * fly * 3.2f) + side * Mathf.Sin(fly * 0.6f) * fly * 1.5f;
             _heli.gameObject.SetActive(true);
             _heli.position = heliPos;
-            var face = Quaternion.LookRotation(_escDir);
-            _heli.rotation = face * Quaternion.Euler(Mathf.Clamp(fly * 6f, 0, 14f), 0, Mathf.Sin(t * 0.8f) * 2f);
-            _heliRotor.localRotation = Quaternion.AngleAxis(Time.time * 1600f, Vector3.up) * _rotorBase;
+            float bank = Mathf.Clamp(fly * 9f, 0, 22f) * Mathf.Cos(fly * 0.6f);
+            _heli.rotation = Quaternion.LookRotation(_escDir) * Quaternion.Euler(Mathf.Clamp(fly * 7f, 0, 16f), 0, -bank);
+            _heliRotor.localRotation = Quaternion.AngleAxis(Time.time * 1700f, Vector3.up) * _rotorBase;
             _heliTail.localRotation = Quaternion.Euler(Time.time * 2200f, 0, 0);
+            if (_heliBeacon) _heliBeacon.localScale = Vector3.one * (Mathf.Repeat(Time.time, 1f) < 0.15f ? 0.34f : 0.12f);
             _heliH = climb;
-            // winners jog to the door (side of the cabin) and vanish inside
-            Vector3 door = heliPos + _heli.rotation * new Vector3(1.6f, 0, 0.3f);
+            // rotor wash: dust rings blowing out while it is low
+            _dustT -= dt;
+            if (climb < 8f && _dustT <= 0) { _dustT = 0.12f; Fx.I.Puff(_escPos + new Vector3(Random.Range(-3f, 3f), 0.2f, Random.Range(-3f, 3f)), new Color(0.85f, 0.8f, 0.7f, 0.6f), 6, 0.9f); }
+            if (t > 3.0f && t - dt <= 3.0f) { Fx.I.Dust(_escPos, 3f); _cam.Shake(0.35f); }
+            // winners jog to the door (right side of the cabin) and vanish inside, one after another
+            Vector3 door = heliPos + _heli.rotation * new Vector3(1.6f, 0, 0.0f);
             for (int i = 0; i < _boarders.Count; i++)
             {
                 var av = _boarders[i];
                 if (av.Rig == null) continue;
-                float start = 0.25f * i, k = Mathf.Clamp01((t - start) / 1.6f);
+                float start = 0.35f * i, k = Mathf.Clamp01((t - start) / 1.8f);
                 bool aboard = k >= 1f;
-                if (av.Rig.gameObject.activeSelf && aboard) { Fx.I.Puff(door + Vector3.up, new Color(1, 1, 1, 0.7f), 8, 0.4f); av.Rig.gameObject.SetActive(false); }
-                if (aboard) continue;
+                while (_aboard.Count <= i) _aboard.Add(false);
+                // one small puff at the door, then hidden for good (the local view re-shows your hero every frame)
+                if (aboard && !_aboard[i]) { _aboard[i] = true; Fx.I.Puff(door + Vector3.up, new Color(1, 1, 1, 0.7f), 8, 0.4f); }
+                if (aboard) { if (av.Rig.gameObject.activeSelf) av.Rig.gameObject.SetActive(false); continue; }
                 var p = Vector3.Lerp(_boardFrom[i], door, k * k * (3 - 2 * k));
                 av.Rig.transform.position = p;
                 var dir = door - _boardFrom[i]; dir.y = 0;
                 if (dir.sqrMagnitude > 0.01f) av.Rig.transform.rotation = Quaternion.LookRotation(dir);
+                av.Rig.Animate(new RigState { Grounded = true, Velocity = dir.normalized * 6f, Sprinting = true }, dt);
             }
-            _extract.gameObject.SetActive(t < 2.6f);
+            _extract.gameObject.SetActive(false);   // no zone ring / beam in the cinematic
         }
 
-        /// <summary>Cinematic camera for the escape: low hero shot on the landed helicopter, looking up as it lifts, then a chase over the island.</summary>
+        /// <summary>Escape cinematic, four shots: low run-up behind the squad · door close-up as it lifts · high drone shot climbing
+        /// over the island · locked camera watching it bank away over the sea.</summary>
         public void EscapeCamera(CameraRig cam, float dt)
         {
             float t = EscapeT;
             var side = Vector3.Cross(Vector3.up, _escDir);
             Vector3 heli = _heli.position;
-            if (t < 2.6f)
+            if (t < 2.4f)
             {
-                float a = t * 12f * Mathf.Deg2Rad;   // slow push-in orbit around the landed helicopter
-                var offset = Quaternion.AngleAxis(-35f + t * 12f, Vector3.up) * (-_escDir * (13f - t * 1.5f) + side * 4f);
-                cam.Shot(_escPos + offset + Vector3.up * 2.2f, _escPos + Vector3.up * 1.6f, dt, 4f);
+                // 1 · low, behind the squad, slowly pushing towards the waiting helicopter
+                var from = _escPos - _escDir * (16f - t * 2.2f) - side * 3f + Vector3.up * (1.1f + t * 0.15f);
+                if (t < dt * 1.5f) cam.Snap(from, _escPos + Vector3.up * 2f); else cam.Shot(from, _escPos + Vector3.up * 2f, dt, 6f);
+                cam.SetFov(48f);
             }
-            else if (t < 5f)
-                cam.Shot(_escPos - _escDir * 9f + side * 7f + Vector3.up * 1.2f, heli + Vector3.up * 1.5f, dt, 3f);   // looking up as it lifts
+            else if (t < 4.8f)
+            {
+                // 2 · side close-up on the open door as the last one boards and it lifts
+                var from = _escPos + side * 7.5f + _escDir * 1.5f + Vector3.up * 1.6f;
+                if (t - dt < 2.4f) cam.Snap(from, heli + Vector3.up * 1.8f); else cam.Shot(from, heli + Vector3.up * 1.8f, dt, 5f);
+                cam.SetFov(52f);
+            }
+            else if (t < 7.2f)
+            {
+                // 3 · drone shot: high and behind, the island below as it climbs away
+                var from = heli - _escDir * 16f + side * 6f + Vector3.up * 14f;
+                if (t - dt < 4.8f) cam.Snap(from, heli); else cam.Shot(from, heli + _escDir * 6f, dt, 3f);
+                cam.SetFov(60f);
+                _letGo = heli - _escDir * 4f + side * 10f + Vector3.up * 4f;
+            }
             else
-                cam.Shot(heli - _escDir * 22f + Vector3.up * 9f + side * 5f, heli + _escDir * 10f, dt, 2.2f);       // chase out over the island
-            cam.SetFov(t < 5f ? 50f : 60f);
-        }
-
-        private static Transform FindChild(Transform t, string name)
-        {
-            foreach (var c in t.GetComponentsInChildren<Transform>(true)) if (c.name == name) return c;
-            return null;
+            {
+                // 4 · the camera stops and lets it go: banking out over the sea towards the horizon
+                cam.Shot(_letGo, heli, dt, 2.5f);
+                cam.SetFov(Mathf.Lerp(60f, 42f, Mathf.Clamp01((t - 7.2f) / 2.5f)));
+            }
         }
 
         private void UpdateHelicopter(Snapshot s, float dt)
@@ -373,6 +425,7 @@ namespace Veil.View
             _heli.rotation = q * Quaternion.Euler(orbit > 1f ? 8f : 0f, 0, 0);
             _heliRotor.localRotation = Quaternion.AngleAxis(Time.time * 1400f, Vector3.up) * _rotorBase;
             _heliTail.localRotation = Quaternion.Euler(Time.time * 2000f, 0, 0);
+            if (_heliBeacon) _heliBeacon.localScale = Vector3.one * (Mathf.Repeat(Time.time, 1f) < 0.15f ? 0.34f : 0.12f);
         }
         private Material _xWhite, _xGreen, _xRed, _xGold;
 

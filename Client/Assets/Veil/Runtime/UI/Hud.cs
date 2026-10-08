@@ -71,15 +71,17 @@ namespace Veil.UI
             if (_cine.gameObject.activeSelf != on) _cine.gameObject.SetActive(on);
             if (Root.gameObject.activeSelf == on) Root.gameObject.SetActive(!on);
             if (!on) return;
+            if (_hackBtn != null && _hackBtn.gameObject.activeSelf) _hackBtn.gameObject.SetActive(false);
+            if (_puzzle != null && _puzzle.Open) _puzzle.Close();
             float h = ((RectTransform)_cine).rect.height * 0.12f * Mathf.SmoothStep(0, 1, Mathf.Clamp01(t / 0.8f));
             _barTop.sizeDelta = new Vector2(0, h);
             _barBottom.sizeDelta = new Vector2(0, h);
             bool mine = _view.EscapeSquad == _m.LocalSquad;
-            float a = Mathf.Clamp01((t - 3.4f) / 0.8f);
+            float a = Mathf.Clamp01((t - 7.3f) / 0.8f);   // title over the last shot (the helicopter banking away)
             _cineTitle.text = mine ? "VICTORY" : $"SQUAD {(char)('A' + _view.EscapeSquad)} ESCAPED";
             _cineSub.text = mine ? "Your squad made it off Rilo Island" : "They made it off Rilo Island";
             _cineTitle.color = new Color(mine ? 1f : 1f, mine ? 0.85f : 1f, mine ? 0.3f : 1f, a);
-            _cineSub.color = new Color(Theme.Yellow.r, Theme.Yellow.g, Theme.Yellow.b, Mathf.Clamp01((t - 4f) / 0.8f));
+            _cineSub.color = new Color(Theme.Yellow.r, Theme.Yellow.g, Theme.Yellow.b, Mathf.Clamp01((t - 7.9f) / 0.8f));
             _cineTitle.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.25f, 1f, a);
         }
         private RectTransform _scoreboard;
@@ -148,8 +150,10 @@ namespace Veil.UI
             if (GameConfig.ExtractionMode)
             {
                 _hack = new HackPanel(Root, _m.LocalSquad) { HackerName = id => _m.NameOf(id) };
-                _hackBtn = UIKit.Button(Root, "HACK", new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(240, 80), UIKit.ButtonStyle.Primary, () => _puzzle.Show(), 34);
-                _puzzle = new CircuitPuzzle(Root);
+                // on the canvas, not under the HUD: phones put the touch controls (camera look pad) above the HUD,
+                // which swallowed taps on HACK and on the puzzle wires
+                _hackBtn = UIKit.Button(canvas, "HACK", new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(240, 80), UIKit.ButtonStyle.Primary, () => { _puzzle.Show(); _puzzle.Root.SetAsLastSibling(); }, 34);
+                _puzzle = new CircuitPuzzle(canvas);
                 _extractPanel = new ExtractPanel(Root, _m.LocalSquad, mobile);
             }
             _compass = new CompassBar(Root);
@@ -182,6 +186,8 @@ namespace Veil.UI
             _view.OnEvent -= HandleEvent;
             _view.OnEvent -= _extras.HandleEvent;
             VirtualInput.Tap = null;
+            if (_hackBtn != null) Object.Destroy(_hackBtn.gameObject);
+            if (_puzzle != null) Object.Destroy(_puzzle.Root.gameObject);
             _mapScreen?.Destroy();
             _extras.Dispose();
             Object.Destroy(_cine.gameObject);
@@ -806,8 +812,8 @@ namespace Veil.UI
                 bool inRing = homeT ? Vec2.Dist(me.Pos, s.HomePos) <= GameConfig.HomeHackRadius : me.Pos.Length <= GameConfig.HackRadius;
                 int hk = homeT ? s.HomeHacker : s.CenterHacker;
                 bool canHack = s.Stage == 0 && me.Alive && inRing && hk < 0 && !_puzzle.Open;
-                if (_hackBtn.gameObject.activeSelf != canHack) _hackBtn.gameObject.SetActive(canHack);
-                if (canHack && Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame) _puzzle.Show();
+                if (_hackBtn.gameObject.activeSelf != canHack) { _hackBtn.gameObject.SetActive(canHack); if (canHack) _hackBtn.transform.SetAsLastSibling(); }
+                if (canHack && Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame) { _puzzle.Show(); _puzzle.Root.SetAsLastSibling(); }
                 if (_puzzle.Open && !_puzzleDebug && (!inRing || !me.Alive || s.Stage != 0)) _puzzle.Close();
                 if (canHack) UIKit.ButtonLabel(_hackBtn).text = Application.isMobilePlatform ? "HACK" : "HACK  [F]";
                 if (!_announced && s.Time > 1.5f) { _announced = true; Banner("OBJECTIVE 1/3 · HACK A TERMINAL", "Raid an ENEMY home terminal (20 s) or take the CENTRAL one (12 s + bonus) — you cannot hack your own", 5f); }

@@ -1230,6 +1230,15 @@ namespace Veil.App
                 ld.Sim.DebugExtraction(_match.LocalSquad);
                 yield return new WaitForSeconds(3.2f);
                 yield return Shot("07b_extract_final");
+                // the squad finishes extracting → escape cinematic: one shot per camera cut
+                float waitT = 0;
+                while (State == AppState.Match && _matchView != null && _matchView.EscapeT < 0 && waitT < 20f) { waitT += Time.deltaTime; yield return null; }
+                foreach (var (at, nm) in new[] { (1.4f, "11a_escape_board"), (3.9f, "11b_escape_lift"), (6.2f, "11c_escape_drone"), (8.8f, "11d_escape_away") })
+                {
+                    while (State == AppState.Match && _matchView != null && _matchView.EscapeT >= 0 && _matchView.EscapeT < at) yield return null;
+                    if (State != AppState.Match) break;
+                    yield return Shot(nm);
+                }
             }
             CamRig.Pitch = 55f; CamRig.Distance = 14f;
             yield return new WaitForSeconds(2f);

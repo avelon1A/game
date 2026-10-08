@@ -22,6 +22,7 @@ namespace Veil.UI
         private readonly bool[] _done = new bool[3];
         private int _picked = -1;
         public bool Open { get; private set; }
+        public RectTransform Root => _root;
 
         public CircuitPuzzle(Transform parent)
         {

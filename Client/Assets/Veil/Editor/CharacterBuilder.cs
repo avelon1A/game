@@ -182,11 +182,12 @@ namespace Veil.EditorTools
             var clips = ClipsOf(fbx);
             // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
             if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
-            // shared RILO pack first (made for these Meshy rigs): jump, hits and fist fighting for every hero; sprint if a hero has none
+            // shared RILO pack first (made for these Meshy rigs): jump, hits and fist fighting for every hero
+            // (not its sprint: arms swept back, chest up — the library sprint reads much better)
             if (humanoid && File.Exists(CharacterImport.SharedFbx))
             {
                 var pack = ClipsOf(CharacterImport.SharedFbx);
-                foreach (var key in new[] { "jump", "hit", "punch", "sprint" })
+                foreach (var key in new[] { "jump", "hit", "punch" })
                     if (!clips.ContainsKey(key) && pack.TryGetValue(key, out var pc)) clips[key] = pc;
             }
             if (humanoid && File.Exists(CharacterImport.LibraryFbx))
