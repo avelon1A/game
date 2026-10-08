@@ -11,6 +11,7 @@ namespace Veil.Net
         public string id; public string name; public int level; public int xp; public int xpToNext; public int rating;
         public int matches; public int wins; public int top3; public int bestScore; public int totalScore; public int avgScore;
         public int eliminations; public int deaths; public int objectives; public string appearance;
+        public int coins;
     }
     [Serializable] public sealed class RegisterDto { public string id; public string token; public ProfileDto profile; }
     [Serializable] public sealed class LeaderboardDto { public ProfileDto[] players; }

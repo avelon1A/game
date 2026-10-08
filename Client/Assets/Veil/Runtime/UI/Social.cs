@@ -149,8 +149,8 @@ namespace Veil.UI
             for (int i = 0; i < _plate.Length; i++) _plate[i] = MakePlate(_plates, i);
 
             // ---------------- squad panel
-            _squadPanel = (RectTransform)UIKit.Panel(tab, "Squad", new Vector2(1, 1), new Vector2(-24, -104), new Vector2(440, 512)).transform;
-            _squadPanel.pivot = new Vector2(1, 1);
+            _squadPanel = (RectTransform)UIKit.Panel(tab, "Squad", new Vector2(1, 0), new Vector2(-24, 128), new Vector2(440, 512)).transform;
+            _squadPanel.pivot = new Vector2(1, 0);
             _title = UIKit.LabelAt(_squadPanel, "SQUAD", 30, Theme.Text, new Vector2(0, 1), new Vector2(22, -16), new Vector2(240, 44), TextAnchor.MiddleLeft, UIKit.TitleFont);
             _title.rectTransform.pivot = new Vector2(0, 1);
             _title.supportRichText = true;
@@ -161,13 +161,17 @@ namespace Veil.UI
             _copy = IconButton(_squadPanel, Icons.Copy, "COPY CODE", new Vector2(1, 0), new Vector2(-16, 18), new Vector2(200, 50), CopyCode);
 
             // ---------------- mode card
-            _modePanel = (RectTransform)UIKit.Panel(tab, "Mode", new Vector2(1, 1), new Vector2(-24, -628), new Vector2(440, 176)).transform;
-            _modePanel.pivot = new Vector2(1, 1);
+            _modePanel = (RectTransform)UIKit.Panel(tab, "Mode", new Vector2(1, 0), new Vector2(-24, 128), new Vector2(440, 176)).transform;
+            _modePanel.pivot = new Vector2(1, 0);
             var thumb = UIKit.At(_modePanel, "Thumb", new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(130, 138));
             thumb.pivot = new Vector2(0, 0.5f);
-            var tImg = UIKit.Image(thumb, UIKit.Rounded, Color.white);
-            tImg.sprite = UIKit.Gradient;
-            tImg.color = new Color(0.45f, 0.35f, 0.95f);
+            var tImg = UIKit.Image(thumb, UIKit.Rounded, new Color(0.1f, 0.12f, 0.2f));
+            var modeArt = Resources.Load<Texture2D>("UI/title_keyart");
+            if (modeArt != null)
+            {
+                var ar = UIKit.Fill(thumb, "Art", 3).gameObject.AddComponent<RawImage>();
+                ar.texture = modeArt; ar.uvRect = new Rect(0.35f, 0.15f, 0.45f, 0.7f); ar.raycastTarget = false;
+            }
             var ic = UIKit.At(thumb, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(70, 70));
             _modeThumbIcon = UIKit.Image(ic, Icons.Players, Color.white);
             _modeTitle = UIKit.LabelAt(_modePanel, "", 24, Theme.Text, new Vector2(0, 1), new Vector2(160, -16), new Vector2(270, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
@@ -187,7 +191,7 @@ namespace Veil.UI
             _changeBtn = change;
 
             // ---------------- length, status, ready
-            _length = new ChipRowCompact(tab, new Vector2(1, 1), new Vector2(-24, -840), new[] { "5 MIN", "10 MIN", "15 MIN" },
+            _length = new ChipRowCompact(tab, new Vector2(1, 0), new Vector2(-24, 318), new[] { "5 MIN", "10 MIN", "15 MIN" },
                 app.Profile.MatchMinutes >= 15 ? 2 : app.Profile.MatchMinutes >= 10 ? 1 : 0,
                 i => { app.Profile.MatchMinutes = i == 0 ? 5 : i == 1 ? 10 : 15; app.Profile.Save(); UpdateStatus(); });
             // status sits beside READY (the right column has no spare height on 20:9 phones)
@@ -195,19 +199,41 @@ namespace Veil.UI
             _status.rectTransform.pivot = new Vector2(1, 0.5f);
             _status.supportRichText = true;
             UIKit.Shadow(_status);
-            _action = UIKit.Button(tab, "READY", new Vector2(1, 0), new Vector2(-116, 24), new Vector2(348, 88), UIKit.ButtonStyle.Primary, OnAction, 46);
+            _action = UIKit.Button(tab, "START", new Vector2(1, 0), new Vector2(-24, 24), new Vector2(340, 92), UIKit.ButtonStyle.Primary, OnAction, 50);
             ((RectTransform)_action.transform).pivot = new Vector2(1, 0);
             _actionLabel = UIKit.ButtonLabel(_action);
             _actionLabel.fontStyle = FontStyle.Italic;
-            _side = UIKit.Button(tab, "", new Vector2(1, 0), new Vector2(-24, 24), new Vector2(86, 88), UIKit.ButtonStyle.Primary, () => OpenFriends?.Invoke(), 20);
+            // checkered-flag corner on START (concept art)
+            var flag = UIKit.At((RectTransform)_action.transform, "Flag", new Vector2(1, 0.5f), new Vector2(-14, 0), new Vector2(56, 56));
+            flag.pivot = new Vector2(1, 0.5f);
+            for (int fy = 0; fy < 4; fy++) for (int fx = 0; fx < 4; fx++)
+                if ((fx + fy) % 2 == 0) { var sq = UIKit.At(flag, "Sq", new Vector2(0, 0), new Vector2(fx * 14, fy * 14), new Vector2(14, 14)); sq.pivot = Vector2.zero; UIKit.Image(sq, UIKit.Square, new Color(0.08f, 0.06f, 0.02f, 0.85f)).raycastTarget = false; }
+            // squad button left of START: opens / closes the squad list
+            _side = UIKit.Button(tab, "", new Vector2(1, 0), new Vector2(-380, 24), new Vector2(92, 92), UIKit.ButtonStyle.Secondary, ToggleSquadList, 20);
             ((RectTransform)_side.transform).pivot = new Vector2(1, 0);
-            var sideIc = UIKit.At((RectTransform)_side.transform, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44, 44));
-            UIKit.Image(sideIc, Icons.Players, new Color(0.15f, 0.1f, 0.05f));
+            ((Image)_side.targetGraphic).color = new Color(0.04f, 0.05f, 0.1f, 0.85f);
+            var sideIc = UIKit.At((RectTransform)_side.transform, "Icon", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(46, 46));
+            UIKit.Image(sideIc, Icons.Players, Color.white);
+            _squadPanel.gameObject.SetActive(false);
+
+            // ---------------- right column cards (concept art): new map, battle pass, missions, daily rewards
+            _cards = UIKit.At(tab, "Cards", new Vector2(1, 1), new Vector2(-24, -128), new Vector2(440, 470));
+            _cards.pivot = new Vector2(1, 1);
+            BuildCards(_cards);
+            // ---------------- world chat bar (bottom-left)
+            BuildChat(tab);
+            // ---------------- "+" invite markers standing at the empty squad spots
+            for (int i = 0; i < _plus.Length; i++)
+            {
+                var pb = UIKit.Button(tab, "+", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(80, 80), UIKit.ButtonStyle.Secondary, () => OpenFriends?.Invoke(), 52);
+                ((Image)pb.targetGraphic).color = new Color(0.04f, 0.05f, 0.1f, 0.7f);
+                _plus[i] = (RectTransform)pb.transform;
+            }
             _countdown = UIKit.LabelAt(tab, "", 130, Color.white, new Vector2(0.5f, 0.5f), new Vector2(-240, 40), new Vector2(400, 200), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_countdown, new Color(0.4f, 0.15f, 0.9f), 5);
 
             // ---------------- voice pill (bottom-left) + how to play
-            _voicePill = UIKit.At(tab, "Voice", new Vector2(0, 0), new Vector2(100, 24), new Vector2(330, 64));
+            _voicePill = UIKit.At(tab, "Voice", new Vector2(0, 0), new Vector2(28, 110), new Vector2(330, 64));
             _voicePill.pivot = new Vector2(0, 0);
             UIKit.Image(_voicePill, UIKit.Pill, new Color(0.05f, 0.06f, 0.15f, 0.88f));
             var micB = PillIcon(_voicePill, Icons.Mic, new Vector2(12, 0), () => { _app.Voice.MicMuted = !_app.Voice.MicMuted; });
@@ -218,7 +244,7 @@ namespace Veil.UI
             ((RectTransform)modeBtn.transform).pivot = new Vector2(0, 0.5f);
             _voiceMode = UIKit.ButtonLabel(modeBtn);
             _voiceMode.supportRichText = true;
-            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(24, 24), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf), 30);
+            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf), 30);
             ((RectTransform)help.transform).pivot = new Vector2(0, 0);
             _howTo = BuildHowTo(tab);
             _howTo.gameObject.SetActive(false);
@@ -246,6 +272,124 @@ namespace Veil.UI
         }
 
         private Button _changeBtn;
+        private RectTransform _cards;
+        private readonly RectTransform[] _plus = new RectTransform[3];
+        private Text _chat;
+        private int _chatIdx;
+        private float _chatT;
+        private Text _bpLevel;
+        private Bar _bpBar;
+
+        private void ToggleSquadList()
+        {
+            bool on = !_squadPanel.gameObject.activeSelf;
+            _squadPanel.gameObject.SetActive(on);
+            _modePanel.gameObject.SetActive(!on);
+            _length.Root.gameObject.SetActive(!on);
+        }
+
+        private static Image Dark(RectTransform rt) => UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.82f), true);
+
+        private void BuildCards(RectTransform root)
+        {
+            void Soon(string what) => _app.Toast($"{what} — coming soon");
+            // NEW MAP banner (painted key art)
+            var map = UIKit.At(root, "NewMap", new Vector2(0, 1), Vector2.zero, new Vector2(440, 180));
+            map.pivot = new Vector2(0, 1);
+            var mapBg = Dark(map);
+            var art = Resources.Load<Texture2D>("UI/title_keyart");
+            if (art != null) { var ri = UIKit.Fill(map, "Art", 3).gameObject.AddComponent<RawImage>(); ri.texture = art; ri.uvRect = new Rect(0.25f, 0.2f, 0.75f, 0.6f); ri.raycastTarget = false; }
+            var shade = UIKit.Rect(map, "Shade", new Vector2(0, 0), new Vector2(1, 0.6f), new Vector2(0.5f, 0), Vector2.zero, Vector2.zero);
+            var sh = UIKit.Image(shade, UIKit.Gradient, new Color(0, 0, 0, 0.75f)); sh.raycastTarget = false;
+            shade.localScale = new Vector3(1, -1, 1);
+            var t1 = UIKit.LabelAt(map, "NEW MAP", 30, Color.white, new Vector2(1, 0), new Vector2(-18, 52), new Vector2(380, 36), TextAnchor.MiddleRight, UIKit.TitleFont);
+            t1.rectTransform.pivot = new Vector2(1, 0); t1.fontStyle = FontStyle.Italic; UIKit.Shadow(t1, 2);
+            var t2 = UIKit.LabelAt(map, "RILO ISLAND", 30, Theme.Yellow, new Vector2(1, 0), new Vector2(-18, 14), new Vector2(380, 36), TextAnchor.MiddleRight, UIKit.TitleFont);
+            t2.rectTransform.pivot = new Vector2(1, 0); t2.fontStyle = FontStyle.Italic; UIKit.Shadow(t2, 2);
+            var mb = map.gameObject.AddComponent<Button>(); mb.targetGraphic = mapBg;
+            mb.onClick.AddListener(() => _app.Toast("RILO ISLAND — 400 m island, 8 regions. Press START to drop in!"));
+            // BATTLE PASS (season progress follows your level for now)
+            var bp = UIKit.At(root, "BattlePass", new Vector2(0, 1), new Vector2(0, -192), new Vector2(440, 130));
+            bp.pivot = new Vector2(0, 1);
+            var bpBg = UIKit.Image(bp, UIKit.RoundedSmall, new Color(0.12f, 0.16f, 0.42f, 0.92f), true);
+            var b1 = UIKit.LabelAt(bp, "BATTLE PASS", 28, Color.white, new Vector2(0, 1), new Vector2(20, -14), new Vector2(300, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            b1.rectTransform.pivot = new Vector2(0, 1); b1.fontStyle = FontStyle.Italic;
+            var b2 = UIKit.LabelAt(bp, "SEASON 1 · COMING SOON", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(20, -48), new Vector2(300, 22), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            b2.rectTransform.pivot = new Vector2(0, 1);
+            var lvl = UIKit.At(bp, "Lv", new Vector2(0, 0), new Vector2(20, 14), new Vector2(46, 46)); lvl.pivot = Vector2.zero;
+            UIKit.Image(lvl, UIKit.Diamond, Theme.Yellow);
+            _bpLevel = UIKit.Label(lvl, "1", 18, new Color(0.08f, 0.06f, 0.02f), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _bpBar = new Bar(bp, new Vector2(0, 0), new Vector2(80, 30), new Vector2(336, 12), Theme.Yellow, new Color(1, 1, 1, 0.15f));
+            _bpBar.Root.pivot = new Vector2(0, 0);
+            var bb = bp.gameObject.AddComponent<Button>(); bb.targetGraphic = bpBg; bb.onClick.AddListener(() => Soon("BATTLE PASS"));
+            // MISSIONS, DAILY REWARDS
+            void Row(string label, Sprite icon, float y, bool dot)
+            {
+                var rt = UIKit.At(root, label, new Vector2(0, 1), new Vector2(0, y), new Vector2(440, 64));
+                rt.pivot = new Vector2(0, 1);
+                var bg = Dark(rt);
+                var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = bg;
+                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); Soon(label); });
+                rt.gameObject.AddComponent<ButtonFx>();
+                var ic = UIKit.At(rt, "I", new Vector2(0, 0.5f), new Vector2(22, 0), new Vector2(34, 34)); ic.pivot = new Vector2(0, 0.5f);
+                UIKit.Image(ic, icon, Color.white);
+                var l = UIKit.LabelAt(rt, label, 22, Color.white, new Vector2(0, 0.5f), new Vector2(76, 0), new Vector2(330, 36), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                l.rectTransform.pivot = new Vector2(0, 0.5f);
+                if (dot) { var d = UIKit.At(rt, "Dot", new Vector2(1, 1), new Vector2(-10, -10), new Vector2(14, 14)); d.pivot = new Vector2(1, 1); UIKit.Image(d, UIKit.Circle, Theme.Red); }
+            }
+            Row("MISSIONS", Icons.Target, -334, false);
+            Row("DAILY REWARDS", Icons.Key, -408, true);
+            EnterFx.Add(root, new Vector2(48, 0), 0.06f);
+        }
+
+        private void BuildChat(RectTransform tab)
+        {
+            var bar = UIKit.At(tab, "Chat", new Vector2(0, 0), new Vector2(28, 24), new Vector2(560, 68));
+            bar.pivot = Vector2.zero;
+            var bg = Dark(bar);
+            var b = bar.gameObject.AddComponent<Button>(); b.targetGraphic = bg;
+            b.onClick.AddListener(() => _app.Toast("World chat is coming soon — use squad voice for now"));
+            var ic = UIKit.At(bar, "I", new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(40, 40)); ic.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(ic, UIKit.RoundedSmall, Color.white);
+            UIKit.Label(ic, "···", 22, new Color(0.08f, 0.06f, 0.02f), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _chat = UIKit.LabelAt(bar, ChatLines[0], 18, new Color(0.85f, 0.88f, 1f), new Vector2(0, 0.5f), new Vector2(74, 0), new Vector2(470, 40), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            _chat.rectTransform.pivot = new Vector2(0, 0.5f); _chat.supportRichText = true; UIKit.Fit(_chat, 11);
+            EnterFx.Add(bar, new Vector2(-36, 0), 0.2f);
+        }
+
+        private static readonly string[] ChatLines =
+        {
+            "<color=#ffd84a>[RILO]</color> Welcome to Rilo Island — 4 squads, 1 extraction.",
+            "<color=#ffd84a>[Tip]</color> Hack an enemy terminal, then defend your hacker.",
+            "<color=#ffd84a>[Tip]</color> Press X (or FISTS) to switch to your hands.",
+            "<color=#ffd84a>[Tip]</color> The first squad to hold the extraction wins.",
+            "<color=#ffd84a>[RILO]</color> Earn coins every match to unlock heroes.",
+        };
+
+        /// <summary>Per frame: rotate the chat ticker, battle-pass bar, and park the "+" markers on the empty squad spots.</summary>
+        private void UpdateChrome(float dt)
+        {
+            _chatT += dt;
+            if (_chatT > 6f) { _chatT = 0; _chatIdx = (_chatIdx + 1) % ChatLines.Length; _chat.text = ChatLines[_chatIdx]; }
+            var op = _app.OnlineProfile;
+            _bpLevel.text = op != null ? op.level.ToString() : "1";
+            _bpBar.Set(op != null && op.xpToNext > 0 ? (float)op.xp / op.xpToNext : 0f, dt);
+            bool show = _app.State == GameApp.AppState.Menu && _app.Cam != null && !_squadPanel.gameObject.activeSelf;
+            var slots = Veil.App.Stage.Slots;
+            for (int k = 0; k < _plus.Length; k++)
+            {
+                int slot = k + 1;
+                // like the concept: "+" beside you (left / right); the far spot only once those two are filled
+                bool empty = show && _members.Count <= slot && (slot < 3 || _members.Count == 3);
+                if (!empty) { _plus[k].gameObject.SetActive(false); continue; }
+                var wp = _app.Stage.Origin + Quaternion.Euler(0, 180, 0) * (slots[slot] + Vector3.up * 1.0f);
+                var sp = _app.Cam.WorldToScreenPoint(wp);
+                if (sp.z <= 0) { _plus[k].gameObject.SetActive(false); continue; }
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(_tab, sp, null, out var lp);
+                _plus[k].gameObject.SetActive(true);
+                _plus[k].anchoredPosition = lp;
+            }
+        }
 
         // ------------------------------------------------------------------ construction helpers
 
@@ -621,19 +765,19 @@ namespace Veil.UI
             if (!_online)
             {
                 s = "Practice: your squad + 3 bots vs 3 bot squads";
-                action = _offlineCountdown ? "CANCEL" : "READY";
+                action = _offlineCountdown ? "CANCEL" : "START";
             }
             else if (!g.Online)
             {
-                s = g.Status == GatewayClient.State.Connecting ? "Connecting to the VEIL server…" :
-                    string.IsNullOrEmpty(g.LastError) ? "Connect to a VEIL server to play online" : $"<color=#ff9a8a>Offline: {g.LastError}</color>";
+                s = g.Status == GatewayClient.State.Connecting ? "Connecting to the RILO server…" :
+                    string.IsNullOrEmpty(g.LastError) ? "Connect to the RILO server to play online" : $"<color=#ff9a8a>Offline: {g.LastError}</color>";
                 action = "CONNECT";
             }
             else
             {
                 var party = g.Party;
                 if (g.Assignment != null && _app.State != GameApp.AppState.Match) { s = "<color=#ffd84a>Your match is still running!</color>"; action = "REJOIN"; }
-                else if (party.Empty) { s = "Creating your squad…"; action = "READY"; }
+                else if (party.Empty) { s = "Creating your squad…"; action = "START"; }
                 else if (party.phase == (int)PartyPhase.Queued)
                 {
                     s = $"<color=#40e6ff>Finding a match…</color> {party.queueSeconds / 60}:{party.queueSeconds % 60:00}";
@@ -649,9 +793,9 @@ namespace Veil.UI
                     if (g.IsLeader)
                     {
                         bool all = ready == party.members.Count;
-                        action = all ? (party.members.Count == 1 ? "READY" : "START") : "WAITING";
+                        action = all ? "START" : "WAITING";
                         actionOn = all;
-                        s = all ? $"{minutes} min match · press {(party.members.Count == 1 ? "READY" : "START")} to find a match" : $"Waiting for squad to ready up ({ready}/{party.members.Count})";
+                        s = all ? $"{minutes} min match · press START to find a match" : $"Waiting for squad to ready up ({ready}/{party.members.Count})";
                     }
                     else
                     {
@@ -675,6 +819,7 @@ namespace Veil.UI
         public void Update(float dt)
         {
             if (_transientT > 0) { _transientT -= dt; if (_transientT <= 0) UpdateStatus(); }
+            UpdateChrome(dt);
             var v = _app.Voice;
             bool voiceOn = _online && v.Mode != VoiceMode.Off;
             // rows: mic = speaking indicator (you: tap to mute), speaker = mute that player (you: deafen)

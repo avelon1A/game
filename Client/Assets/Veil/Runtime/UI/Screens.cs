@@ -124,15 +124,15 @@ namespace Veil.UI
     {
         public int Tab { get; private set; }
         private readonly RectTransform[] _tabs = new RectTransform[4];
-        private readonly Text[] _tabLabels = new Text[5];   // PLAY, CHARACTERS, LEADERBOARD, FRIENDS, SETTINGS
-        private readonly float[] _tabX = new float[5];
-        private readonly float[] _tabW = new float[5];
-        private readonly Image _tabUnderline;
-        private Vector2 _ulNow, _ulTarget;   // underline x, width
         private int _lastBadge;
         private Text _profileName, _profileStatus, _profileLevel, _friendsBadge;
         private RawImage _profileFace;
         private Image _friendsBadgeBg;
+        private Bar _xpBar;
+        private Text _coins, _gems;
+        private Image _netIcon;
+        private readonly Image[] _navBg = new Image[7], _navIcon = new Image[7];
+        private readonly Text[] _navLabel = new Text[7];
 
         // play tab
         public SquadPanel Squad { get; private set; }
@@ -145,65 +145,108 @@ namespace Veil.UI
 
         public MenuScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Menu")
         {
-            // top bar
-            var bar = UIKit.Rect(Root, "TopBar", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(0, 88));
-            UIKit.Image(bar, UIKit.Square, new Color(0.04f, 0.04f, 0.12f, 0.9f));
-            var edge = UIKit.Rect(bar, "Edge", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, new Vector2(0, 2));
-            UIKit.Image(edge, UIKit.Square, new Color(0.55f, 0.35f, 1f, 0.6f));
-            var logo = Logo(bar, new Vector2(0, 0.5f), new Vector2(34, 0), 66);
-            logo.rectTransform.pivot = new Vector2(0, 0.5f);
+            // ---------------- top bar (dockyard lobby concept): logo + profile left, currencies + icons right
+            var bar = UIKit.Rect(Root, "TopBar", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(0, 110));
+            var shade = UIKit.Image(bar, UIKit.Gradient, new Color(0.02f, 0.03f, 0.08f, 0.75f));
+            shade.raycastTarget = false;
+            var logo = UIKit.LabelAt(bar, "RILO", 76, Color.white, new Vector2(0, 0.5f), new Vector2(36, 2), new Vector2(240, 90), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            logo.rectTransform.pivot = new Vector2(0, 0.5f); logo.fontStyle = FontStyle.Italic;
+            UIKit.Outline(logo, new Color(0.95f, 0.72f, 0.1f), 3f);
+            UIKit.Shadow(logo, 3, 0.7f);
 
-            string[] names = { "PLAY", "CHARACTERS", "LEADERBOARD", "FRIENDS", "SETTINGS" };
-            float[] widths = { 120, 200, 210, 150, 160 };
-            float x = 250;
-            for (int i = 0; i < names.Length; i++)
-            {
-                int idx = i;
-                _tabX[i] = x; _tabW[i] = widths[i];
-                var b = UIKit.Button(bar, names[i], new Vector2(0, 0.5f), new Vector2(x, 0), new Vector2(widths[i], 60), UIKit.ButtonStyle.Tab, () => OnTabButton(idx), 22);
-                ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
-                _tabLabels[i] = UIKit.ButtonLabel(b);
-                x += widths[i] + 8;
-            }
-            var ul = UIKit.At(bar, "Underline", new Vector2(0, 0), new Vector2(250, 6), new Vector2(120, 5));
-            ul.pivot = new Vector2(0, 0);
-            _tabUnderline = UIKit.Image(ul, UIKit.Pill, Theme.Yellow);
-
-            // profile card (portrait, name, online status, level)
-            var card = UIKit.At(bar, "Profile", new Vector2(1, 0.5f), new Vector2(-20, 0), new Vector2(300, 70));
-            card.pivot = new Vector2(1, 0.5f);
-            var cardBg = UIKit.Image(card, UIKit.RoundedSmall, new Color(1, 1, 1, 0.07f), true);
+            var card = UIKit.At(bar, "Profile", new Vector2(0, 0.5f), new Vector2(290, 2), new Vector2(330, 74));
+            card.pivot = new Vector2(0, 0.5f);
+            var cardBg = UIKit.Image(card, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.78f), true);
             var cardBtn = card.gameObject.AddComponent<Button>();   // tap your profile → Settings (account / Google sign-in)
             cardBtn.targetGraphic = cardBg;
-            cardBtn.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); OnTabButton(4); });
-            var faceRt = UIKit.At(card, "Face", new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(56, 56));
+            cardBtn.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); SelectTab(3); });
+            var faceRt = UIKit.At(card, "Face", new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(60, 60));
             faceRt.pivot = new Vector2(0, 0.5f);
-            UIKit.Image(faceRt, UIKit.RoundedSmall, new Color(0.14f, 0.13f, 0.3f));
+            UIKit.Image(faceRt, UIKit.RoundedSmall, Theme.Yellow);
             var fi = UIKit.Fill(faceRt, "Img", 3);
             _profileFace = fi.gameObject.AddComponent<RawImage>();
             _profileFace.raycastTarget = false;
-            _profileName = UIKit.LabelAt(card, "", 20, Theme.Text, new Vector2(0, 1), new Vector2(74, -8), new Vector2(150, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            _profileName.rectTransform.pivot = new Vector2(0, 1);
-            _profileStatus = UIKit.LabelAt(card, "", 15, Theme.Green, new Vector2(0, 0), new Vector2(74, 8), new Vector2(150, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            _profileStatus.rectTransform.pivot = new Vector2(0, 0);
-            _profileStatus.supportRichText = true;
-            var lvRt = UIKit.At(card, "Lv", new Vector2(1, 0.5f), new Vector2(-10, -10), new Vector2(64, 28));
-            lvRt.pivot = new Vector2(1, 0.5f);
-            UIKit.Image(lvRt, UIKit.Pill, new Color(0, 0, 0, 0.45f));
-            _profileLevel = UIKit.Label(lvRt, "", 15, Theme.Text, TextAnchor.MiddleCenter, UIKit.BoldFont);
+            _profileName = UIKit.LabelAt(card, "", 22, Color.white, new Vector2(0, 1), new Vector2(80, -8), new Vector2(170, 30), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _profileName.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(_profileName, 12);
+            _profileLevel = UIKit.LabelAt(card, "", 18, Theme.TextDim, new Vector2(1, 1), new Vector2(-12, -8), new Vector2(80, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
+            _profileLevel.rectTransform.pivot = new Vector2(1, 1);
+            _profileStatus = UIKit.LabelAt(card, "", 14, Theme.Yellow, new Vector2(0, 0), new Vector2(80, 8), new Vector2(60, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _profileStatus.rectTransform.pivot = new Vector2(0, 0); _profileStatus.supportRichText = true;
+            _xpBar = new Bar(card, new Vector2(0, 0), new Vector2(138, 12), new Vector2(178, 10), Theme.Yellow, new Color(1, 1, 1, 0.15f));
+            _xpBar.Root.pivot = new Vector2(0, 0);
 
-            // friends icon (with a badge for requests + invites)
-            var fRt = UIKit.At(bar, "FriendsIcon", new Vector2(1, 0.5f), new Vector2(-336, 0), new Vector2(60, 60));
-            fRt.pivot = new Vector2(1, 0.5f);
-            var fbg = UIKit.Image(fRt, UIKit.Circle, new Color(1, 1, 1, 0.07f), true);
-            var fbtn = fRt.gameObject.AddComponent<Button>(); fbtn.targetGraphic = fbg;
-            fbtn.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); OnTabButton(3); });
-            var fic = UIKit.At(fRt, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
-            UIKit.Image(fic, Icons.Players, Theme.Text);
+            // right: coins, gems, friends, mail, settings, connection
+            float rx = -24;
+            Button IconBtn(Sprite icon, System.Action onClick, out RectTransform rt)
+            {
+                rt = UIKit.At(bar, "Icon", new Vector2(1, 0.5f), new Vector2(rx, 2), new Vector2(70, 64));
+                rt.pivot = new Vector2(1, 0.5f);
+                var bg = UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.78f), true);
+                var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = bg;
+                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); onClick(); });
+                var ic = UIKit.At(rt, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(36, 36));
+                UIKit.Image(ic, icon, Color.white);
+                rx -= 80;
+                return b;
+            }
+            _netIcon = UIKit.Image(UIKit.At(bar, "Net", new Vector2(1, 0.5f), new Vector2(rx + 6, 2), new Vector2(34, 30)), Icons.Energy, Theme.Green);
+            ((RectTransform)_netIcon.transform).pivot = new Vector2(1, 0.5f);
+            rx -= 50;
+            IconBtn(Icons.Gear, () => SelectTab(3), out _);
+            IconBtn(Icons.Copy, () => App.Toast("No new mail"), out var mailRt);
+            var mailDot = UIKit.At(mailRt, "Dot", new Vector2(1, 1), new Vector2(-6, -6), new Vector2(16, 16));
+            mailDot.pivot = new Vector2(1, 1); UIKit.Image(mailDot, UIKit.Circle, Theme.Red);
+            IconBtn(Icons.Players, () => { SelectTab(0); Friends.Show(!Friends.Visible); }, out var fRt);
             var badge = UIKit.At(fRt, "Badge", new Vector2(1, 1), new Vector2(2, 2), new Vector2(26, 26));
             badge.pivot = new Vector2(1, 1);
             _friendsBadgeBg = UIKit.Image(badge, UIKit.Circle, Theme.Red);
             _friendsBadge = UIKit.Label(badge, "", 14, Color.white, TextAnchor.MiddleCenter, UIKit.BoldFont);
+            Text Currency(Sprite icon, Color c, out RectTransform rt)
+            {
+                rt = UIKit.At(bar, "Currency", new Vector2(1, 0.5f), new Vector2(rx - 6, 2), new Vector2(200, 60));
+                rt.pivot = new Vector2(1, 0.5f);
+                UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.78f));
+                var ic = UIKit.At(rt, "I", new Vector2(0, 0.5f), new Vector2(10, 0), new Vector2(40, 40));
+                ic.pivot = new Vector2(0, 0.5f);
+                UIKit.Image(ic, UIKit.Circle, c);
+                var ii = UIKit.At(ic, "S", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(24, 24));
+                UIKit.Image(ii, icon, new Color(0, 0, 0, 0.55f));
+                var t = UIKit.LabelAt(rt, "0", 24, Color.white, new Vector2(0, 0.5f), new Vector2(58, 0), new Vector2(96, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                t.rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(t, 14);
+                var plus = UIKit.Button(rt, "+", new Vector2(1, 0.5f), new Vector2(-6, 0), new Vector2(40, 44), UIKit.ButtonStyle.Ghost, () => App.Toast("The store opens soon — earn coins by playing matches"), 30);
+                ((RectTransform)plus.transform).pivot = new Vector2(1, 0.5f);
+                rx -= 212;
+                return t;
+            }
+            _gems = Currency(UIKit.Diamond, new Color(0.3f, 0.75f, 1f), out _);
+            _coins = Currency(Icons.Core, new Color(1f, 0.78f, 0.15f), out _);
+
+            // ---------------- left menu
+            var nav = UIKit.At(Root, "Nav", new Vector2(0, 1), new Vector2(28, -150), new Vector2(256, 7 * 82));
+            nav.pivot = new Vector2(0, 1);
+            string[] navNames = { "LOBBY", "CHARACTERS", "LOADOUT", "BATTLE PASS", "STORE", "EVENTS", "RANKINGS" };
+            Sprite[] navIcons = { Icons.Tower, Icons.Players, Icons.Blaster, Icons.Shield, Icons.Core, Icons.Clock, Icons.Trophy };
+            for (int i = 0; i < navNames.Length; i++)
+            {
+                int idx = i;
+                var rt = UIKit.At(nav, "Nav" + i, new Vector2(0, 1), new Vector2(0, -i * 82), new Vector2(256, 72));
+                rt.pivot = new Vector2(0, 1);
+                _navBg[i] = UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.78f), true);
+                var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = _navBg[i];
+                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); OnNav(idx); });
+                rt.gameObject.AddComponent<ButtonFx>();
+                var ic = UIKit.At(rt, "I", new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(38, 38));
+                ic.pivot = new Vector2(0, 0.5f);
+                _navIcon[i] = UIKit.Image(ic, navIcons[i], Color.white);
+                _navLabel[i] = UIKit.LabelAt(rt, navNames[i], 22, Color.white, new Vector2(0, 0.5f), new Vector2(72, 0), new Vector2(176, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                _navLabel[i].rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(_navLabel[i], 13);
+                if (i == 3 || i == 5)
+                {
+                    var dot = UIKit.At(rt, "Dot", new Vector2(1, 1), new Vector2(-8, -8), new Vector2(14, 14));
+                    dot.pivot = new Vector2(1, 1); UIKit.Image(dot, UIKit.Circle, Theme.Red);
+                }
+                EnterFx.Add(rt, new Vector2(-40, 0), 0.04f * i);
+            }
 
             for (int i = 0; i < 4; i++) _tabs[i] = UIKit.Fill(Root, "Tab" + i);
             BuildPlay(_tabs[0]);
@@ -213,7 +256,7 @@ namespace Veil.UI
             ((RectTransform)bar.transform).SetAsLastSibling();
 
             Friends = new FriendsDrawer(_tabs[0], app);
-            Squad.OpenFriends = () => { Friends.Show(true); Underline(3); };
+            Squad.OpenFriends = () => Friends.Show(true);
             App.Gateway.Changed += RefreshFriendsBadge;
             App.Gateway.Changed += RefreshProfileChip;
         }
@@ -229,18 +272,32 @@ namespace Veil.UI
             }
         }
 
-        private void OnTabButton(int button)
+        /// <summary>Left menu: LOBBY, CHARACTERS, LOADOUT, BATTLE PASS, STORE, EVENTS, RANKINGS.</summary>
+        private void OnNav(int i)
         {
-            if (button == 3) { SelectTab(0); Friends.Show(!Friends.Visible || Tab != 0); Underline(Friends.Visible ? 3 : 0); return; }
-            SelectTab(button == 4 ? 3 : button);
+            switch (i)
+            {
+                case 0: SelectTab(0); break;
+                case 1: case 2: SelectTab(1); _nav = i; HighlightNav(); break;
+                case 6: SelectTab(2); break;
+                case 3: App.Toast("BATTLE PASS — Season 1 is coming soon"); break;
+                case 4: App.Toast("STORE — unlock heroes and guns with coins, coming soon"); break;
+                case 5: App.Toast("EVENTS — coming soon"); break;
+            }
         }
 
-        private void Underline(int button)
+        private int _nav;
+
+        private void HighlightNav()
         {
-            for (int k = 0; k < _tabLabels.Length; k++) _tabLabels[k].color = k == button ? Color.white : Theme.TextDim;
-            _ulTarget = new Vector2(_tabX[button], _tabW[button]);   // glides there in Update
-            if (_ulNow.y <= 0) _ulNow = _ulTarget;
-            PunchFx.On(_tabLabels[button]).Kick(0.12f);
+            for (int k = 0; k < _navBg.Length; k++)
+            {
+                bool on = k == _nav;
+                _navBg[k].color = on ? Theme.Yellow : new Color(0.04f, 0.05f, 0.1f, 0.78f);
+                _navIcon[k].color = on ? new Color(0.08f, 0.06f, 0.02f) : Color.white;
+                _navLabel[k].color = on ? new Color(0.08f, 0.06f, 0.02f) : Color.white;
+            }
+            if (_nav >= 0) PunchFx.On(_navLabel[_nav]).Kick(0.12f);
         }
 
         public void SelectTab(int i)
@@ -248,7 +305,8 @@ namespace Veil.UI
             Tab = i;
             for (int k = 0; k < 4; k++) _tabs[k].gameObject.SetActive(k == i);
             if (i != 0 && Friends != null) Friends.Show(false);
-            Underline(i == 3 ? 4 : i);
+            _nav = i == 0 ? 0 : i == 1 ? (_nav == 2 ? 2 : 1) : i == 2 ? 6 : -1;
+            HighlightNav();
             if (i == 2) FetchLeaderboard();
             // the stage shows your squad on PLAY, the character lineup elsewhere
             // painted lobby everywhere: your squad on PLAY, only your hero on Characters / Leaderboard (hidden behind Settings)
@@ -262,8 +320,12 @@ namespace Veil.UI
             var g = App.Gateway;
             _profileFace.texture = PortraitStudio.Get(App.Profile.Look);
             _profileName.text = App.Profile.Name;
-            _profileStatus.text = g.Online ? "<color=#7dff9a>●</color> Online" : "<color=#8a90b8>● Offline</color>";
+            _profileStatus.text = "";
             _profileLevel.text = op != null ? $"Lv. {op.level}" : "Lv. 1";
+            _xpBar.Set(op != null && op.xpToNext > 0 ? (float)op.xp / op.xpToNext : 0f, 10f);
+            _coins.text = App.Coins.ToString("N0");
+            _gems.text = App.Gems.ToString("N0");
+            _netIcon.color = g.Online ? Theme.Green : Theme.Red;
         }
 
         private void RefreshFriendsBadge()
@@ -288,9 +350,6 @@ namespace Veil.UI
         {
             Squad.Update(dt);
             Friends.Update(dt);
-            _ulNow = Vector2.Lerp(_ulNow, _ulTarget, 1 - Mathf.Exp(-16f * Time.unscaledDeltaTime));
-            _tabUnderline.rectTransform.anchoredPosition = new Vector2(_ulNow.x, 6);
-            _tabUnderline.rectTransform.sizeDelta = new Vector2(_ulNow.y, 5);
         }
 
         // ------------------------------------------------------------------ CHARACTERS tab

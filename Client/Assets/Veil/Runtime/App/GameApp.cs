@@ -430,6 +430,10 @@ namespace Veil.App
 
         /// <summary>Raised when the player signs in / out (Settings refreshes its account row).</summary>
         public event Action AccountChanged;
+        public void Toast(string text) => _toasts?.Notice(text);
+        /// <summary>Coins (unlock heroes / guns). Server-side economy comes next; until then the cached value.</summary>
+        public int Coins => OnlineProfile != null ? OnlineProfile.coins : PlayerPrefs.GetInt("coins", 0);
+        public int Gems => 0;
         public bool SignedInWithGoogle => !string.IsNullOrEmpty(Profile.GoogleEmail);
         private string GoogleClientId
         {
@@ -718,11 +722,13 @@ namespace Veil.App
                     else if (Stage.SquadMode || Stage.SoloMode)
                     {
                         // painted lobby: squad left of the squad panel / your hero left of the Characters & Leaderboard panels
-                        float x = Stage.SquadMode ? 1.28f : 1.75f;
+                        float x = Stage.SquadMode ? 0f : 1.75f;   // squad: centred between the side menu and the right cards
                         int key = Stage.SquadMode ? 1 : 2;
                         // slow "breathing" drift so the 3D heroes and the motes move against the painted scene
                         var breath = new Vector3(Mathf.Sin(t * 0.21f) * 0.12f, Mathf.Sin(t * 0.33f) * 0.04f, Mathf.Sin(t * 0.17f) * 0.1f);
-                        CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f) + breath, Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
+                        // squad: low hero shot (camera just under chest height, looking slightly up) like the concept art
+                        if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(0, 0.95f, -3.15f) + breath, Stage.Origin + new Vector3(0, 1.1f, 0), dt, _lobbyShot == key ? 3f : 10000f);
+                        else CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f) + breath, Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
                         _lobbyShot = key;
                     }
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
@@ -865,7 +871,7 @@ namespace Veil.App
         private int _lobbyShot;   // which painted-lobby shot the camera is on (0 = none): changing shots cuts, never glides
 
         /// <summary>Where the painted platform's centre is in lobby_bg.png (0..1, y up).</summary>
-        private static readonly Vector2 PlatformUV = new Vector2(0.5f, 0.155f);
+        private static readonly Vector2 PlatformUV = new Vector2(0.5f, 0.16f);   // dockyard lobby: the open paved floor in front of the gate
 
         // floating light motes in front of the painted scene + a slow camera breath: the lobby feels alive, not a picture
         private ParticleSystem _motes;
@@ -885,7 +891,7 @@ namespace Veil.App
                 main.startLifetime = new ParticleSystem.MinMaxCurve(5f, 9f);
                 main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.25f);
                 main.startSize = new ParticleSystem.MinMaxCurve(0.025f, 0.08f);
-                main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.78f, 0.45f, 0.9f), new Color(0.8f, 0.55f, 1f, 0.9f));
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.8f, 0.55f), new Color(1f, 0.85f, 0.55f, 0.5f));
                 main.maxParticles = 90;
                 main.simulationSpace = ParticleSystemSimulationSpace.World;
                 var em = _motes.emission; em.rateOverTime = 12f;
@@ -1297,7 +1303,9 @@ namespace Veil.App
         }
 
         // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
-        private static readonly Vector3[] SquadSlots = { new Vector3(-1.3f, 0, 0.3f), new Vector3(1.3f, 0, -0.2f), new Vector3(0, 0, -0.2f), new Vector3(-2.55f, 0, -0.45f) };
+        // dockyard lobby: you centre-front, squadmates left and right a step behind, the 4th further out (stage +X = screen-left)
+        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.75f, 0, -0.55f), new Vector3(-1.75f, 0, -0.55f), new Vector3(3.2f, 0, -1.1f) };
+        public static Vector3[] Slots => SquadSlots;
         public const int LobbyLayer = 9;   // squad lobby renders only this layer, in front of the painted backdrop
         public bool SquadMode { get; private set; }
 
@@ -1316,11 +1324,11 @@ namespace Veil.App
                 if (!on) continue;
                 if (!_rigs[i].Look.Equals(looks[i])) _rigs[i].Rebuild(looks[i]);
                 // alone: stand in the middle of the platform; with a squad: third from the left, slightly in front
-                Vector3 slot = looks.Count == 1 ? new Vector3(-0.64f, 0, 0.3f) : SquadSlots[i];
+                Vector3 slot = SquadSlots[i];
                 _rigs[i].transform.localPosition = slot;
                 _squadStage.transform.Find("Blob" + i).localPosition = slot + new Vector3(0, 0.02f, 0);
                 SetLayer(_rigs[i].transform, LobbyLayer);
-                _rigs[i].transform.localRotation = Quaternion.Euler(0, -SquadSlots[i].x * 7f, 0);
+                _rigs[i].transform.localRotation = Quaternion.Euler(0, i == 0 ? 0f : -SquadSlots[i].x * 6f, 0);
                 _rigs[i].ResetPose();
             }
             foreach (var p in _pedestals) p.gameObject.SetActive(false);

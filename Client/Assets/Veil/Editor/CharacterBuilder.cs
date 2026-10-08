@@ -178,6 +178,8 @@ namespace Veil.EditorTools
             bool humanoid = CharacterImport.HumanoidHeroes.Contains(name);
             if (humanoid) EnsureTPose(fbx);
             var clips = ClipsOf(fbx);
+            // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
+            if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
             if (humanoid && File.Exists(CharacterImport.LibraryFbx))
             {
                 var lib = ClipsOf(CharacterImport.LibraryFbx);
