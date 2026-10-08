@@ -151,11 +151,31 @@ namespace Veil.View
         private Renderer _extractRing, _extractBeam;
         private Transform _heli, _heliRotor, _heliTail;
         private float _heliH = 32f, _heliYaw;
+        private bool _heliCalled;   // an eligible squad reached the zone: the helicopter has come down and stays down
 
         /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
         private void BuildHelicopter()
         {
             _heli = Build.Node(Root, "Helicopter", Vector3.zero);
+            // Meshy model (Tools/ai3d/blender/build_meshy_vehicle.py: nose forward, separate "Rotor"); procedural one as fallback
+            var prefab = Resources.Load<GameObject>("Vehicles/meshy_heli");
+            if (prefab != null)
+            {
+                var inst = Object.Instantiate(prefab, _heli, false);
+                inst.transform.localPosition = Vector3.zero;
+                var mat = new Material(Shader.Find("Veil/Toon")) { name = "meshy_heli" };
+                mat.SetTexture("_BaseMap", Resources.Load<Texture2D>("Vehicles/meshy_heli_tex"));
+                mat.SetColor("_BaseColor", Color.white);
+                mat.SetColor("_ShadeColor", new Color(0.72f, 0.72f, 0.88f));
+                mat.SetColor("_RimColor", new Color(1, 1, 1, 0.2f));
+                mat.SetFloat("_Ramp", 0.35f); mat.SetFloat("_ArtKeep", 0.6f); mat.SetFloat("_ShadowStrength", 0.6f);
+                mat.SetColor("_EmissionColor", Color.black);
+                foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = mat;
+                _heliRotor = FindChild(inst.transform, "Rotor") ?? Build.Node(_heli, "Rotor", Vector3.up * 6f);
+                _heliTail = Build.Node(_heli, "TailRotor", Vector3.zero);   // painted into the body
+                _heli.gameObject.SetActive(false);
+                return;
+            }
             var body = MaterialLib.Toon(Palette.Hex("#2b2f3d"), 0.35f, 0.6f);
             var yellow = MaterialLib.Toon(Palette.Hex("#ffc93a"), 0.3f, 0.5f);
             var glass = MaterialLib.Toon(Palette.Hex("#7fd6ff"), 0.9f, 0.9f);
@@ -323,6 +343,12 @@ namespace Veil.View
             cam.SetFov(t < 5f ? 50f : 60f);
         }
 
+        private static Transform FindChild(Transform t, string name)
+        {
+            foreach (var c in t.GetComponentsInChildren<Transform>(true)) if (c.name == name) return c;
+            return null;
+        }
+
         private void UpdateHelicopter(Snapshot s, float dt)
         {
             if (EscapeT >= 0) { UpdateEscape(dt); return; }
@@ -332,8 +358,11 @@ namespace Veil.View
             int c = s.ExtractController;
             bool boarding = c >= 0 && s.SquadStage[c] >= 4 && !s.ExtractContested;
             bool escaped = s.Winner >= 0;
-            float target = escaped ? 120f : boarding ? 0.05f + Mathf.Lerp(3.5f, 0f, Mathf.Clamp01(s.SquadExtract[c] * 3f)) : 30f;
-            _heliH = Mathf.MoveTowards(_heliH, target, dt * (escaped ? 14f : 9f));
+            // once it has come down it stays down (no bouncing when players enter / leave / fight in the zone):
+            // circling high → descends for the first eligible squad → landed until the escape
+            if (boarding) _heliCalled = true;
+            float target = escaped ? 120f : _heliCalled ? 0.05f : 30f;
+            _heliH = Mathf.MoveTowards(_heliH, target, dt * (escaped ? 14f : 7f));
             _heliYaw += dt * (_heliH > 12f ? 14f : 0f);
             Vector3 centre = new Vector3(s.ExtractPos.X, 0, s.ExtractPos.Y);
             float orbit = Mathf.Clamp01((_heliH - 6f) / 20f) * 14f;   // circles while high, settles straight down when landing
