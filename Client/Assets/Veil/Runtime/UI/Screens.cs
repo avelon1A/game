@@ -19,6 +19,8 @@ namespace Veil.UI
         {
             App = app;
             Root = UIKit.Fill(canvas, name);
+            // phones: keep buttons out of the notch / Dynamic Island and the home bar (the 3D lobby still fills the screen)
+            if (Application.isMobilePlatform && name != "Title") Root.gameObject.AddComponent<SafeArea>();
         }
 
         public virtual void Show(bool v) => Root.gameObject.SetActive(v);
@@ -313,6 +315,7 @@ namespace Veil.UI
             if (i == 2) FetchLeaderboard();
             // the stage shows your squad on PLAY, the character lineup elsewhere
             // painted lobby everywhere: your squad on PLAY, only your hero on Characters / Leaderboard (hidden behind Settings)
+            HideLockBar();
             if (i == 0) Squad?.ForceStage(); else App.Stage.SoloPose(App.Profile.Look, visible: i != 3);
         }
 
@@ -398,12 +401,12 @@ namespace Veil.UI
             {
                 if (!App.Owns(StoreCatalog.HeroId(i)))
                 {
-                    var it = StoreCatalog.Get(StoreCatalog.HeroId(i));
-                    r1.Select(prof.Look.Outfit);
-                    App.Toast($"{it?.Name} is locked — unlock it in the STORE for {it?.Price} coins");
-                    SelectTab(4);
+                    // locked: still show it in 3D (not equipped) with an UNLOCK bar
+                    var pl = prof.Look; pl.Outfit = (byte)i;
+                    PreviewLocked(StoreCatalog.Get(StoreCatalog.HeroId(i)), pl);
                     return;
                 }
+                HideLockBar();
                 var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed();
             }, 108, 100);
             r1.Root.pivot = new Vector2(0, 0.5f);
@@ -460,11 +463,11 @@ namespace Veil.UI
                     if (i > 0 && !App.Owns(StoreCatalog.SkinId(i)))
                     {
                         var it = StoreCatalog.Get(StoreCatalog.SkinId(i));
-                        sr.Select(Mathf.Min(prof.Look.Accessory, 2));
-                        App.Toast($"{it?.Name} is locked — unlock it in the STORE for {it?.Price} coins");
-                        SelectTab(4);
+                        var pl = prof.Look; pl.Accessory = (byte)i; pl.Weapon = (byte)it.WeaponType;
+                        PreviewLocked(it, pl);
                         return;
                     }
+                    HideLockBar();
                     var l = prof.Look; l.Accessory = (byte)i;
                     if (i > 0) { l.Weapon = (byte)StoreCatalog.Get(StoreCatalog.SkinId(i)).WeaponType; wr.Select(l.Weapon); }
                     prof.Look = l; Changed();
@@ -537,10 +540,64 @@ namespace Veil.UI
             }
         }
 
+        private RectTransform _lockBar;
+        private Text _lockText;
+        private StoreCatalog.Item _lockItem;
+
+        /// <summary>Characters tab: a locked hero / gun skin is shown on your hero in 3D (not equipped) with its price and UNLOCK.</summary>
+        private void PreviewLocked(StoreCatalog.Item it, Appearance look)
+        {
+            if (it == null) return;
+            App.Stage.UpdateLook(look);
+            _lockItem = it;
+            if (_lockBar == null)
+            {
+                _lockBar = UIKit.At(Root, "LockBar", new Vector2(0.5f, 0), new Vector2(-120, 40), new Vector2(620, 84));
+                UIKit.Image(_lockBar, UIKit.Rounded, new Color(0.06f, 0.07f, 0.16f, 0.94f), true);
+                _lockText = UIKit.LabelAt(_lockBar, "", 22, Color.white, new Vector2(0, 0.5f), new Vector2(24, 0), new Vector2(380, 60), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                _lockText.rectTransform.pivot = new Vector2(0, 0.5f); _lockText.supportRichText = true; UIKit.Fit(_lockText, 12);
+                var b = UIKit.Button(_lockBar, "UNLOCK", new Vector2(1, 0.5f), new Vector2(-100, 0), new Vector2(180, 62), UIKit.ButtonStyle.Primary, () =>
+                {
+                    var item = _lockItem;
+                    if (item == null) return;
+                    if (App.Coins < item.Price) { App.Toast($"You need {item.Price - App.Coins:N0} more coins — earn them every match"); return; }
+                    App.Buy(item.Id, ok =>
+                    {
+                        if (!ok) return;
+                        var l = App.Profile.Look;
+                        if (item.Hero >= 0) l.Outfit = (byte)item.Hero; else { l.Accessory = (byte)item.Skin; l.Weapon = (byte)item.WeaponType; }
+                        App.Profile.Look = l; App.Profile.Save(); App.Stage.UpdateLook(l);
+                        HideLockBar();
+                        var tab = _tabs[1];
+                        Object.Destroy(tab.GetChild(0).gameObject);
+                        BuildCharacters(tab);
+                    });
+                }, 26);
+            }
+            _lockBar.gameObject.SetActive(true);
+            _lockBar.SetAsLastSibling();
+            _lockText.text = $"<color=#ffd84a>PREVIEW</color> · {it.Name} is locked  <color=#ffd84a>● {it.Price:N0}</color>";
+        }
+
+        private void HideLockBar()
+        {
+            if (_lockBar != null) _lockBar.gameObject.SetActive(false);
+            _lockItem = null;
+        }
+
         private void OnStoreButton(StoreCatalog.Item it)
         {
             var prof = App.Profile;
-            if (!App.Owns(it.Id)) { App.Buy(it.Id); return; }
+            if (!App.Owns(it.Id))
+            {
+                // always show it on your hero first; buy only when you can afford it
+                var pl = prof.Look;
+                if (it.Hero >= 0) pl.Outfit = (byte)it.Hero; else { pl.Accessory = (byte)it.Skin; pl.Weapon = (byte)it.WeaponType; }
+                App.Stage.UpdateLook(pl);
+                if (App.Coins < it.Price) { App.Toast($"Previewing {it.Name} · you need {it.Price - App.Coins:N0} more coins — earn them every match"); return; }
+                App.Buy(it.Id, ok => { if (!ok) App.Stage.UpdateLook(App.Profile.Look); });
+                return;
+            }
             // owned → equip
             var l = prof.Look;
             if (it.Hero >= 0) l.Outfit = (byte)it.Hero;

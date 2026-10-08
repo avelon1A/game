@@ -514,8 +514,8 @@ namespace Veil.UI
             for (int k = 0; k < _plus.Length; k++)
             {
                 int slot = k + 1;
-                // like the concept: "+" beside you (left / right); the far spot only once those two are filled
-                bool empty = show && _members.Count <= slot && (slot < 3 || _members.Count == 3);
+                // a "+" on every empty spot of the squad (3 friends to invite)
+                bool empty = show && _members.Count <= slot;
                 if (!empty) { _plus[k].gameObject.SetActive(false); continue; }
                 var wp = _app.Stage.Origin + Quaternion.Euler(0, 180, 0) * (slots[slot] + Vector3.up * 1.0f);
                 var sp = _app.Cam.WorldToScreenPoint(wp);

@@ -648,6 +648,8 @@ namespace Veil.App
             State = AppState.Results;
             Stage.SetVisible(true);
             Stage.Podium(ResultsScreen.PodiumSquad(results));
+            // cut straight to the MVP close-up (gliding in from the match / escape camera looked like shaking)
+            CamRig.Snap(Stage.Origin + new Vector3(-0.62f, 1.62f, -1.75f), Stage.Origin + new Vector3(-0.62f, 1.52f, 0));
             _results.Show(true);
             _results.Fill(results, localId, online);
             Cursor.lockState = CursorLockMode.None;
@@ -764,8 +766,10 @@ namespace Veil.App
                         // slow "breathing" drift so the 3D heroes and the motes move against the painted scene
                         var breath = new Vector3(Mathf.Sin(t * 0.21f) * 0.12f, Mathf.Sin(t * 0.33f) * 0.04f, Mathf.Sin(t * 0.17f) * 0.1f);
                         // squad: low hero shot (camera just under chest height, looking slightly up) like the concept art
-                        if (Stage.SquadMode) CamRig.Shot(Stage.Origin + new Vector3(0, 0.95f, -3.15f) + breath, Stage.Origin + new Vector3(0, 1.1f, 0), dt, _lobbyShot == key ? 3f : 10000f);
-                        else CamRig.Shot(Stage.Origin + new Vector3(x, 1.3f, -3.9f) + breath, Stage.Origin + new Vector3(x, 1.4f, 0), dt, _lobbyShot == key ? 3f : 10000f);
+                        // pinch / scroll zoom moves the camera along its line to the hero (Stage.Zoom)
+                        var lookAt = Stage.SquadMode ? new Vector3(0, 1.1f, 0) : new Vector3(x, 1.4f, 0);
+                        var from = Stage.SquadMode ? new Vector3(0, 0.95f, -3.15f) : new Vector3(x, 1.3f, -3.9f);
+                        CamRig.Shot(Stage.Origin + lookAt + (from - lookAt) * Stage.Zoom + breath, Stage.Origin + lookAt, dt, _lobbyShot == key ? 6f : 10000f);
                         _lobbyShot = key;
                     }
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
@@ -1350,7 +1354,8 @@ namespace Veil.App
 
         // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
         // dockyard lobby: you centre-front, squadmates left and right a step behind, the 4th further out (stage +X = screen-left)
-        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.75f, 0, -0.55f), new Vector3(-1.75f, 0, -0.55f), new Vector3(3.2f, 0, -1.1f) };
+        // you in front, two spots on the left (more free screen there, local +X is screen-left), one on the right
+        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.3f, 0, -0.3f), new Vector3(-1.3f, 0, -0.3f), new Vector3(2.7f, 0, -0.5f) };
         public static Vector3[] Slots => SquadSlots;
         public const int LobbyLayer = 9;   // squad lobby renders only this layer, in front of the painted backdrop
         public bool SquadMode { get; private set; }
@@ -1536,8 +1541,60 @@ namespace Veil.App
                 if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Aiming = _aimPreview, Velocity = _aimPreview ? Vector3.zero : _rigs[i].transform.forward * 2.2f }, dt);
                 else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _cheerT > 0 && SquadMode, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
-            if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
-                _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);
+            if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && (SoloMode || SquadMode)) DragAndZoom();
+        }
+
+        /// <summary>Lobby / Characters: camera zoom (pinch or mouse wheel), 0.55 = close-up … 1.3 = wide.</summary>
+        public static float Zoom = 1f;
+        private bool _dragging;
+        private float _pinchDist;
+
+        /// <summary>Drag on the hero (one finger / mouse) to turn it, pinch or scroll to zoom. Touches that start on a button,
+        /// slider or list don't count.</summary>
+        private void DragAndZoom()
+        {
+            var ts = Touchscreen.current;
+            int fingers = 0;
+            Vector2 p0 = default, p1 = default, d0 = default;
+            if (ts != null)
+                foreach (var t in ts.touches)
+                {
+                    if (!t.press.isPressed) continue;
+                    if (fingers == 0) { p0 = t.position.ReadValue(); d0 = t.delta.ReadValue(); }
+                    else if (fingers == 1) p1 = t.position.ReadValue();
+                    fingers++;
+                }
+            var m = Mouse.current;
+            bool mouseDown = fingers == 0 && m != null && (m.leftButton.isPressed || m.rightButton.isPressed);
+            if (mouseDown) { p0 = m.position.ReadValue(); d0 = m.delta.ReadValue(); fingers = 1; }
+            if (m != null && Mathf.Abs(m.scroll.ReadValue().y) > 0.01f && !OverControl(m.position.ReadValue()))
+                Zoom = Mathf.Clamp(Zoom - m.scroll.ReadValue().y / 120f * 0.08f, 0.55f, 1.3f);
+
+            if (fingers == 0) { _dragging = false; _pinchDist = 0; return; }
+            if (!_dragging) { if (OverControl(p0)) return; _dragging = true; }
+            if (fingers >= 2)
+            {
+                float d = Vector2.Distance(p0, p1);
+                if (_pinchDist > 0) Zoom = Mathf.Clamp(Zoom * _pinchDist / Mathf.Max(d, 1f), 0.55f, 1.3f);
+                _pinchDist = d;
+                return;
+            }
+            _pinchDist = 0;
+            float norm = 1080f / Mathf.Max(1, Screen.height);
+            _rigs[0].transform.Rotate(0, -d0.x * norm * 0.45f, 0);
+        }
+
+        private static readonly List<UnityEngine.EventSystems.RaycastResult> _hits = new List<UnityEngine.EventSystems.RaycastResult>();
+
+        private static bool OverControl(Vector2 screen)
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) return false;
+            _hits.Clear();
+            es.RaycastAll(new UnityEngine.EventSystems.PointerEventData(es) { position = screen }, _hits);
+            foreach (var h in _hits)
+                if (h.gameObject.GetComponentInParent<Selectable>() != null || h.gameObject.GetComponentInParent<ScrollRect>() != null) return true;
+            return false;
         }
     }
 }
