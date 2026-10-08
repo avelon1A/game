@@ -324,10 +324,42 @@ namespace Veil.View
 
         private const float HolsterTime = 0.55f;   // seconds to swing the gun from the hands onto the back (and back)
 
+        private float _uprightW;
+
+        /// <summary>Standing still: straighten the spine and head over the hips. The shared idle is retargeted onto every
+        /// hero, and each Meshy skeleton rests a little differently, so some leaned back with the chin up.</summary>
+        public static void Upright(Animator an, Transform root, float w)
+        {
+            if (an == null || w <= 0.001f || an.avatar == null || !an.avatar.isHuman) return;
+            var hips = an.GetBoneTransform(HumanBodyBones.Hips);
+            var spine = an.GetBoneTransform(HumanBodyBones.Spine);
+            var neck = an.GetBoneTransform(HumanBodyBones.Neck) ?? an.GetBoneTransform(HumanBodyBones.UpperChest) ?? an.GetBoneTransform(HumanBodyBones.Chest);
+            var head = an.GetBoneTransform(HumanBodyBones.Head);
+            if (!hips || !spine || !neck || !head) return;
+            Vector3 fwd = root.forward;
+            // torso: hips → neck straight up with a hint of forward lean (at most 25° of correction)
+            Vector3 torso = neck.position - hips.position;
+            var q = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(torso, (Vector3.up + fwd * 0.06f).normalized), 25f);
+            spine.rotation = Quaternion.Slerp(Quaternion.identity, q, w) * spine.rotation;
+            // head: follow the (now upright) torso line instead of world-up — every skull sits differently on its neck,
+            // so only take out a backward tilt, never push the chin down (at most 18°)
+            torso = (neck.position - hips.position).normalized;
+            Vector3 hd = (head.position - neck.position).normalized;
+            float back = Vector3.Dot(Vector3.Cross(torso, hd), root.right);   // > 0: head tipped back relative to the torso
+            if (back > 0f)
+            {
+                var hq = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(hd, torso), 18f);
+                neck.rotation = Quaternion.Slerp(Quaternion.identity, hq, w) * neck.rotation;
+            }
+        }
+
         private void LateUpdate()
         {
             if (_anim == null) return;
             Vector3 fwd = transform.forward;
+            bool standing = _moveSpeed < 0.4f && _aimW < 0.05f && !Fists && _deadT <= 0 && _punchT <= 0;
+            _uprightW = Mathf.MoveTowards(_uprightW, standing ? 1f : 0f, Time.deltaTime * 4f);
+            Upright(_anim, transform, _uprightW);
             if (Fists && _punchT > 0)
             {
                 // jab: the arm shoots out along the aim direction and comes back (sin curve)
