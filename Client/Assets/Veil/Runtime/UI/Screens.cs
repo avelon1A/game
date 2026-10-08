@@ -123,7 +123,7 @@ namespace Veil.UI
     public sealed class MenuScreen : ScreenBase
     {
         public int Tab { get; private set; }
-        private readonly RectTransform[] _tabs = new RectTransform[4];
+        private readonly RectTransform[] _tabs = new RectTransform[5];   // play, characters, leaderboard, settings, store
         private int _lastBadge;
         private Text _profileName, _profileStatus, _profileLevel, _friendsBadge;
         private RawImage _profileFace;
@@ -248,11 +248,13 @@ namespace Veil.UI
                 EnterFx.Add(rt, new Vector2(-40, 0), 0.04f * i);
             }
 
-            for (int i = 0; i < 4; i++) _tabs[i] = UIKit.Fill(Root, "Tab" + i);
+            for (int i = 0; i < _tabs.Length; i++) _tabs[i] = UIKit.Fill(Root, "Tab" + i);
             BuildPlay(_tabs[0]);
             BuildCharacters(_tabs[1]);
             BuildLeaderboard(_tabs[2]);
             BuildSettings(_tabs[3]);
+            BuildStore(_tabs[4]);
+            App.StoreChanged += () => { RefreshStore(); RefreshProfileChip(); };
             ((RectTransform)bar.transform).SetAsLastSibling();
 
             Friends = new FriendsDrawer(_tabs[0], app);
@@ -281,7 +283,7 @@ namespace Veil.UI
                 case 1: case 2: SelectTab(1); _nav = i; HighlightNav(); break;
                 case 6: SelectTab(2); break;
                 case 3: App.Toast("BATTLE PASS — Season 1 is coming soon"); break;
-                case 4: App.Toast("STORE — unlock heroes and guns with coins, coming soon"); break;
+                case 4: SelectTab(4); break;
                 case 5: App.Toast("EVENTS — coming soon"); break;
             }
         }
@@ -303,9 +305,10 @@ namespace Veil.UI
         public void SelectTab(int i)
         {
             Tab = i;
-            for (int k = 0; k < 4; k++) _tabs[k].gameObject.SetActive(k == i);
+            for (int k = 0; k < _tabs.Length; k++) _tabs[k].gameObject.SetActive(k == i);
             if (i != 0 && Friends != null) Friends.Show(false);
-            _nav = i == 0 ? 0 : i == 1 ? (_nav == 2 ? 2 : 1) : i == 2 ? 6 : -1;
+            _nav = i == 0 ? 0 : i == 1 ? (_nav == 2 ? 2 : 1) : i == 2 ? 6 : i == 4 ? 4 : -1;
+            if (i == 4) RefreshStore();
             HighlightNav();
             if (i == 2) FetchLeaderboard();
             // the stage shows your squad on PLAY, the character lineup elsewhere
@@ -376,7 +379,24 @@ namespace Veil.UI
             void Changed() { prof.Save(); App.Stage.UpdateLook(prof.Look); }
             var outfitNames = new string[Palette.Outfits.Length];
             for (int i = 0; i < outfitNames.Length; i++) outfitNames[i] = Palette.Outfits[i].Name.ToUpper();
-            var r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i => { var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed(); }, 108, 100);
+            for (int i = 0; i < outfitNames.Length; i++)
+            {
+                var it = StoreCatalog.Get(StoreCatalog.HeroId(i));
+                if (it != null && !App.Owns(it.Id)) outfitNames[i] = $"{outfitNames[i]} ●{it.Price}";
+            }
+            ChipRow r1 = null;
+            r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i =>
+            {
+                if (!App.Owns(StoreCatalog.HeroId(i)))
+                {
+                    var it = StoreCatalog.Get(StoreCatalog.HeroId(i));
+                    r1.Select(prof.Look.Outfit);
+                    App.Toast($"{it?.Name} is locked — unlock it in the STORE for {it?.Price} coins");
+                    SelectTab(4);
+                    return;
+                }
+                var l = prof.Look; l.Outfit = (byte)i; prof.Look = l; Changed();
+            }, 108, 100);
             r1.Root.pivot = new Vector2(0, 0.5f);
             var hairNames = new string[Palette.HairNames.Length];
             for (int i = 0; i < hairNames.Length; i++) hairNames[i] = Palette.HairNames[i].ToUpper();
@@ -413,14 +433,129 @@ namespace Veil.UI
                 foreach (var n in new[] { "Chips_HAIR", "Swatches_HAIR COLOR", "Chips_ACCESSORY" }) { var t = p.Find(n); if (t) t.gameObject.SetActive(false); }
                 var glowRow = p.Find("Swatches_GLOW COLOR") as RectTransform;
                 if (glowRow) glowRow.anchoredPosition = new Vector2(glowRow.anchoredPosition.x, -300);
-                var wr = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -390), "WEAPON", new[] { "RIFLE", "SNIPER" }, Mathf.Min(prof.Look.Weapon, 1), i => { var l = prof.Look; l.Weapon = (byte)i; prof.Look = l; Changed(); }, 150);
+                var wr = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -390), "WEAPON", new[] { "RIFLE", "SNIPER" }, Mathf.Min(prof.Look.Weapon, 1), i =>
+                {
+                    var l = prof.Look; l.Weapon = (byte)i;
+                    var skin = StoreCatalog.Get(StoreCatalog.SkinId(l.Accessory));
+                    if (skin != null && skin.WeaponType != i) l.Accessory = 0;
+                    prof.Look = l; Changed();
+                }, 150);
                 wr.Root.pivot = new Vector2(0, 0.5f);
-                var wdesc = UIKit.LabelAt(p, "RIFLE: fast, 30 m  ·  SNIPER: 48 dmg, 75 m, scope  ·  in a match switch to FISTS anytime (X / ✊)", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(210, -432), new Vector2(760, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                var wdesc = UIKit.LabelAt(p, "RIFLE: fast, 30 m  ·  SNIPER: 48 dmg, 75 m, scope  ·  in a match switch to FISTS anytime (X key / FISTS button)", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(210, -432), new Vector2(760, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
                 wdesc.rectTransform.pivot = new Vector2(0, 0.5f);
+                // gun skin (Appearance.Accessory): STANDARD, or a Meshy store gun — picking one also picks its gun type
+                string[] skinNames = { "STANDARD", "PLASMA" + (App.Owns("gun:1") ? "" : " ●900"), "DRAGON" + (App.Owns("gun:2") ? "" : " ●1500") };
+                ChipRow sr = null;
+                sr = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -480), "GUN SKIN", skinNames, Mathf.Min(prof.Look.Accessory, 2), i =>
+                {
+                    if (i > 0 && !App.Owns(StoreCatalog.SkinId(i)))
+                    {
+                        var it = StoreCatalog.Get(StoreCatalog.SkinId(i));
+                        sr.Select(Mathf.Min(prof.Look.Accessory, 2));
+                        App.Toast($"{it?.Name} is locked — unlock it in the STORE for {it?.Price} coins");
+                        SelectTab(4);
+                        return;
+                    }
+                    var l = prof.Look; l.Accessory = (byte)i;
+                    if (i > 0) { l.Weapon = (byte)StoreCatalog.Get(StoreCatalog.SkinId(i)).WeaponType; wr.Select(l.Weapon); }
+                    prof.Look = l; Changed();
+                }, 150);
+                sr.Root.pivot = new Vector2(0, 0.5f);
                 presetsT.gameObject.SetActive(false);
                 foreach (var b in presetButtons) b.SetActive(false);
             }
             var play = UIKit.Button(p, "PLAY", new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(680, 84), UIKit.ButtonStyle.Primary, () => SelectTab(0), 44);
+        }
+
+        // ------------------------------------------------------------------ STORE tab
+
+        private readonly List<(StoreCatalog.Item item, Text price, Button buy, Text buyLabel, Image bg)> _storeCards = new List<(StoreCatalog.Item, Text, Button, Text, Image)>();
+        private Text _storeCoins;
+
+        /// <summary>Coins store: unlock heroes and Meshy gun skins (cosmetic only).</summary>
+        private void BuildStore(RectTransform tab)
+        {
+            var panel = UIKit.Panel(tab, "Store", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
+            EnterFx.Add(panel, new Vector2(56, 0));
+            var p = (RectTransform)panel.transform;
+            var title = UIKit.LabelAt(p, "STORE", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -24), new Vector2(300, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            title.rectTransform.pivot = new Vector2(0, 1);
+            _storeCoins = UIKit.LabelAt(p, "", 24, Theme.Yellow, new Vector2(1, 1), new Vector2(-30, -26), new Vector2(360, 36), TextAnchor.MiddleRight, UIKit.TitleFont);
+            _storeCoins.rectTransform.pivot = new Vector2(1, 1);
+            var sub = UIKit.LabelAt(p, "Earn coins every match · everything is cosmetic", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -66), new Vector2(700, 22), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            sub.rectTransform.pivot = new Vector2(0, 1);
+            int n = 0;
+            foreach (var item in StoreCatalog.Items)
+            {
+                if (item.Price == 0) continue;
+                int col = n % 2, row = n / 2; n++;
+                var card = UIKit.At(p, item.Id, new Vector2(0, 1), new Vector2(26 + col * 358, -104 - row * 166), new Vector2(348, 156));
+                card.pivot = new Vector2(0, 1);
+                var bg = UIKit.Image(card, UIKit.RoundedSmall, new Color(1, 1, 1, 0.06f), true);
+                var face = UIKit.At(card, "Face", new Vector2(0, 0.5f), new Vector2(12, 0), new Vector2(116, 132)); face.pivot = new Vector2(0, 0.5f);
+                UIKit.Image(face, UIKit.RoundedSmall, item.Hero >= 0 ? new Color(0.14f, 0.13f, 0.3f) : new Color(0.92f, 0.92f, 0.96f));
+                if (item.Hero >= 0)
+                {
+                    var raw = UIKit.Fill(face, "Img", 3).gameObject.AddComponent<RawImage>();
+                    raw.texture = PortraitStudio.Get(new Appearance { Outfit = (byte)item.Hero, Color = 2 });
+                    raw.raycastTarget = false;
+                }
+                else
+                {
+                    var gunPic = Resources.Load<Texture2D>("UI/store_gun_" + item.Skin);   // Meshy render of the gun
+                    if (gunPic != null)
+                    {
+                        var raw = UIKit.Fill(face, "Img", 2).gameObject.AddComponent<RawImage>();
+                        raw.texture = gunPic; raw.uvRect = new Rect(0.1f, 0.25f, 0.8f, 0.5f); raw.raycastTarget = false;
+                        ((RectTransform)raw.transform).localRotation = Quaternion.Euler(0, 0, 20f);
+                    }
+                    else
+                    {
+                        var ic = UIKit.At(face, "Gun", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(84, 84));
+                        UIKit.Image(ic, Icons.Blaster, item.WeaponType == 1 ? new Color(1f, 0.45f, 0.25f) : new Color(1f, 0.82f, 0.3f));
+                    }
+                }
+                var nm = UIKit.LabelAt(card, item.Name, 22, Color.white, new Vector2(0, 1), new Vector2(140, -14), new Vector2(200, 28), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                nm.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(nm, 12);
+                var ds = UIKit.LabelAt(card, item.Desc, 14, Theme.TextDim, new Vector2(0, 1), new Vector2(140, -44), new Vector2(200, 20), TextAnchor.MiddleLeft, UIKit.BodyFont);
+                ds.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(ds, 9);
+                var price = UIKit.LabelAt(card, "", 20, Theme.Yellow, new Vector2(0, 1), new Vector2(140, -70), new Vector2(200, 26), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                price.rectTransform.pivot = new Vector2(0, 1);
+                var it = item;
+                var buy = UIKit.Button(card, "BUY", new Vector2(1, 0), new Vector2(-12, 12), new Vector2(190, 46), UIKit.ButtonStyle.Primary, () => OnStoreButton(it), 20);
+                ((RectTransform)buy.transform).pivot = new Vector2(1, 0);
+                _storeCards.Add((item, price, buy, UIKit.ButtonLabel(buy), bg));
+            }
+        }
+
+        private void OnStoreButton(StoreCatalog.Item it)
+        {
+            var prof = App.Profile;
+            if (!App.Owns(it.Id)) { App.Buy(it.Id); return; }
+            // owned → equip
+            var l = prof.Look;
+            if (it.Hero >= 0) l.Outfit = (byte)it.Hero;
+            else { l.Accessory = (byte)it.Skin; l.Weapon = (byte)it.WeaponType; }
+            prof.Look = l; prof.Save(); App.Stage.UpdateLook(l);
+            App.Toast($"{it.Name} equipped");
+            RefreshStore();
+        }
+
+        private void RefreshStore()
+        {
+            if (_storeCoins == null) return;
+            _storeCoins.text = $"● {App.Coins:N0} COINS";
+            var look = App.Profile.Look;
+            foreach (var (item, price, buy, label, bg) in _storeCards)
+            {
+                bool owned = App.Owns(item.Id);
+                bool equipped = owned && (item.Hero >= 0 ? look.Outfit == item.Hero : look.Accessory == item.Skin);
+                price.text = owned ? (equipped ? "EQUIPPED" : "OWNED") : $"● {item.Price:N0}";
+                price.color = owned ? Theme.Green : Theme.Yellow;
+                label.text = owned ? (equipped ? "EQUIPPED" : "EQUIP") : (App.Coins >= item.Price ? "BUY" : "NEED COINS");
+                buy.interactable = !equipped && (owned || App.Coins >= item.Price);
+                bg.color = equipped ? new Color(1f, 0.85f, 0.3f, 0.16f) : new Color(1, 1, 1, 0.06f);
+            }
         }
 
         // ------------------------------------------------------------------ LEADERBOARD tab
@@ -878,11 +1013,14 @@ namespace Veil.UI
             yield return new WaitForSeconds(1f);
             if (string.IsNullOrEmpty(App.Profile.BackendId)) yield break;
             int oldRating = App.OnlineProfile != null ? App.OnlineProfile.rating : 0;
+            int oldCoins = App.OnlineProfile != null ? App.OnlineProfile.coins : 0;
             App.FetchProfile(p =>
             {
                 App.OnlineProfile = p;
                 int d = p.rating - oldRating;
-                _level.text = $"LEVEL <color=#ffd84a>{p.level}</color>   {p.xp}/{p.xpToNext} XP   ·   RATING {p.rating} <color={(d >= 0 ? "#7dff9a" : "#ff7a8a")}>({(d >= 0 ? "+" : "")}{d})</color>";
+                int dc = p.coins - oldCoins;
+                _level.text = $"LEVEL <color=#ffd84a>{p.level}</color>  {p.xp}/{p.xpToNext} XP  ·  RATING {p.rating} <color={(d >= 0 ? "#7dff9a" : "#ff7a8a")}>({(d >= 0 ? "+" : "")}{d})</color>" +
+                              (dc > 0 ? $"  ·  <color=#ffd84a>+{dc} COINS</color>" : "");
                 _xp.Root.gameObject.SetActive(true);
                 _xp.Set(p.xpToNext > 0 ? (float)p.xp / p.xpToNext : 0, 10f);
             }, e => { });

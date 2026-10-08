@@ -186,7 +186,10 @@ namespace Veil.View
             var rbox = MeshGen.RoundBox(0.4f);
             _gun = Build.Node(_body, "Blaster", Vector3.zero);
             // Meshy guns (meshy_rifle / meshy_sniper, own texture) when present, else the Kenney blasters
-            string meshyName = Look.Weapon == 1 ? "meshy_sniper" : "meshy_rifle";
+            // gun skin (Appearance.Accessory, bought in the store): 1 = plasma rifle, 2 = dragon sniper
+            string meshyName = Look.Weapon == 1 ? (Look.Accessory == 2 ? "meshy_dragon_sniper" : "meshy_sniper")
+                                                : (Look.Accessory == 1 ? "meshy_plasma_rifle" : "meshy_rifle");
+            if (Resources.Load<GameObject>("Weapons/" + meshyName) == null) meshyName = Look.Weapon == 1 ? "meshy_sniper" : "meshy_rifle";
             var meshy = Resources.Load<GameObject>("Weapons/" + meshyName);
             var weapon = meshy ?? Resources.Load<GameObject>("Weapons/" + (Look.Weapon == 1 ? SniperModel : WeaponNames[Look.Outfit % WeaponNames.Length]));
             if (weapon != null)

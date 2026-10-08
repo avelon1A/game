@@ -23,7 +23,7 @@ namespace Veil.Sim
             PartyReady = "party.ready", PartyKick = "party.kick", PartyPromote = "party.promote", PartyStart = "party.start",
             PartyCancel = "party.cancel", PartyLook = "party.look", MatchRejoin = "match.rejoin",
             ProfileGet = "profile.get", LeaderboardGet = "leaderboard.get",
-            AuthGoogle = "auth.google";
+            AuthGoogle = "auth.google", StoreBuy = "store.buy";
 
         // server → client pushes
         public const string Welcome = "welcome", Pong = "pong", Reply = "reply";

@@ -209,6 +209,7 @@ namespace Veil.Server
                         case Gw.PartyCancel: err = CancelQueue(s); break;
                         case Gw.PartyLook: err = SetLook(s, D<GwText>(env).text); break;
                         case Gw.ProfileGet: reply = _db.Get(s.Id); break;
+                        case Gw.StoreBuy: err = _db.Buy(s.Id, D<GwText>(env).text); if (err == null) reply = _db.Get(s.Id); break;
                         case Gw.LeaderboardGet: reply = new { players = _db.Leaderboard(20) }; break;
                         case Gw.MatchRejoin:
                             if (s.Assignment == null || DateTime.UtcNow >= s.MatchEndsUtc) err = "no match to rejoin";
@@ -527,6 +528,9 @@ namespace Veil.Server
 
         private string SetLook(Session s, string look)
         {
+            // cosmetics must be owned: anything locked falls back to a free default
+            var prof = _db.Get(s.Id);
+            if (prof != null) look = StoreCatalog.LookString(StoreCatalog.Sanitize(StoreCatalog.ParseLook(look), StoreCatalog.Parse(prof.owned)));
             s.Look = look ?? "";
             _db.UpdateProfile(s.Id, null, s.Look);
             var p = PartyOf(s);

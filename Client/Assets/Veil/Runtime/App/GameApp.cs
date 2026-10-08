@@ -42,7 +42,20 @@ namespace Veil.App
         /// <summary>Squad / party voice chat.</summary>
         public VoiceChat Voice { get; private set; }
         public Stage Stage { get; private set; }
-        public ProfileDto OnlineProfile;
+        private ProfileDto _onlineProfile;
+        /// <summary>Server profile (level, coins, owned items). Setting it re-checks the local look: no locked heroes / skins.</summary>
+        public ProfileDto OnlineProfile
+        {
+            get => _onlineProfile;
+            set
+            {
+                _onlineProfile = value;
+                if (value == null || Profile == null) return;
+                var fixedLook = StoreCatalog.Sanitize(Profile.Look, StoreCatalog.Parse(value.owned));
+                if (!fixedLook.Equals(Profile.Look)) { Profile.Look = fixedLook; Profile.Save(); Stage?.UpdateLook(fixedLook); }
+                StoreChanged?.Invoke();
+            }
+        }
         public string BackendUrl => BackendApi.BaseUrl(Profile.ServerHost, Profile.HttpPort);
 
         private TitleScreen _title;
@@ -434,6 +447,26 @@ namespace Veil.App
         /// <summary>Coins (unlock heroes / guns). Server-side economy comes next; until then the cached value.</summary>
         public int Coins => OnlineProfile != null ? OnlineProfile.coins : PlayerPrefs.GetInt("coins", 0);
         public int Gems => 0;
+        /// <summary>Store items this player owns (free items always included).</summary>
+        public System.Collections.Generic.HashSet<string> Owned => StoreCatalog.Parse(OnlineProfile?.owned);
+        public bool Owns(string itemId) => Owned.Contains(itemId);
+        public event Action StoreChanged;
+
+        /// <summary>Spends coins on a store item (server checks the price and the balance).</summary>
+        public void Buy(string itemId, Action<bool> done = null)
+        {
+            if (!Gateway.Online) { _toasts?.Notice("Connect to the server to use the store"); GoOnline(); done?.Invoke(false); return; }
+            Gateway.RequestData(Gw.StoreBuy, new GwText { text = itemId }, (ok, err, data) =>
+            {
+                if (!ok) { _toasts?.Notice($"<color=#ff9a8a>{err}</color>"); done?.Invoke(false); return; }
+                if (!string.IsNullOrEmpty(data)) OnlineProfile = JsonUtility.FromJson<ProfileDto>(data);
+                var item = StoreCatalog.Get(itemId);
+                _toasts?.Notice($"<color=#ffd84a>UNLOCKED</color> {item?.Name}");
+                Sfx.Play(Sfx.Objective, 0.8f);
+                StoreChanged?.Invoke(); AccountChanged?.Invoke();
+                done?.Invoke(true);
+            });
+        }
         public bool SignedInWithGoogle => !string.IsNullOrEmpty(Profile.GoogleEmail);
         private string GoogleClientId
         {
@@ -1158,6 +1191,9 @@ namespace Veil.App
             _menu.SelectTab(2);
             yield return new WaitForSeconds(3f);
             yield return Shot("03b_leaderboard");
+            _menu.SelectTab(4);
+            yield return new WaitForSeconds(2f);
+            yield return Shot("03c_store");
             _menu.SelectTab(3);
             yield return new WaitForSeconds(1f);
             yield return Shot("04_settings");

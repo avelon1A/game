@@ -28,6 +28,8 @@ namespace Veil.Server
         public string createdAt { get; set; }
         public int tag { get; set; }
         public string handle { get; set; }   // Name#1234 — what friends type to add you
+        public int coins { get; set; }
+        public string owned { get; set; }    // StoreCatalog ids, comma separated (free items implied)
     }
 
     /// <summary>A friend (or request) as shown in the friends list.</summary>
@@ -87,6 +89,8 @@ CREATE TABLE IF NOT EXISTS friend_requests(
             AddColumn("match_players", "squad", "INTEGER NOT NULL DEFAULT 0");
             AddColumn("players", "google_sub", "TEXT NOT NULL DEFAULT ''");
             AddColumn("players", "email", "TEXT NOT NULL DEFAULT ''");
+            AddColumn("players", "coins", $"INTEGER NOT NULL DEFAULT {StoreCatalog.StarterCoins}");
+            AddColumn("players", "owned", "TEXT NOT NULL DEFAULT ''");
             Exec("CREATE UNIQUE INDEX IF NOT EXISTS players_google ON players(google_sub) WHERE google_sub <> ''");
             AddColumn("match_players", "squad_rank", "INTEGER NOT NULL DEFAULT 0");
             // older rows: give every player a discriminator so handles are unique
@@ -300,6 +304,36 @@ CREATE TABLE IF NOT EXISTS friend_requests(
             }
         }
 
+        /// <summary>Spends coins on a store item. Null = bought; otherwise the reason it failed.</summary>
+        public string Buy(string id, string itemId)
+        {
+            var item = StoreCatalog.Get(itemId);
+            if (item == null) return "Unknown item";
+            lock (_lock)
+            {
+                using var c = Open();
+                int coins; string ownedRaw;
+                using (var q = c.CreateCommand())
+                {
+                    q.CommandText = "SELECT coins, owned FROM players WHERE id=$id";
+                    q.Parameters.AddWithValue("$id", id ?? "");
+                    using var r = q.ExecuteReader();
+                    if (!r.Read()) return "Profile not found";
+                    coins = r.GetInt32(0); ownedRaw = r.GetString(1);
+                }
+                var owned = StoreCatalog.Parse(ownedRaw);
+                if (owned.Contains(item.Id)) return "You already own " + item.Name;
+                if (coins < item.Price) return $"Not enough coins ({coins}/{item.Price})";
+                owned.Add(item.Id);
+                using var u = c.CreateCommand();
+                u.CommandText = "UPDATE players SET coins = coins - $p, owned = $o WHERE id=$id AND coins >= $p";
+                u.Parameters.AddWithValue("$p", item.Price);
+                u.Parameters.AddWithValue("$o", StoreCatalog.Join(owned));
+                u.Parameters.AddWithValue("$id", id);
+                return u.ExecuteNonQuery() == 1 ? null : "Purchase failed, try again";
+            }
+        }
+
         public PlayerProfile Get(string id)
         {
             lock (_lock)
@@ -354,6 +388,8 @@ CREATE TABLE IF NOT EXISTS friend_requests(
                 deaths = r.GetInt32(r.GetOrdinal("deaths")),
                 objectives = r.GetInt32(r.GetOrdinal("objectives")),
                 appearance = r.GetString(r.GetOrdinal("appearance")),
+                coins = r.GetInt32(r.GetOrdinal("coins")),
+                owned = StoreCatalog.Join(StoreCatalog.Parse(r.GetString(r.GetOrdinal("owned")))),
             };
         }
 
@@ -393,10 +429,11 @@ CREATE TABLE IF NOT EXISTS friend_requests(
                     int objectives = (res.PrimaryDone ? 1 : 0) + (res.SecondaryDone ? 1 : 0);
                     using var cmd = c.CreateCommand();
                     cmd.Transaction = tx;
-                    cmd.CommandText = @"UPDATE players SET xp = xp + $xp, rating = MAX(0, rating + $dr), matches = matches + 1,
+                    cmd.CommandText = @"UPDATE players SET xp = xp + $xp, rating = MAX(0, rating + $dr), matches = matches + 1, coins = coins + $coins,
                         wins = wins + $win, top3 = top3 + $top3, best_score = MAX(best_score, $s), total_score = total_score + $s,
                         eliminations = eliminations + $k, deaths = deaths + $dth, objectives = objectives + $o WHERE id = $id";
                     cmd.Parameters.AddWithValue("$xp", xpGain);
+                    cmd.Parameters.AddWithValue("$coins", StoreCatalog.MatchCoins(res.SquadRank, res.Elims, false));
                     cmd.Parameters.AddWithValue("$dr", delta);
                     cmd.Parameters.AddWithValue("$win", res.SquadRank == 1 ? 1 : 0);
                     cmd.Parameters.AddWithValue("$top3", res.SquadRank <= 2 ? 1 : 0);
