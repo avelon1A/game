@@ -265,6 +265,7 @@ namespace Veil.UI
             ShineFx.Add(_action);
             _modeThumbIcon.gameObject.AddComponent<BobFx>();
             PunchFx.On(_countdown);
+            BuildMatchmaking(tab);
 
             app.Gateway.Changed += Refresh;
             app.Gateway.Notice += t => Flash(t);
@@ -272,6 +273,89 @@ namespace Veil.UI
         }
 
         private Button _changeBtn;
+        // ---------------- matchmaking card (top centre): FINDING MATCH → MATCH FOUND → countdown
+        private RectTransform _mm, _mmRadar, _mmSweep;
+        private Text _mmTitle, _mmTime, _mmSub;
+        private Button _mmCancel;
+        private readonly Image[] _mmDots = new Image[4];
+        private int _mmState;          // 0 hidden, 1 searching, 2 found / countdown
+        private float _mmFoundT;
+
+        private void BuildMatchmaking(RectTransform tab)
+        {
+            _mm = UIKit.At(tab, "Matchmaking", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(560, 190));
+            _mm.pivot = new Vector2(0.5f, 1);
+            UIKit.Image(_mm, UIKit.RoundedSmall, new Color(0.03f, 0.04f, 0.09f, 0.9f), true);
+            var edge = UIKit.At(_mm, "Edge", new Vector2(0.5f, 1), Vector2.zero, new Vector2(560, 5)); edge.pivot = new Vector2(0.5f, 1);
+            UIKit.Image(edge, UIKit.Square, Theme.Yellow);
+            // radar: two rings + a rotating sweep
+            _mmRadar = UIKit.At(_mm, "Radar", new Vector2(0, 0.5f), new Vector2(26, 0), new Vector2(130, 130)); _mmRadar.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(_mmRadar, UIKit.Ring, new Color(1f, 0.82f, 0.2f, 0.9f));
+            var inner = UIKit.At(_mmRadar, "Inner", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(78, 78));
+            UIKit.Image(inner, UIKit.Ring, new Color(1f, 0.82f, 0.2f, 0.45f));
+            _mmSweep = UIKit.At(_mmRadar, "Sweep", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 62));
+            _mmSweep.pivot = new Vector2(0.5f, 0f);
+            UIKit.Image(_mmSweep, UIKit.Pill, Theme.Yellow);
+            _mmTitle = UIKit.LabelAt(_mm, "", 34, Color.white, new Vector2(0, 1), new Vector2(180, -22), new Vector2(360, 44), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _mmTitle.rectTransform.pivot = new Vector2(0, 1); _mmTitle.fontStyle = FontStyle.Italic; UIKit.Fit(_mmTitle, 18);
+            _mmTime = UIKit.LabelAt(_mm, "", 46, Theme.Yellow, new Vector2(0, 1), new Vector2(180, -66), new Vector2(200, 56), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _mmTime.rectTransform.pivot = new Vector2(0, 1);
+            _mmSub = UIKit.LabelAt(_mm, "", 16, Theme.TextDim, new Vector2(0, 0), new Vector2(180, 18), new Vector2(240, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _mmSub.rectTransform.pivot = new Vector2(0, 0); _mmSub.supportRichText = true; UIKit.Fit(_mmSub, 10);
+            for (int i = 0; i < 4; i++)
+            {
+                var d = UIKit.At(_mm, "Dot", new Vector2(1, 0), new Vector2(-150 + i * 34, 26), new Vector2(24, 24)); d.pivot = new Vector2(0, 0);
+                _mmDots[i] = UIKit.Image(d, UIKit.Circle, new Color(1, 1, 1, 0.15f));
+            }
+            _mmCancel = UIKit.Button(_mm, "CANCEL", new Vector2(1, 1), new Vector2(-18, -20), new Vector2(130, 46), UIKit.ButtonStyle.Ghost, OnAction, 17);
+            ((RectTransform)_mmCancel.transform).pivot = new Vector2(1, 1);
+            _mm.gameObject.SetActive(false);
+            _countdown.gameObject.SetActive(false);   // the countdown lives in the card now
+        }
+
+        private void UpdateMatchmaking(float dt)
+        {
+            var g = _app.Gateway;
+            var party = g.Party;
+            bool searching = _online && g.Online && !party.Empty && party.phase == (int)PartyPhase.Queued;
+            bool found = (_online && g.Online && !party.Empty && party.phase == (int)PartyPhase.InMatch) || (!_online && _offlineCountdown);
+            int state = found ? 2 : searching ? 1 : 0;
+            if (state != _mmState)
+            {
+                if (state > 0 && _mmState == 0) PunchFx.On(_mm).Kick(-0.3f);
+                if (state == 2)
+                {
+                    _mmFoundT = 0f;
+                    PunchFx.On(_mm).Kick(0.35f);
+                    Sfx.Play(Sfx.Objective, 0.9f);
+                    _app.Stage.Cheer(2.2f);   // the squad celebrates on the dock
+                }
+                _mmState = state;
+            }
+            _mm.gameObject.SetActive(state > 0 && _app.State == GameApp.AppState.Menu);
+            if (state == 0) return;
+            _mmSweep.localRotation = Quaternion.Euler(0, 0, -Time.unscaledTime * (state == 1 ? 220f : 600f));
+            _mmFoundT += dt;
+            int n = Mathf.Max(1, _members.Count);
+            if (state == 1)
+            {
+                int sec = party.queueSeconds;
+                _mmTitle.text = "FINDING MATCH";
+                _mmTime.text = $"{sec / 60}:{sec % 60:00}";
+                _mmSub.text = $"Squads · {_app.Profile.MatchMinutes} min · est. 0:30";
+                _mmCancel.gameObject.SetActive(g.IsLeader);
+                for (int i = 0; i < 4; i++) _mmDots[i].color = i < n ? Theme.Yellow : new Color(1, 1, 1, 0.15f * (1 + Mathf.Sin(Time.unscaledTime * 4 + i)));
+            }
+            else
+            {
+                _mmTitle.text = "MATCH FOUND!";
+                int c = !_online ? Mathf.Max(0, Mathf.CeilToInt(_countT)) : 0;
+                _mmTime.text = !_online ? (c > 0 ? $"STARTING IN {c}" : "GO!") : "DROPPING IN…";
+                _mmSub.text = "<color=#7dff9a>●</color> 16 players · Rilo Island";
+                _mmCancel.gameObject.SetActive(!_online);
+                for (int i = 0; i < 4; i++) _mmDots[i].color = Theme.Green;
+            }
+        }
         private RectTransform _cards;
         private readonly RectTransform[] _plus = new RectTransform[3];
         private Text _chat;
@@ -820,6 +904,7 @@ namespace Veil.UI
         {
             if (_transientT > 0) { _transientT -= dt; if (_transientT <= 0) UpdateStatus(); }
             UpdateChrome(dt);
+            UpdateMatchmaking(dt);
             var v = _app.Voice;
             bool voiceOn = _online && v.Mode != VoiceMode.Off;
             // rows: mic = speaking indicator (you: tap to mute), speaker = mute that player (you: deafen)

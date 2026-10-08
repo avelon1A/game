@@ -1389,6 +1389,10 @@ namespace Veil.App
 
         private bool _walkPreview, _aimPreview;
 
+        private float _cheerT;
+        /// <summary>Lobby: the squad celebrates for a moment (match found).</summary>
+        public void Cheer(float seconds) => _cheerT = seconds;
+
         public void UpdateLook(Appearance mine)
         {
             bool newHero = _rigs[0].Look.Outfit != mine.Outfit;
@@ -1478,12 +1482,13 @@ namespace Veil.App
         {
             if (!_root.gameObject.activeSelf) return;
             _t += dt;
+            _cheerT -= dt;
             UpdateSummon(dt);
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
                 if (_walkPreview) _rigs[i].Animate(new RigState { Grounded = true, Aiming = _aimPreview, Velocity = _aimPreview ? Vector3.zero : _rigs[i].transform.forward * 2.2f }, dt);
-                else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = false, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
+                else _rigs[i].Animate(new RigState { Grounded = true, Idle = true, Victory = _cheerT > 0 && SquadMode, Aiming = !_podium && !SquadMode && !SoloMode && i == 2 && Mathf.Repeat(_t, 6f) < 2f }, dt);
             }
             if (GameApp.I != null && GameApp.I.State == GameApp.AppState.Menu && Mouse.current != null && Mouse.current.rightButton.isPressed)
                 _rigs[0].transform.Rotate(0, -Mouse.current.delta.ReadValue().x * 0.4f, 0);
