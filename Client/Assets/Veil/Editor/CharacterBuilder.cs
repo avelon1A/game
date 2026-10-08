@@ -131,7 +131,7 @@ namespace Veil.EditorTools
         private static void EnsureTPose(string fbx)
         {
             var mi = (ModelImporter)AssetImporter.GetAtPath(fbx);
-            if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v3") return;
+            if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v4") return;
             var hd = mi.humanDescription;
             if (hd.human == null || hd.human.Length == 0) { Debug.LogWarning($"[VEIL] {fbx}: humanoid mapping failed"); return; }
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
@@ -143,7 +143,9 @@ namespace Veil.EditorTools
             // canonical T-pose: spine/neck/head straight up, legs straight down, arms straight out (Unity's humanoid reference)
             var up = go.transform.up;
             void Chain(string a, string b, Vector3 dir) { var ta = T(a); var tb = T(b); if (ta != null && tb != null) Align(ta, tb.position - ta.position, dir); }
-            Chain("Hips", "Spine", up); Chain("Spine", "Chest", up); Chain("Chest", "UpperChest", up);
+            // not Hips→Spine: turning the hips also swings both legs, and on Meshy rigs whose spine joint sits ahead of
+            // the hips (Sol) that tipped the pelvis in the reference pose — every clip then leaned the hero back
+            Chain("Spine", "Chest", up); Chain("Chest", "UpperChest", up);
             Chain(T("UpperChest") != null ? "UpperChest" : "Chest", "Neck", up); Chain("Neck", "Head", up);
             foreach (var side in new[] { "Left", "Right" })
             {
@@ -162,7 +164,7 @@ namespace Veil.EditorTools
                 if (byName.TryGetValue(sk[i].name, out var t) && t != go.transform) { sk[i].rotation = t.localRotation; sk[i].position = t.localPosition; }
             hd.skeleton = sk;
             mi.humanDescription = hd;
-            mi.userData = "tpose-v3";
+            mi.userData = "tpose-v4";
             Object.DestroyImmediate(go);
             mi.SaveAndReimport();
             Debug.Log($"[VEIL] {fbx}: humanoid T-pose reference set");

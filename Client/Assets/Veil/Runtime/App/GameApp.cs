@@ -1244,10 +1244,13 @@ namespace Veil.App
             yield return new WaitForSeconds(2f);
             yield return Shot("08_overview");
             CamRig.Pitch = 18f; CamRig.Distance = 7.5f;
-            _match.Driver.DebugSkip(150f);
-            yield return new WaitForSeconds(8f);
-            yield return Shot("09_collapse");
-            _match.Driver.DebugSkip(100f);
+            if (_match != null)   // the escape may already have ended the match
+            {
+                _match.Driver.DebugSkip(150f);
+                yield return new WaitForSeconds(8f);
+                yield return Shot("09_collapse");
+                _match?.Driver.DebugSkip(100f);
+            }
             while (State == AppState.Match) yield return null;
             yield return new WaitForSeconds(3f);
             yield return Shot("10_results");
