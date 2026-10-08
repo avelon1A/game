@@ -25,7 +25,7 @@ namespace Veil.EditorTools
         /// <summary>RILO animation pack (Meshy, Mixamo rig, built by build_meshy_rigged.py): shared combat clips for every hero.</summary>
         public const string SharedFbx = "Assets/Veil/Characters/_anim/rilo_anims.fbx";
 
-        public override uint GetVersion() => 5;   // bump → Unity re-imports every character with these rules
+        public override uint GetVersion() => 6;   // bump → Unity re-imports every character with these rules
 
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
         private bool IsLibrary => assetPath == LibraryFbx;
@@ -182,12 +182,13 @@ namespace Veil.EditorTools
             var clips = ClipsOf(fbx);
             // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
             if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
-            // shared RILO pack first (made for these Meshy rigs): jump, hits and fist fighting for every hero
-            // (not its sprint: arms swept back, chest up — the library sprint reads much better)
+            // shared RILO pack first (made for these exact Meshy / Mixamo rigs): it beats the retargeted library, whose clips
+            // bend the arms back and push the chest up on these skeletons. Idle = the pack's gun idle when a hero has none.
             if (humanoid && File.Exists(CharacterImport.SharedFbx))
             {
                 var pack = ClipsOf(CharacterImport.SharedFbx);
-                foreach (var key in new[] { "jump", "hit", "punch" })
+                if (!clips.ContainsKey("idle") && pack.TryGetValue("gun_idle", out var gi)) clips["idle"] = gi;
+                foreach (var key in new[] { "walk", "run", "sprint", "jump", "hit", "punch" })
                     if (!clips.ContainsKey(key) && pack.TryGetValue(key, out var pc)) clips[key] = pc;
             }
             if (humanoid && File.Exists(CharacterImport.LibraryFbx))
