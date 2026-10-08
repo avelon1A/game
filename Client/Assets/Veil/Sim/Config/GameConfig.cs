@@ -7,7 +7,8 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 16;
+        public const int ProtocolVersion = 17;
+        public const float ExtractSeeRange = 70f;      // squads without the Vault only see the helicopter with their own eyes, this close;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -71,13 +72,13 @@ namespace Veil.Sim
         public const int CollectCores = 3;             // energy cores picked up by the squad
         public const float VaultTime = 10f;            // channel at the central Vault
         public const float VaultRadius = 6f;
-        public const float ExtractTime = 60f;          // hold the extraction point uncontested
+        public const float ExtractTime = 25f;          // hold the helicopter zone uncontested to board and escape
         public const float ExtractRadius = 7f;
         public const float ExtractDistance = IslandMap ? 160f : 40f;      // extraction points sit between the squads' spawns
-        public const float ExtractUnlockDelay = 20f;   // revealed, then locked this long: everyone gets time to rotate
+        public const float ExtractUnlockDelay = 0f;    // the helicopter comes as soon as an eligible squad reaches the zone
         public const float ExtractSecureTime = 3f;     // a squad must be ALONE in the zone this long before progress counts
-        public const float ExtractFinalAt = 0.8f;      // last 12 s of 60: final phase (holders always visible, alarms)
-        public const float ExtractPingEvery = 8f;      // while extracting, holders are pinged to every squad this often
+        public const float ExtractFinalAt = 0.8f;      // last 5 s of 25: final phase (boarding — holders always visible, alarms)
+        public const float ExtractPingEvery = 5f;      // while extracting, holders are pinged to every squad this often
         public const float ExtractRespawnTime = 15f;   // longer re-entry once extraction is revealed
         public const float ExtractCircleMin = IslandMap ? 172f : 52f;     // the collapse never closes over the extraction points
         public const int StagePoints = 100;            // per member, per completed stage (tie-breaks)

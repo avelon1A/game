@@ -210,7 +210,7 @@ namespace Veil.Sim
             w.Bool(s.ExtractRevealed); w.Bool(s.ExtractContested); w.Vec(s.ExtractPos); w.U8((byte)(s.ExtractController + 1)); w.U8((byte)(s.Winner + 1));
             w.Bool(s.ExtractFinal); w.U8((byte)MathF.Ceiling(s.ExtractLockT)); w.Unit(s.ExtractSecure, 1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { w.U8(s.SquadStage[i]); w.U16((ushort)MathF.Round(s.SquadExtract[i] * 65535f)); }
-            w.Time(s.HackSurgeT); w.Time(s.JamT); w.U8((byte)(s.BountyTarget + 1));
+            w.Time(s.HackSurgeT); w.Time(s.JamT); w.U8((byte)(s.BountyTarget + 1)); w.Bool(s.ExtractActive); w.Bool(s.ExtractSeen);
         }
 
         private static void WriteObjective(ByteWriter w, ObjectiveState o)
@@ -279,7 +279,7 @@ namespace Veil.Sim
             s.ExtractRevealed = r.Bool(); s.ExtractContested = r.Bool(); s.ExtractPos = r.Vec(); s.ExtractController = r.U8() - 1; s.Winner = r.U8() - 1;
             s.ExtractFinal = r.Bool(); s.ExtractLockT = r.U8(); s.ExtractSecure = r.Unit(1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { s.SquadStage[i] = r.U8(); s.SquadExtract[i] = r.U16() / 65535f; }
-            s.HackSurgeT = r.Time(); s.JamT = r.Time(); s.BountyTarget = r.U8() - 1;
+            s.HackSurgeT = r.Time(); s.JamT = r.Time(); s.BountyTarget = r.U8() - 1; s.ExtractActive = r.Bool(); s.ExtractSeen = r.Bool();
             return s;
         }
 

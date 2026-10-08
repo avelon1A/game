@@ -50,15 +50,30 @@ namespace Veil.UI
 
         public void Update(Snapshot s, PlayerState me)
         {
-            bool on = GameConfig.ExtractionMode && s.ExtractRevealed;
+            bool on = GameConfig.ExtractionMode && s.ExtractActive;
             _root.gameObject.SetActive(on);
             if (!on) return;
-            bool overtime = s.Time >= s.Duration;
-            bool mineDone = s.Stage >= 4 || overtime;
+            bool mineDone = s.Stage >= 4;
             int c = s.ExtractController;
             float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 8f);
             Color back = new Color(0.04f, 0.05f, 0.12f, 0.72f);
             float de = Vec2.Dist(me.Pos, s.ExtractPos);
+            if (!mineDone)
+            {
+                // you don't know where it is yet: only the race
+                _state.text = c >= 0 ? $"<color=#ff5a6a>{Sq(c)}</color> IS EXTRACTING · {Mathf.RoundToInt(s.SquadExtract[c] * 100)}%" : "A SQUAD FOUND THE EXTRACTION";
+                _hint.text = "Open your Vault to see where the extraction point is";
+                _back.color = new Color(0.04f, 0.05f, 0.12f, 0.72f);
+                for (int i = 0; i < GameConfig.SquadCount; i++)
+                {
+                    float p = s.SquadExtract[i];
+                    _fill[i].rectTransform.sizeDelta = new Vector2(BarW * p, 10);
+                    _fill[i].color = i == _local ? Palette.Health : i == c ? new Color(1f, 0.35f, 0.4f) : new Color(0.85f, 0.85f, 0.95f);
+                    string tag = i == _local ? "YOU" : ((char)('A' + i)).ToString();
+                    _label[i].text = s.SquadStage[i] >= 4 ? $"{tag} {Mathf.RoundToInt(p * 100)}%" : $"<color=#8a90b8>{tag} · no vault</color>";
+                }
+                return;
+            }
             if (s.ExtractLockT > 0)
             {
                 _state.text = $"EXTRACTION OPENS IN <color=#ffd84a>{s.ExtractLockT:0}s</color>";
@@ -72,13 +87,13 @@ namespace Veil.UI
             }
             else if (c < 0)
             {
-                _state.text = overtime ? "<color=#ffd84a>OVERTIME</color> · EXTRACTION OPEN TO ALL" : "EXTRACTION OPEN · nobody holding";
+                _state.text = "EXTRACTION OPEN · nobody holding";
                 _hint.text = mineDone ? $"{de:0} m · stand in the circle — alone — to extract" : $"{de:0} m · open the Vault first; you can still block others";
             }
             else
             {
                 bool mine = c == _local;
-                bool canWin = s.SquadStage[c] >= 4 || overtime;
+                bool canWin = s.SquadStage[c] >= 4;
                 string who = mine ? "<color=#7dff9a>YOUR SQUAD</color>" : $"<color=#ff5a6a>{Sq(c)}</color>";
                 int pct = Mathf.RoundToInt(s.SquadExtract[c] * 100);
                 if (!canWin) { _state.text = $"{who} IS BLOCKING"; _hint.text = "they haven't opened the Vault — they can't extract"; }
@@ -86,7 +101,7 @@ namespace Veil.UI
                 else if (s.ExtractFinal)
                 {
                     float left = (1f - s.SquadExtract[c]) * GameConfig.ExtractTime;
-                    _state.text = $"FINAL PHASE · {who} WINS IN <color=#ffd84a>{left:0}s</color>";
+                    _state.text = $"BOARDING · {who} ESCAPES IN <color=#ffd84a>{left:0}s</color>";
                     _hint.text = mine ? "HOLD ON — enemies can see you" : "CONTEST NOW — they are visible to you";
                     back = Color.Lerp(back, new Color(0.55f, 0.04f, 0.06f, 0.88f), pulse);
                 }
@@ -96,7 +111,7 @@ namespace Veil.UI
             for (int i = 0; i < GameConfig.SquadCount; i++)
             {
                 float p = s.SquadExtract[i];
-                bool done = s.SquadStage[i] >= 4 || overtime;
+                bool done = s.SquadStage[i] >= 4;
                 _fill[i].rectTransform.sizeDelta = new Vector2(BarW * p, 10);
                 _fill[i].color = i == _local ? Palette.Health : i == c ? new Color(1f, 0.35f, 0.4f) : new Color(0.85f, 0.85f, 0.95f);
                 string tag = i == _local ? "YOU" : ((char)('A' + i)).ToString();

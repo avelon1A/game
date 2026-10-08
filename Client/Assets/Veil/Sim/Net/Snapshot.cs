@@ -79,6 +79,8 @@ namespace Veil.Sim
         public float StageProg;
         public Vec2 Site;
         public bool ExtractRevealed, ExtractContested, ExtractFinal;
+        public bool ExtractActive;          // someone opened their Vault (public); ExtractRevealed = YOU know where it is
+        public bool ExtractSeen;            // no Vault, but the helicopter is close enough to see (can't use it, no map marker)
         public float ExtractLockT, ExtractSecure;
         public Vec2 ExtractPos;
         public int ExtractController = -1, Winner = -1;
@@ -194,7 +196,12 @@ namespace Veil.Sim
             snap.HomeHackers = squad.HomeHackers; snap.HomeContested = squad.HomeContested; snap.NodesHome = squad.NodesHome;
             snap.HomeHacker = squad.HomeHacker; snap.CenterHacker = squad.CenterHacker;
             for (int i = 0; i < GameConfig.SquadCount; i++) snap.SquadProg[i] = sim.Squads[i].StageProg;
-            snap.ExtractRevealed = sim.ExtractRevealed; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = sim.ExtractPos;
+            // the extraction point is only shown to squads that opened their Vault
+            bool knows = sim.ExtractRevealed && squad.VaultDone;
+            bool seen = !knows && sim.ExtractRevealed && NearSquad(sim, viewer, sim.ExtractPos, GameConfig.ExtractSeeRange);
+            snap.ExtractActive = sim.ExtractRevealed;
+            snap.ExtractSeen = seen;
+            snap.ExtractRevealed = knows; snap.ExtractContested = sim.ExtractContested; snap.ExtractPos = knows || seen ? sim.ExtractPos : Vec2.Zero;
             snap.ExtractController = sim.ExtractController; snap.Winner = sim.WinnerSquad;
             snap.ExtractFinal = sim.ExtractFinal; snap.ExtractLockT = sim.ExtractLockT; snap.ExtractSecure = sim.ExtractSecure;
             for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
@@ -241,6 +248,7 @@ namespace Veil.Sim
                 case EventType.ExtractOpen:
                 case EventType.ExtractAlert:
                 case EventType.ExtractFinal:
+                    if (!sim.Squads[viewer.Squad].VaultDone) e.Pos = Vec2.Zero;   // they learn that it happens, not where
                     return true;
                 case EventType.HackGlitch:
                 case EventType.HackContested:

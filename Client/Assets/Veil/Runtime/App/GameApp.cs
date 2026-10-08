@@ -734,7 +734,10 @@ namespace Veil.App
             if (_endTimer >= 0)
             {
                 _endTimer -= dt;
-                if (_endTimer < 2.9f && _endTimer + dt >= 2.9f) _hud?.Banner("MATCH OVER", "Calculating scores…", 3f);
+                // escape cinematic: hold the results until the helicopter is gone
+                bool escape = _matchView != null && _matchView.EscapeT >= 0;
+                if (escape) _endTimer = Mathf.Max(_endTimer, MatchView.EscapeLength - _matchView.EscapeT);
+                if (!escape && _endTimer < 2.9f && _endTimer + dt >= 2.9f) _hud?.Banner("MATCH OVER", "Calculating scores…", 3f);
                 if (_endTimer <= 0 && _match != null) ShowResults(_match.Results, _match.LocalId);
             }
         }
@@ -774,6 +777,7 @@ namespace Veil.App
                     break;
                 case AppState.Match:
                     if (_match == null || _matchView == null) break;
+                    if (_matchView.EscapeT >= 0) { _matchView.EscapeCamera(CamRig, dt); Scoped = false; break; }
                     Vector2 look = Vector2.zero;
                     float scroll = 0;
                     if (!_paused && Mouse.current != null && Cursor.lockState == CursorLockMode.Locked)

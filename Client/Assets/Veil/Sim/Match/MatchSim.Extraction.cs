@@ -460,7 +460,7 @@ namespace Veil.Sim
                         foreach (var h in Players)
                         {
                             if (h.Squad != sq.Id || !Standing(h) || Vec2.DistSq(h.Pos, ExtractPos) > r2) continue;
-                            foreach (var v in Players) if (v.Squad != sq.Id) v.RevealedTo[h.Id] = MathF.Max(v.RevealedTo[h.Id], final ? 0.6f : 2.5f);
+                            foreach (var v in Players) if (v.Squad != sq.Id && Squads[v.Squad].VaultDone) v.RevealedTo[h.Id] = MathF.Max(v.RevealedTo[h.Id], final ? 0.6f : 2.5f);
                         }
                     }
                     if (sq.ExtractProg >= 1f) { WinnerSquad = sq.Id; EndMatch(); }

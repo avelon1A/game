@@ -204,7 +204,7 @@ namespace Veil.Sim
             {
                 var sq = _sim.Squads[_p.Squad];
                 float drive = Kind switch { BotKind.Explorer => 82, BotKind.Defender => 78, BotKind.Collector => 72, BotKind.Opportunist => 64, _ => 58 };
-                if (_sim.ExtractRevealed)
+                if (_sim.ExtractRevealed && sq.VaultDone)   // only squads that opened their Vault know where it is
                 {
                     float de = Vec2.Dist(_sim.ExtractPos, _p.Pos);
                     bool rival = _sim.ExtractController >= 0 && _sim.ExtractController != _p.Squad;

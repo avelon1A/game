@@ -44,6 +44,43 @@ namespace Veil.UI
         private MatchPhase _lastPhase = (MatchPhase)255;
         private bool _overtimeShown;
         private HudExtras _extras;
+        private RectTransform _cine, _barTop, _barBottom;
+        private Text _cineTitle, _cineSub;
+
+        /// <summary>Escape cinematic overlay: letterbox bars + the winner title (the HUD itself hides).</summary>
+        private void BuildCinematic(Transform canvas)
+        {
+            _cine = UIKit.Fill(canvas, "Cinematic");
+            _barTop = UIKit.Rect(_cine, "Top", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, Vector2.zero);
+            UIKit.Image(_barTop, UIKit.Square, Color.black);
+            _barBottom = UIKit.Rect(_cine, "Bottom", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, Vector2.zero);
+            UIKit.Image(_barBottom, UIKit.Square, Color.black);
+            _cineTitle = UIKit.LabelAt(_cine, "", 86, Color.white, new Vector2(0.5f, 0), new Vector2(0, 150), new Vector2(1400, 110), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _cineTitle.fontStyle = FontStyle.Italic;
+            UIKit.Outline(_cineTitle, new Color(0.3f, 0.1f, 0.6f, 0.9f), 4);
+            _cineSub = UIKit.LabelAt(_cine, "", 28, Theme.Yellow, new Vector2(0.5f, 0), new Vector2(0, 100), new Vector2(1200, 40), TextAnchor.MiddleCenter, UIKit.BoldFont);
+            UIKit.Shadow(_cineSub);
+            _cine.gameObject.SetActive(false);
+        }
+
+        private void UpdateCinematic()
+        {
+            float t = _view.EscapeT;
+            bool on = t >= 0;
+            if (_cine.gameObject.activeSelf != on) _cine.gameObject.SetActive(on);
+            if (Root.gameObject.activeSelf == on) Root.gameObject.SetActive(!on);
+            if (!on) return;
+            float h = ((RectTransform)_cine).rect.height * 0.12f * Mathf.SmoothStep(0, 1, Mathf.Clamp01(t / 0.8f));
+            _barTop.sizeDelta = new Vector2(0, h);
+            _barBottom.sizeDelta = new Vector2(0, h);
+            bool mine = _view.EscapeSquad == _m.LocalSquad;
+            float a = Mathf.Clamp01((t - 3.4f) / 0.8f);
+            _cineTitle.text = mine ? "VICTORY" : $"SQUAD {(char)('A' + _view.EscapeSquad)} ESCAPED";
+            _cineSub.text = mine ? "Your squad made it off Rilo Island" : "They made it off Rilo Island";
+            _cineTitle.color = new Color(mine ? 1f : 1f, mine ? 0.85f : 1f, mine ? 0.3f : 1f, a);
+            _cineSub.color = new Color(Theme.Yellow.r, Theme.Yellow.g, Theme.Yellow.b, Mathf.Clamp01((t - 4f) / 0.8f));
+            _cineTitle.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.25f, 1f, a);
+        }
         private RectTransform _scoreboard;
         private Text _scoreboardText;
         private readonly Dictionary<int, Nameplate> _plates = new Dictionary<int, Nameplate>();
@@ -123,6 +160,7 @@ namespace Veil.UI
             BuildCenter();
             BuildScoreboard();
             foreach (var z in m.Map.Zones) _zoneMarkers.Add(MakeZoneMarker(z));
+            BuildCinematic(canvas);
             _extras = new HudExtras(Root, m, cam, _minimap, mobile, Feed, (a, b, t) => Banner(a, b, t), Popup);
             view.OnEvent += HandleEvent;
             view.OnEvent += _extras.HandleEvent;
@@ -135,6 +173,7 @@ namespace Veil.UI
             _view.OnEvent -= HandleEvent;
             _view.OnEvent -= _extras.HandleEvent;
             _extras.Dispose();
+            Object.Destroy(_cine.gameObject);
             Object.Destroy(Root.gameObject);
         }
 
@@ -564,7 +603,10 @@ namespace Veil.UI
                     Popup(e.B == 1 ? "ENEMY TERMINAL CONTESTED" : "CENTRAL TERMINAL CONTESTED");
                     break;
                 case EventType.ExtractRevealed:
-                    Banner("EXTRACTION REVEALED", e.A == _m.LocalSquad ? $"Opens in {e.Value} s — get there and hold it 60 s" : $"Squad {(char)('A' + e.A)} opened the Vault · opens in {e.Value} s — rotate, ambush or block", 4.5f);
+                    Banner(e.A == _m.LocalSquad ? "HELICOPTER LOCATED" : "A SQUAD OPENED THEIR VAULT",
+                        e.A == _m.LocalSquad ? $"Reach the extraction — hold it {GameConfig.ExtractTime:0} s to board and win"
+                        : _m.Latest != null && _m.Latest.Stage >= 4 ? $"Squad {(char)('A' + e.A)} is racing to the helicopter — beat them there"
+                        : $"Squad {(char)('A' + e.A)} knows where the helicopter is — open your Vault to find it", 4.5f);
                     Sfx.Play(Sfx.Capture, 0.9f);
                     break;
                 case EventType.ExtractOpen:
@@ -577,8 +619,8 @@ namespace Veil.UI
                     Sfx.Play(Sfx.Click, 0.6f);
                     break;
                 case EventType.ExtractFinal:
-                    if (e.A == _m.LocalSquad) Banner("FINAL PHASE", "12 seconds to win — HOLD THE CIRCLE", 3f);
-                    else Banner("FINAL PHASE", $"Squad {(char)('A' + e.A)} is about to win — CONTEST NOW!", 3f);
+                    if (e.A == _m.LocalSquad) Banner("BOARDING", $"{GameConfig.ExtractTime * (1 - GameConfig.ExtractFinalAt):0} seconds — HOLD THE ZONE", 3f);
+                    else Banner("BOARDING", $"Squad {(char)('A' + e.A)} is boarding the helicopter — STOP THEM!", 3f);
                     Sfx.Play(Sfx.Reveal, 1f);
                     break;
                 case EventType.ExtractControl:
@@ -648,6 +690,8 @@ namespace Veil.UI
 
         public void Update(float dt, float cameraYaw)
         {
+            UpdateCinematic();
+            if (_view.EscapeT >= 0) return;
             var s = _m.Latest;
             if (s == null) return;
             var me = _m.Predicted;
@@ -676,7 +720,7 @@ namespace Veil.UI
             if (overtime && !_overtimeShown)
             {
                 _overtimeShown = true;
-                Banner("OVERTIME", "Extraction is open to every squad — first to extract wins", 5f);
+                Banner("OVERTIME", "No time limit — open your Vault and extract to win", 5f);
                 Audio.Sfx.Play(Audio.Sfx.Beep, 1f);
             }
             if (overtime)
@@ -924,7 +968,7 @@ namespace Veil.UI
             float mine = s.SquadExtract[_m.LocalSquad];
             int lead = -1; float leadP = 0;
             for (int q = 0; q < GameConfig.SquadCount; q++) if (s.SquadExtract[q] > leadP) { leadP = s.SquadExtract[q]; lead = q; }
-            if (!s.ExtractRevealed) { x.Desc.text = "Revealed when a squad opens the Vault"; x.Progress.text = "LOCKED"; }
+            if (!s.ExtractRevealed) { x.Desc.text = s.ExtractActive ? "Open your Vault to see where it is" : "Open your Vault to reveal it"; x.Progress.text = "LOCKED"; }
             else
             {
                 float de = Vec2.Dist(me.Pos, s.ExtractPos);

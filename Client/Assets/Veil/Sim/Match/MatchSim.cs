@@ -34,11 +34,11 @@ namespace Veil.Sim
 
         public float Duration => Settings.MatchSeconds;
         public float TimeLeft => MathF.Max(0, Duration - Time);
-        /// <summary>Extraction mode never times out: past the planned length the match goes to overtime,
-        /// where the extraction point opens for every squad (Vault or not) until someone extracts.</summary>
+        /// <summary>Extraction mode never times out: past the planned length the match is in overtime and runs until a squad
+        /// extracts. The Vault is still required.</summary>
         public bool Overtime => GameConfig.ExtractionMode && Time >= Duration;
-        /// <summary>Can this squad extract right now?</summary>
-        public bool CanExtract(SquadState sq) => sq.VaultDone || Overtime;
+        /// <summary>Only squads that opened their Vault can extract — and only they know where the extraction point is.</summary>
+        public bool CanExtract(SquadState sq) => sq.VaultDone;
 
         public readonly int TowerZone, VaultZone, ReactorZone, MarketZone, RuinsZone;
 
@@ -232,7 +232,6 @@ namespace Veil.Sim
             UpdateSquadTotals();
 
             if (!GameConfig.ExtractionMode && Time >= Duration) EndMatch();
-            else if (Overtime && !ExtractRevealed) RevealExtraction(LeadingSquad());
         }
 
         private void UpdateTimers(PlayerState p, float dt)
@@ -306,13 +305,6 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ end
 
-        private SquadState LeadingSquad()
-        {
-            var best = Squads[0];
-            foreach (var sq in Squads) if (ChainRankKey(sq) > ChainRankKey(best)) best = sq;
-            return best;
-        }
-
         private void EndMatch()
         {
             if (Ended) return;
@@ -359,7 +351,8 @@ namespace Veil.Sim
             for (int i = 0; i < list.Count; i++) list[i].Rank = i + 1;
             Results = list;
             Phase = MatchPhase.Ended;
-            Events.Add(new SimEvent(EventType.MatchEnded, -1, 0, 0, Vec2.Zero));
+            // A = winning squad, Pos = the helicopter (clients play the escape cinematic there)
+            Events.Add(new SimEvent(EventType.MatchEnded, WinnerSquad, 0, 0, ExtractRevealed ? ExtractPos : Vec2.Zero));
         }
 
         public void UpdateSquadTotals()

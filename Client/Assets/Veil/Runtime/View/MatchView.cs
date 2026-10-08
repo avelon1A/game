@@ -148,6 +148,137 @@ namespace Veil.View
 
         private Transform _site, _siteRing, _extract, _extractFill;
         private Renderer _extractRing, _extractBeam;
+        private Transform _heli, _heliRotor, _heliTail;
+        private float _heliH = 32f, _heliYaw;
+
+        /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
+        private void BuildHelicopter()
+        {
+            _heli = Build.Node(Root, "Helicopter", Vector3.zero);
+            var body = MaterialLib.Toon(Palette.Hex("#2b2f3d"), 0.35f, 0.6f);
+            var yellow = MaterialLib.Toon(Palette.Hex("#ffc93a"), 0.3f, 0.5f);
+            var glass = MaterialLib.Toon(Palette.Hex("#7fd6ff"), 0.9f, 0.9f);
+            var dark = MaterialLib.Toon(Palette.Hex("#15161c"), 0.3f, 0.4f);
+            Build.Part(_heli, MeshGen.Sphere, body, new Vector3(0, 1.6f, 0), new Vector3(2.4f, 2.1f, 4.4f), null, "Body");
+            Build.Part(_heli, MeshGen.Sphere, glass, new Vector3(0, 1.95f, 1.45f), new Vector3(1.9f, 1.4f, 1.9f), null, "Cockpit");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.45f, 0), new Vector3(2.42f, 0.35f, 3.2f), null, "Stripe");
+            Build.Part(_heli, MeshGen.Box, body, new Vector3(0, 1.9f, -3.6f), new Vector3(0.45f, 0.5f, 4.2f), null, "Boom");
+            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 2.6f, -5.5f), new Vector3(0.15f, 1.5f, 0.9f), null, "Fin");
+            foreach (float x in new[] { -1f, 1f })
+            {
+                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x, 0.12f, 0), new Vector3(0.14f, 0.12f, 3.6f), null, "Skid");
+                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x * 0.85f, 0.45f, 0.9f), new Vector3(0.1f, 0.7f, 0.1f), null, "Strut");
+                Build.Part(_heli, MeshGen.Box, dark, new Vector3(x * 0.85f, 0.45f, -0.9f), new Vector3(0.1f, 0.7f, 0.1f), null, "Strut");
+            }
+            Build.Part(_heli, MeshGen.Cylinder(10), dark, new Vector3(0, 2.85f, 0), new Vector3(0.3f, 0.4f, 0.3f), null, "Mast");
+            _heliRotor = Build.Node(_heli, "Rotor", new Vector3(0, 3.1f, 0));
+            Build.Part(_heliRotor, MeshGen.Box, dark, Vector3.zero, new Vector3(9.5f, 0.06f, 0.35f), null, "Blade", false);
+            Build.Part(_heliRotor, MeshGen.Box, dark, Vector3.zero, new Vector3(0.35f, 0.06f, 9.5f), null, "Blade", false);
+            _heliTail = Build.Node(_heli, "TailRotor", new Vector3(0.28f, 2.6f, -5.6f));
+            Build.Part(_heliTail, MeshGen.Box, dark, Vector3.zero, new Vector3(0.05f, 1.6f, 0.18f), null, "Blade", false);
+            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.75f, -0.4f), Vector3.one * 0.25f, null, "Beacon", false);
+            _heli.gameObject.SetActive(false);
+        }
+
+        // ------------------------------------------------------------------ escape cinematic
+
+        public const float EscapeLength = 9f;
+        public float EscapeT { get; private set; } = -1f;
+        public int EscapeSquad { get; private set; } = -1;
+        private Vector3 _escPos, _escDir;
+        private readonly List<AvatarView> _boarders = new List<AvatarView>();
+        private readonly List<Vector3> _boardFrom = new List<Vector3>();
+
+        /// <summary>The winners walk to the helicopter, board, and it flies them off the island.</summary>
+        public void StartEscape(int squad, Vec2 at)
+        {
+            if (EscapeT >= 0 || squad < 0) return;
+            EscapeSquad = squad;
+            EscapeT = 0f;
+            _escPos = new Vector3(at.X, 0, at.Y);
+            var outward = new Vector3(at.X, 0, at.Y);
+            _escDir = outward.sqrMagnitude > 1f ? outward.normalized : Vector3.forward;
+            _heliH = Mathf.Min(_heliH, 6f);
+            _boarders.Clear(); _boardFrom.Clear();
+            foreach (var av in Avatars.Values)
+                if (av.AvatarId < 1000 && av.Alive && Match.SquadOf(av.OwnerId) == squad && Vector3.Distance(av.Pos, _escPos) < 30f) { _boarders.Add(av); _boardFrom.Add(av.Pos); }
+            if (Local.Alive && Match.LocalSquad == squad && Vector3.Distance(Local.Pos, _escPos) < 30f) { _boarders.Add(Local); _boardFrom.Add(Local.Pos); }
+            Sfx.Play(Sfx.Objective, 1f);
+        }
+
+        private void UpdateEscape(float dt)
+        {
+            EscapeT += dt;
+            float t = EscapeT;
+            // helicopter: settled on the ground until everyone is aboard, then up and away towards the sea
+            float lift = Mathf.Clamp01((t - 2.6f) / 6f);
+            float climb = lift * lift * 60f;
+            float fly = Mathf.Max(0, t - 3.4f);
+            Vector3 heliPos = _escPos + Vector3.up * (0.05f + climb) + _escDir * (fly * fly * 4.5f);
+            _heli.gameObject.SetActive(true);
+            _heli.position = heliPos;
+            var face = Quaternion.LookRotation(_escDir);
+            _heli.rotation = face * Quaternion.Euler(Mathf.Clamp(fly * 6f, 0, 14f), 0, Mathf.Sin(t * 0.8f) * 2f);
+            _heliRotor.localRotation = Quaternion.Euler(0, Time.time * 1600f, 0);
+            _heliTail.localRotation = Quaternion.Euler(Time.time * 2200f, 0, 0);
+            _heliH = climb;
+            // winners jog to the door (side of the cabin) and vanish inside
+            Vector3 door = heliPos + _heli.rotation * new Vector3(1.6f, 0, 0.3f);
+            for (int i = 0; i < _boarders.Count; i++)
+            {
+                var av = _boarders[i];
+                if (av.Rig == null) continue;
+                float start = 0.25f * i, k = Mathf.Clamp01((t - start) / 1.6f);
+                bool aboard = k >= 1f;
+                if (av.Rig.gameObject.activeSelf && aboard) { Fx.I.Puff(door + Vector3.up, new Color(1, 1, 1, 0.7f), 8, 0.4f); av.Rig.gameObject.SetActive(false); }
+                if (aboard) continue;
+                var p = Vector3.Lerp(_boardFrom[i], door, k * k * (3 - 2 * k));
+                av.Rig.transform.position = p;
+                var dir = door - _boardFrom[i]; dir.y = 0;
+                if (dir.sqrMagnitude > 0.01f) av.Rig.transform.rotation = Quaternion.LookRotation(dir);
+            }
+            _extract.gameObject.SetActive(t < 2.6f);
+        }
+
+        /// <summary>Cinematic camera for the escape: low hero shot on the landed helicopter, looking up as it lifts, then a chase over the island.</summary>
+        public void EscapeCamera(CameraRig cam, float dt)
+        {
+            float t = EscapeT;
+            var side = Vector3.Cross(Vector3.up, _escDir);
+            Vector3 heli = _heli.position;
+            if (t < 2.6f)
+            {
+                float a = t * 12f * Mathf.Deg2Rad;   // slow push-in orbit around the landed helicopter
+                var offset = Quaternion.AngleAxis(-35f + t * 12f, Vector3.up) * (-_escDir * (13f - t * 1.5f) + side * 4f);
+                cam.Shot(_escPos + offset + Vector3.up * 2.2f, _escPos + Vector3.up * 1.6f, dt, 4f);
+            }
+            else if (t < 5f)
+                cam.Shot(_escPos - _escDir * 9f + side * 7f + Vector3.up * 1.2f, heli + Vector3.up * 1.5f, dt, 3f);   // looking up as it lifts
+            else
+                cam.Shot(heli - _escDir * 22f + Vector3.up * 9f + side * 5f, heli + _escDir * 10f, dt, 2.2f);       // chase out over the island
+            cam.SetFov(t < 5f ? 50f : 60f);
+        }
+
+        private void UpdateHelicopter(Snapshot s, float dt)
+        {
+            if (EscapeT >= 0) { UpdateEscape(dt); return; }
+            bool show = s.ExtractRevealed || s.ExtractSeen;
+            _heli.gameObject.SetActive(show);
+            if (!show) return;
+            int c = s.ExtractController;
+            bool boarding = c >= 0 && s.SquadStage[c] >= 4 && !s.ExtractContested;
+            bool escaped = s.Winner >= 0;
+            float target = escaped ? 120f : boarding ? 0.05f + Mathf.Lerp(3.5f, 0f, Mathf.Clamp01(s.SquadExtract[c] * 3f)) : 30f;
+            _heliH = Mathf.MoveTowards(_heliH, target, dt * (escaped ? 14f : 9f));
+            _heliYaw += dt * (_heliH > 12f ? 14f : 0f);
+            Vector3 centre = new Vector3(s.ExtractPos.X, 0, s.ExtractPos.Y);
+            float orbit = Mathf.Clamp01((_heliH - 6f) / 20f) * 14f;   // circles while high, settles straight down when landing
+            var q = Quaternion.Euler(0, _heliYaw, 0);
+            _heli.position = centre + q * new Vector3(orbit, 0, 0) + Vector3.up * (_heliH + Mathf.Sin(Time.time * 1.7f) * 0.15f);
+            _heli.rotation = q * Quaternion.Euler(orbit > 1f ? 8f : 0f, 0, 0);
+            _heliRotor.localRotation = Quaternion.Euler(0, Time.time * 1400f, 0);
+            _heliTail.localRotation = Quaternion.Euler(Time.time * 2000f, 0, 0);
+        }
         private Material _xWhite, _xGreen, _xRed, _xGold;
 
         private void BuildChainMarkers()
@@ -170,6 +301,7 @@ namespace Veil.View
             _extractRing = Build.Part(_extract, MeshGen.Ring(0.94f, 1f, 96), _xWhite, new Vector3(0, 0.07f, 0), Vector3.one * GameConfig.ExtractRadius, null, "Ring", false).GetComponent<Renderer>();
             _extractBeam = Build.Part(_extract, MeshGen.Cylinder(20), _xWhite, new Vector3(0, 40f, 0), new Vector3(1.4f, 80f, 1.4f), null, "Beam", false).GetComponent<Renderer>();
             _extractFill = Build.Part(_extract, MeshGen.Disc(64), _xGreen, new Vector3(0, 0.05f, 0), Vector3.zero, null, "Fill", false).transform;
+            BuildHelicopter();
             _extract.gameObject.SetActive(false);
         }
 
@@ -241,6 +373,9 @@ namespace Veil.View
                 _siteRing.localScale = Vector3.one * r * (1f + Mathf.Sin(Time.time * 3f) * 0.03f);
                 _site.GetChild(2).localRotation = Quaternion.Euler(0, Time.time * 90f, 0);
             }
+            UpdateHelicopter(s, Time.deltaTime);
+            if (EscapeT >= 0) return;   // the escape cinematic owns the helicopter and the zone
+            // squads without the Vault can see the helicopter up close, but get no beam or zone (they can't use it)
             _extract.gameObject.SetActive(s.ExtractRevealed);
             if (s.ExtractRevealed)
             {
@@ -715,6 +850,9 @@ namespace Veil.View
             bool me = e.A == Match.LocalId;
             switch (e.Type)
             {
+                case EventType.MatchEnded:
+                    if (GameConfig.ExtractionMode && e.A >= 0 && e.Pos.LengthSq > 0.01f) StartEscape(e.A, e.Pos);
+                    break;
                 case EventType.PulseCast:
                     Fx.I.PulseWave(pos, GameConfig.PulseRadius, Palette.Energy);
                     Sfx.PlayAt(Sfx.Pulse, pos, me ? 0.9f : 0.6f);
