@@ -124,6 +124,8 @@ namespace Veil.View
         private float _punchT;
         private bool _punchLeft;
         private bool _fists;
+        private float _punchHold;        // keeps the animator punch combo running between quick punches
+        private int _hasPunchAnim = -1;  // controller has a "Punching" state (RILO animation pack)
         // gun on the back while running (not shooting); _slingW 0 = in the hands, 1 = slung
         private float _moveSpeed, _slingW;
         private bool Fists => _fists;
@@ -251,6 +253,9 @@ namespace Veil.View
             _fireKick = Mathf.MoveTowards(_fireKick, 0, dt * 8f);
             _anim.SetBool("Aiming", aiming && !Fists);   // fists: no rifle pose, the jab is procedural
             _punchT = Mathf.Max(0, _punchT - dt);
+            _punchHold = Mathf.Max(0, _punchHold - dt);
+            if (_hasPunchAnim < 0) { _hasPunchAnim = 0; foreach (var p in _anim.parameters) if (p.name == "Punching") _hasPunchAnim = 1; }
+            if (_hasPunchAnim == 1) _anim.SetBool("Punching", Fists && _punchHold > 0 && !s.Dead);
             _anim.SetBool("Dead", s.Dead);
             _anim.SetBool("Downed", s.Downed && !s.Dead);
             _anim.SetBool("Reviving", s.Reviving && !s.Downed && !s.Dead);
@@ -737,7 +742,7 @@ namespace Veil.View
         public void TriggerFire()
         {
             _fireKick = 1f; _aimT = 0.9f;
-            if (Fists) { _punchT = PunchTime; _punchLeft = !_punchLeft; }
+            if (Fists) { _punchHold = 0.6f; if (_hasPunchAnim != 1) { _punchT = PunchTime; _punchLeft = !_punchLeft; } }   // animated combo, or the procedural jab
         }
         public void TriggerCast() { _castT = 0.55f; }
         public void TriggerHit() { _hitT = 0.3f; if (_anim) _anim.SetTrigger("Hit"); }

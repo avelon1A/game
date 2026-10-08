@@ -25,12 +25,6 @@ AvatarMask:
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase
     m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/Bone_028
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/Bone_028/Bone_027
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/Bone_029
-    m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/mixamorig:LeftToe_End
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg
@@ -40,12 +34,6 @@ AvatarMask:
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/Bone_032
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/Bone_032/Bone_031
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/Bone_033
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/mixamorig:RightToe_End
     m_Weight: 0
@@ -60,12 +48,6 @@ AvatarMask:
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/Bone_017
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/Bone_017/Bone_036
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/Bone_017/Bone_036/Bone_035
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand
     m_Weight: 0
@@ -122,12 +104,6 @@ AvatarMask:
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/Bone_022
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/Bone_022/Bone_053
-    m_Weight: 0
-  - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/Bone_022/Bone_053/Bone_052
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand
     m_Weight: 0

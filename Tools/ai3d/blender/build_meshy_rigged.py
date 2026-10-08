@@ -16,7 +16,10 @@ HEIGHT = 2.0
 # Meshy animation name -> game clip (first match wins; unknown ones are kept under their own name)
 CLIP_MAP = [("walking", "walk"), ("casual_walk", "walk_casual"), ("running", "run"), ("run_03", "run_alt"),
             ("runfast", "sprint"), ("agree_gesture", "victory"), ("skill_01", "skill"), ("idle_03", "lobby")]
-CLIP_MAP = [tuple(a.lower().split("=", 1)) for a in argv[3:]] + CLIP_MAP
+# optional "@mesh=<file.glb>": take the character (mesh, rig, texture) from that file — e.g. a re-made model —
+# while every clip still comes from the folder
+MESH_FILE = next((a.split("=", 1)[1] for a in argv[3:] if a.startswith("@mesh=")), None)
+CLIP_MAP = [tuple(a.lower().split("=", 1)) for a in argv[3:] if not a.startswith("@")] + CLIP_MAP
 
 
 def log(*a): print(f"[{NAME}]", *a, flush=True)
@@ -42,12 +45,22 @@ def fcurves_of(act):
 
 
 files = sorted(glob.glob(f"{SRC}/*_withSkin.glb"))
-base = next((f for f in files if clip_name(f) == "walk"), files[0])
+base = MESH_FILE or next((f for f in files if clip_name(f) == "walk"), files[0])
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 clips = {}
 rig = mesh = None
 for f in [base] + [x for x in files if x != base]:
+    if f == MESH_FILE and MESH_FILE not in files:
+        # mesh-only file: import the character, keep none of its animation
+        bpy.ops.import_scene.gltf(filepath=f)
+        rig = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
+        meshes = [o for o in bpy.data.objects if o.type == 'MESH' and len(o.data.vertices) > 1000]
+        for o in list(bpy.data.objects):
+            if o.type == 'MESH' and o not in meshes: bpy.data.objects.remove(o, do_unlink=True)
+        mesh = meshes[0]
+        for a in list(bpy.data.actions): bpy.data.actions.remove(a)
+        continue
     before_objs, before_acts = set(bpy.data.objects), set(bpy.data.actions)
     bpy.ops.import_scene.gltf(filepath=f)
     new_objs = [o for o in bpy.data.objects if o not in before_objs]
@@ -72,6 +85,9 @@ for a in clips.values():
     for coll, curves in fcurves_of(a):
         for fc in curves:
             if not fc.data_path.startswith("pose.bones"): coll.remove(fc)
+            # clips made on a rig with extra bones (e.g. a re-made model with fewer finger bones): drop keys for bones
+            # this rig lacks, otherwise the FBX exporter rejects the whole clip
+            elif fc.data_path.split('"')[1] not in rig.pose.bones: coll.remove(fc)
 
 # texture → <hero>_albedo.png
 os.makedirs(f"{OUT_ROOT}/{NAME}", exist_ok=True)

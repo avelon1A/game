@@ -14,7 +14,7 @@ namespace Veil.EditorTools
     /// </summary>
     public sealed class CharacterImport : AssetPostprocessor
     {
-        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory", "fixing_kneeling" };
+        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory", "fixing_kneeling", "punch", "run_alt", "walk_back", "gun_idle" };
 
         /// <summary>
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
@@ -22,12 +22,14 @@ namespace Veil.EditorTools
         /// </summary>
         public static readonly string[] HumanoidHeroes = { "vanguard", "volt", "lyra", "nova", "sol" };   // e.g. future Meshy-rigged heroes; the Quaternius heroes share the library rig
         public const string LibraryFbx = "Assets/Veil/Characters/_anim/ual.fbx";
+        /// <summary>RILO animation pack (Meshy, Mixamo rig, built by build_meshy_rigged.py): shared combat clips for every hero.</summary>
+        public const string SharedFbx = "Assets/Veil/Characters/_anim/rilo_anims.fbx";
 
-        public override uint GetVersion() => 4;   // bump → Unity re-imports every character with these rules
+        public override uint GetVersion() => 5;   // bump → Unity re-imports every character with these rules
 
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
         private bool IsLibrary => assetPath == LibraryFbx;
-        private bool IsHumanoid => IsLibrary || HumanoidHeroes.Contains(Path.GetFileNameWithoutExtension(assetPath));
+        private bool IsHumanoid => IsLibrary || assetPath == SharedFbx || HumanoidHeroes.Contains(Path.GetFileNameWithoutExtension(assetPath));
 
         private void OnPreprocessModel()
         {
@@ -180,6 +182,13 @@ namespace Veil.EditorTools
             var clips = ClipsOf(fbx);
             // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
             if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
+            // shared RILO pack first (made for these Meshy rigs): jump, hits and fist fighting for every hero; sprint if a hero has none
+            if (humanoid && File.Exists(CharacterImport.SharedFbx))
+            {
+                var pack = ClipsOf(CharacterImport.SharedFbx);
+                foreach (var key in new[] { "jump", "hit", "punch", "sprint" })
+                    if (!clips.ContainsKey(key) && pack.TryGetValue(key, out var pc)) clips[key] = pc;
+            }
             if (humanoid && File.Exists(CharacterImport.LibraryFbx))
             {
                 var lib = ClipsOf(CharacterImport.LibraryFbx);
@@ -223,7 +232,7 @@ namespace Veil.EditorTools
             foreach (var (p, t) in new[] { ("Speed", AnimatorControllerParameterType.Float), ("VSpeed", AnimatorControllerParameterType.Float),
                                            ("Grounded", AnimatorControllerParameterType.Bool), ("Dashing", AnimatorControllerParameterType.Bool),
                                            ("Aiming", AnimatorControllerParameterType.Bool), ("Dead", AnimatorControllerParameterType.Bool),
-                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("Downed", AnimatorControllerParameterType.Bool), ("Reviving", AnimatorControllerParameterType.Bool), ("LobbyAct", AnimatorControllerParameterType.Int), ("LobbyActs", AnimatorControllerParameterType.Int), ("Hit", AnimatorControllerParameterType.Trigger) })
+                                           ("Victory", AnimatorControllerParameterType.Bool), ("Lobby", AnimatorControllerParameterType.Bool), ("Downed", AnimatorControllerParameterType.Bool), ("Reviving", AnimatorControllerParameterType.Bool), ("LobbyAct", AnimatorControllerParameterType.Int), ("LobbyActs", AnimatorControllerParameterType.Int), ("Hit", AnimatorControllerParameterType.Trigger), ("Punching", AnimatorControllerParameterType.Bool) })
                 ctrl.AddParameter(p, t);
 
             var idle = C("idle", "walk"); var walk = C("walk"); var run = C("run", "walk"); var sprint = C("sprint", "run");
@@ -362,6 +371,15 @@ namespace Veil.EditorTools
                 var s = usm.AddState("Shoot"); s.motion = shoot;
                 var t = empty.AddTransition(s); t.hasExitTime = false; t.duration = 0.06f; t.AddCondition(AnimatorConditionMode.If, 0, "Aiming");
                 var b = s.AddTransition(empty); b.hasExitTime = false; b.duration = 0.18f; b.AddCondition(AnimatorConditionMode.IfNot, 0, "Aiming");
+            }
+            var punch = C("punch");
+            if (punch)
+            {
+                // FISTS: a real punch combo on the upper body while the player keeps punching
+                var pu = usm.AddState("Punch"); pu.motion = punch; pu.speed = 1.35f;
+                var t = usm.AddAnyStateTransition(pu); t.hasExitTime = false; t.duration = 0.06f; t.canTransitionToSelf = false;
+                t.AddCondition(AnimatorConditionMode.If, 0, "Punching");
+                var b = pu.AddTransition(empty); b.hasExitTime = false; b.duration = 0.2f; b.AddCondition(AnimatorConditionMode.IfNot, 0, "Punching");
             }
             if (hit)
             {

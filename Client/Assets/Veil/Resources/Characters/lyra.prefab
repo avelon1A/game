@@ -84,22 +84,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: lyra
       objectReference: {fileID: 0}
-    - target: {fileID: 2063800917740116389, guid: 1565a78a4cc4846eeb0f3f633422ecba, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.7696234
-      objectReference: {fileID: 0}
-    - target: {fileID: 2063800917740116389, guid: 1565a78a4cc4846eeb0f3f633422ecba, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0.13828194
-      objectReference: {fileID: 0}
-    - target: {fileID: 2063800917740116389, guid: 1565a78a4cc4846eeb0f3f633422ecba, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.6038172
-      objectReference: {fileID: 0}
-    - target: {fileID: 2063800917740116389, guid: 1565a78a4cc4846eeb0f3f633422ecba, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0.15479851
-      objectReference: {fileID: 0}
     - target: {fileID: 3571216311673650818, guid: 1565a78a4cc4846eeb0f3f633422ecba, type: 3}
       propertyPath: m_Quality
       value: 4
