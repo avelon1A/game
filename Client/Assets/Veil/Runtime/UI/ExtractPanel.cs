@@ -53,7 +53,8 @@ namespace Veil.UI
             bool on = GameConfig.ExtractionMode && s.ExtractRevealed;
             _root.gameObject.SetActive(on);
             if (!on) return;
-            bool mineDone = s.Stage >= 4;
+            bool overtime = s.Time >= s.Duration;
+            bool mineDone = s.Stage >= 4 || overtime;
             int c = s.ExtractController;
             float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 8f);
             Color back = new Color(0.04f, 0.05f, 0.12f, 0.72f);
@@ -71,13 +72,13 @@ namespace Veil.UI
             }
             else if (c < 0)
             {
-                _state.text = "EXTRACTION OPEN · nobody holding";
+                _state.text = overtime ? "<color=#ffd84a>OVERTIME</color> · EXTRACTION OPEN TO ALL" : "EXTRACTION OPEN · nobody holding";
                 _hint.text = mineDone ? $"{de:0} m · stand in the circle — alone — to extract" : $"{de:0} m · open the Vault first; you can still block others";
             }
             else
             {
                 bool mine = c == _local;
-                bool canWin = s.SquadStage[c] >= 4;
+                bool canWin = s.SquadStage[c] >= 4 || overtime;
                 string who = mine ? "<color=#7dff9a>YOUR SQUAD</color>" : $"<color=#ff5a6a>{Sq(c)}</color>";
                 int pct = Mathf.RoundToInt(s.SquadExtract[c] * 100);
                 if (!canWin) { _state.text = $"{who} IS BLOCKING"; _hint.text = "they haven't opened the Vault — they can't extract"; }
@@ -95,7 +96,7 @@ namespace Veil.UI
             for (int i = 0; i < GameConfig.SquadCount; i++)
             {
                 float p = s.SquadExtract[i];
-                bool done = s.SquadStage[i] >= 4;
+                bool done = s.SquadStage[i] >= 4 || overtime;
                 _fill[i].rectTransform.sizeDelta = new Vector2(BarW * p, 10);
                 _fill[i].color = i == _local ? Palette.Health : i == c ? new Color(1f, 0.35f, 0.4f) : new Color(0.85f, 0.85f, 0.95f);
                 string tag = i == _local ? "YOU" : ((char)('A' + i)).ToString();

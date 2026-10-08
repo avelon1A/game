@@ -34,6 +34,11 @@ namespace Veil.Sim
 
         public float Duration => Settings.MatchSeconds;
         public float TimeLeft => MathF.Max(0, Duration - Time);
+        /// <summary>Extraction mode never times out: past the planned length the match goes to overtime,
+        /// where the extraction point opens for every squad (Vault or not) until someone extracts.</summary>
+        public bool Overtime => GameConfig.ExtractionMode && Time >= Duration;
+        /// <summary>Can this squad extract right now?</summary>
+        public bool CanExtract(SquadState sq) => sq.VaultDone || Overtime;
 
         public readonly int TowerZone, VaultZone, ReactorZone, MarketZone, RuinsZone;
 
@@ -224,7 +229,8 @@ namespace Veil.Sim
             UpdateObjectives();
             UpdateSquadTotals();
 
-            if (Time >= Duration) EndMatch();
+            if (!GameConfig.ExtractionMode && Time >= Duration) EndMatch();
+            else if (Overtime && !ExtractRevealed) RevealExtraction(LeadingSquad());
         }
 
         private void UpdateTimers(PlayerState p, float dt)
@@ -297,6 +303,13 @@ namespace Veil.Sim
         }
 
         // ------------------------------------------------------------------ end
+
+        private SquadState LeadingSquad()
+        {
+            var best = Squads[0];
+            foreach (var sq in Squads) if (ChainRankKey(sq) > ChainRankKey(best)) best = sq;
+            return best;
+        }
 
         private void EndMatch()
         {

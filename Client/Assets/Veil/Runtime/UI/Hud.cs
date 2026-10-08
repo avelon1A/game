@@ -42,6 +42,7 @@ namespace Veil.UI
         private RectTransform _feedRoot;
         private float _bannerT, _hitT, _damageT, _revealT, _popupT;
         private MatchPhase _lastPhase = (MatchPhase)255;
+        private bool _overtimeShown;
         private RectTransform _scoreboard;
         private Text _scoreboardText;
         private readonly Dictionary<int, Nameplate> _plates = new Dictionary<int, Nameplate>();
@@ -664,8 +665,23 @@ namespace Veil.UI
                 Audio.Sfx.Play(s.Phase == MatchPhase.Exploration ? Audio.Sfx.Start : Audio.Sfx.Beep, 0.8f);
             }
             float left = Mathf.Max(0, s.Duration - s.Time);
-            _timer.text = $"{(int)left / 60}:{(int)left % 60:00}";
-            _timer.color = left < 60 ? Color.Lerp(Theme.Red, Theme.Text, Mathf.PingPong(Time.time * 2, 1)) : Theme.Text;
+            bool overtime = GameConfig.ExtractionMode && s.Time >= s.Duration;
+            if (overtime && !_overtimeShown)
+            {
+                _overtimeShown = true;
+                Banner("OVERTIME", "Extraction is open to every squad — first to extract wins", 5f);
+                Audio.Sfx.Play(Audio.Sfx.Beep, 1f);
+            }
+            if (overtime)
+            {
+                _timer.text = "OVERTIME";
+                _timer.color = Color.Lerp(Theme.Red, Theme.Gold, Mathf.PingPong(Time.time * 2, 1));
+            }
+            else
+            {
+                _timer.text = $"{(int)left / 60}:{(int)left % 60:00}";
+                _timer.color = left < 60 ? Color.Lerp(Theme.Red, Theme.Text, Mathf.PingPong(Time.time * 2, 1)) : Theme.Text;
+            }
             _players.text = $"{s.AliveCount}/{s.PlayerCount} Players";
             _phase.text = PhaseName(s.Phase);
             float ps = PhaseStart(s.Phase, s.Duration), pe = PhaseStart(s.Phase + 1, s.Duration);

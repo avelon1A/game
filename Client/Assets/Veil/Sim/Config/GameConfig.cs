@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 14;
+        public const int ProtocolVersion = 15;
 
         // ---- Simulation ----
         public const int TickRate = 30;

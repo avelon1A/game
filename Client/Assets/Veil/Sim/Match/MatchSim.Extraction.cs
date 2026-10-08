@@ -436,7 +436,7 @@ namespace Veil.Sim
                 Events.Add(new SimEvent(EventType.ExtractControl, controller, many ? 1 : 0, 0, ExtractPos));
             }
             bool final = false;
-            if (controller >= 0 && Squads[controller].VaultDone)
+            if (controller >= 0 && CanExtract(Squads[controller]))
             {
                 var sq = Squads[controller];
                 if (ExtractSecure < 1f) ExtractSecure = MathF.Min(1f, ExtractSecure + dt / GameConfig.ExtractSecureTime);

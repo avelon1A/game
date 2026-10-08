@@ -208,7 +208,7 @@ namespace Veil.Sim
                 {
                     float de = Vec2.Dist(_sim.ExtractPos, _p.Pos);
                     bool rival = _sim.ExtractController >= 0 && _sim.ExtractController != _p.Squad;
-                    if (sq.VaultDone) Consider(Goal.Vault, 96 - de * 0.08f, _sim.ExtractPos);
+                    if (_sim.CanExtract(sq)) Consider(Goal.Vault, 96 - de * 0.08f, _sim.ExtractPos);
                     else if (rival || Kind == BotKind.Hunter || Kind == BotKind.Opportunist) Consider(Goal.Vault, (rival ? 88 : 60) - de * 0.12f, _sim.ExtractPos);
                 }
                 if (sq.Nodes.Count > 0)
