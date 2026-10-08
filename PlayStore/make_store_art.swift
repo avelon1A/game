@@ -78,12 +78,12 @@ save(canvas(1024, 500) { ctx in
 let shots = root + "/source/shots/", map = root + "/source/map/"
 let list: [(String, String, String)] = [
     (shots + "02_lobby.png", "SQUAD UP", "4 SQUADS · 4 PLAYERS · VOICE CHAT"),
-    (shots + "06_match_action.png", "DROP INTO RILO ISLAND", "FAST THIRD-PERSON SQUAD ACTION"),
+    (shots + "05_match_start.png", "DROP INTO RILO ISLAND", "FAST THIRD-PERSON SQUAD ACTION"),
     (shots + "07_competition.png", "HACK. DEFEND. OUTPLAY.", "BREACH ENEMY TERMINALS WHILE YOUR SQUAD COVERS YOU"),
     (shots + "07b_extract_final.png", "HOLD THE EXTRACTION", "FIRST SQUAD TO EXTRACT WINS"),
     (map + "map_oblique.png", "ONE ISLAND · 8 REGIONS", "CITY, SNOW, DOCKS, RUINS, BEACH, FOREST, CANYON, HYDRO"),
     (shots + "03_characters.png", "CHOOSE YOUR HERO", "5 HEROES · RIFLE, SNIPER OR FISTS"),
-    (shots + "03b_leaderboard.png", "CLIMB THE LEADERBOARD", "LEVEL UP, RAISE YOUR RATING"),
+    (shots + "03c_store.png", "UNLOCK HEROES & SKINS", "EARN COINS EVERY MATCH"),
     (shots + "10_results.png", "BE THE MVP", "EVERY MATCH, A NEW STORY"),
 ]
 for (i, (src, head, sub)) in list.enumerated() {

@@ -147,6 +147,7 @@ namespace Veil.App
                 if (args[i] == "-autotest-scripted") { _autotest = true; _scripted = true; }
                 if (args[i] == "-autotest-online" && i + 1 < args.Length) { _autotest = true; _scripted = true; _onlineHost = args[i + 1]; }
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
+                if (args[i] == "-nohud") _noHud = true;
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
                 if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
                 if (args[i] == "-sniper") { var l = Profile.Look; l.Weapon = 1; Profile.Look = l; Stage.UpdateLook(l); }   // test: equip the sniper
@@ -1057,9 +1058,14 @@ namespace Veil.App
             Application.Quit();
         }
 
+        private bool _noHud;   // -nohud: in-match screenshots without the HUD (store screenshots)
+
         private IEnumerator Shot(string name)
         {
+            bool hide = _noHud && State == AppState.Match && _hud != null;
+            if (hide) { _hud.Root.gameObject.SetActive(false); yield return null; }
             yield return new WaitForEndOfFrame();
+            if (hide) { ScreenCapture.CaptureScreenshot(Path.Combine(_shotDir, name + ".png")); yield return null; _hud.Root.gameObject.SetActive(true); yield break; }
             if (string.IsNullOrEmpty(_shotDir)) yield break;
             Directory.CreateDirectory(_shotDir);
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotDir, name + ".png"));
