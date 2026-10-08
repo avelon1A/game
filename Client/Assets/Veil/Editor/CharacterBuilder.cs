@@ -14,7 +14,7 @@ namespace Veil.EditorTools
     /// </summary>
     public sealed class CharacterImport : AssetPostprocessor
     {
-        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory", "fixing_kneeling", "punch", "run_alt", "walk_back", "gun_idle" };
+        private static readonly string[] Looping = { "lobby", "idle", "walk", "run", "sprint", "fall", "shoot", "victory", "fixing_kneeling", "punch", "run_alt", "walk_back", "gun_idle", "idle_stand" };
 
         /// <summary>
         /// Heroes imported as Unity humanoids so the Universal Animation Library (Quaternius, CC0, Characters/_anim/ual.fbx)
@@ -25,7 +25,7 @@ namespace Veil.EditorTools
         /// <summary>RILO animation pack (Meshy, Mixamo rig, built by build_meshy_rigged.py): shared combat clips for every hero.</summary>
         public const string SharedFbx = "Assets/Veil/Characters/_anim/rilo_anims.fbx";
 
-        public override uint GetVersion() => 6;   // bump → Unity re-imports every character with these rules
+        public override uint GetVersion() => 7;   // bump → Unity re-imports every character with these rules
 
         private bool IsCharacter => assetPath.StartsWith("Assets/Veil/Characters/");
         private bool IsLibrary => assetPath == LibraryFbx;
@@ -183,11 +183,12 @@ namespace Veil.EditorTools
             // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
             if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
             // shared RILO pack first (made for these exact Meshy / Mixamo rigs): it beats the retargeted library, whose clips
-            // bend the arms back and push the chest up on these skeletons. Idle = the pack's gun idle when a hero has none.
+            // bend the arms back and push the chest up on these skeletons. Idle = the pack's relaxed stand when a hero has none.
             if (humanoid && File.Exists(CharacterImport.SharedFbx))
             {
                 var pack = ClipsOf(CharacterImport.SharedFbx);
-                if (!clips.ContainsKey("idle") && pack.TryGetValue("gun_idle", out var gi)) clips["idle"] = gi;
+                // relaxed stand (Tools/ai3d/blender/make_stand_idle.py), the gun idle only as a fallback
+                if (!clips.ContainsKey("idle") && (pack.TryGetValue("idle_stand", out var gi) || pack.TryGetValue("gun_idle", out gi))) clips["idle"] = gi;
                 foreach (var key in new[] { "walk", "run", "sprint", "jump", "hit", "punch" })
                     if (!clips.ContainsKey(key) && pack.TryGetValue(key, out var pc)) clips[key] = pc;
             }
