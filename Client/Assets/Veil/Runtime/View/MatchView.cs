@@ -134,6 +134,7 @@ namespace Veil.View
             UpdateRemotes(dt, snap);
             UpdateSpectate();
             if (GameConfig.ExtractionMode) UpdateChainMarkers(snap);
+            UpdateRoute(snap, dt);
             UpdateProjectiles(snap);
             UpdatePickups(dt);
             for (int i = 0; i < _zones.Count && i < snap.Zones.Length; i++) _zones[i].Update(snap.Zones[i], Match, dt);
@@ -178,6 +179,69 @@ namespace Veil.View
             Build.Part(_heliTail, MeshGen.Box, dark, Vector3.zero, new Vector3(0.05f, 1.6f, 0.18f), null, "Blade", false);
             Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.75f, -0.4f), Vector3.one * 0.25f, null, "Beacon", false);
             _heli.gameObject.SetActive(false);
+        }
+
+        // ------------------------------------------------------------------ route guide
+
+        /// <summary>Your path (resampled every ~3 m) to your own "go here" marker, else your current objective / the helicopter.</summary>
+        public readonly List<Vec2> Route = new List<Vec2>();
+        private Vec2? _myMark;
+        private float _myMarkT, _routeT;
+        private Vec2 _routeTarget;
+        private readonly List<Vec2> _pathTmp = new List<Vec2>();
+        private readonly List<Transform> _routeDots = new List<Transform>();
+
+        private void UpdateRoute(Snapshot s, float dt)
+        {
+            var me = Match.Predicted;
+            if (_myMark.HasValue) { _myMarkT -= dt; if (_myMarkT <= 0 || Vec2.Dist(me.Pos, _myMark.Value) < 5f) _myMark = null; }
+            Vec2? target = _myMark;
+            if (!target.HasValue && GameConfig.ExtractionMode)
+            {
+                if (s.Stage < 4 && s.Task != ChainTask.Collect) target = s.Site;
+                else if (s.Stage >= 4 && s.ExtractRevealed) target = s.ExtractPos;
+            }
+            bool on = me.Alive && target.HasValue && Vec2.Dist(me.Pos, target.Value) > 8f && EscapeT < 0;
+            if (!on) Route.Clear();
+            else
+            {
+                _routeT -= dt;
+                if (_routeT <= 0 || Vec2.DistSq(_routeTarget, target.Value) > 1f)
+                {
+                    _routeT = 0.7f; _routeTarget = target.Value;
+                    _pathTmp.Clear();
+                    Route.Clear();
+                    if (Match.Map.Nav.FindPath(me.Pos, target.Value, _pathTmp, 60000))
+                    {
+                        // resample the polyline every 3 m
+                        Vec2 prev = me.Pos; float carry = 0;
+                        foreach (var q in _pathTmp)
+                        {
+                            float seg = Vec2.Dist(prev, q);
+                            for (float d = 3f - carry; d <= seg; d += 3f) Route.Add(prev + (q - prev) * (d / Mathf.Max(seg, 1e-3f)));
+                            carry = (carry + seg) % 3f;
+                            prev = q;
+                        }
+                    }
+                }
+            }
+            // ground: glowing dashes for the first ~70 m
+            int n = Mathf.Min(Route.Count, 24);
+            while (_routeDots.Count < n)
+            {
+                var d = Build.Part(Root, MeshGen.Disc(12), MaterialLib.Unlit(new Color(1f, 0.85f, 0.3f, 0.55f), MaterialLib.Blend.Additive), Vector3.zero, new Vector3(0.45f, 1, 0.45f), null, "RouteDot", false).transform;
+                _routeDots.Add(d);
+            }
+            for (int i = 0; i < _routeDots.Count; i++)
+            {
+                bool show = i < n && i > 0;
+                if (_routeDots[i].gameObject.activeSelf != show) _routeDots[i].gameObject.SetActive(show);
+                if (!show) continue;
+                var p = Route[i];
+                float pulse = 0.35f + 0.25f * Mathf.Sin(Time.time * 4f - i * 0.6f);
+                _routeDots[i].position = new Vector3(p.X, 0.09f, p.Y);
+                _routeDots[i].localScale = new Vector3(0.45f + pulse * 0.3f, 1, 0.45f + pulse * 0.3f);
+            }
         }
 
         // ------------------------------------------------------------------ escape cinematic
@@ -850,6 +914,9 @@ namespace Veil.View
             bool me = e.A == Match.LocalId;
             switch (e.Type)
             {
+                case EventType.Ping:
+                    if (me && e.B == (int)PingKind.Go) { _myMark = e.Pos; _myMarkT = e.Value == -2 ? 45f : 12f; }
+                    break;
                 case EventType.MatchEnded:
                     if (GameConfig.ExtractionMode && e.A >= 0 && e.Pos.LengthSq > 0.01f) StartEscape(e.A, e.Pos);
                     break;

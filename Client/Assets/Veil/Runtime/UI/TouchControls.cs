@@ -175,8 +175,21 @@ namespace Veil.UI
     {
         private int _pointer = int.MinValue;
 
-        public void OnPointerDown(PointerEventData e) { if (_pointer == int.MinValue) _pointer = e.pointerId; }
-        public void OnPointerUp(PointerEventData e) { if (e.pointerId == _pointer) _pointer = int.MinValue; }
+        private Vector2 _downPos;
+        private float _downTime;
+
+        public void OnPointerDown(PointerEventData e)
+        {
+            if (_pointer == int.MinValue) _pointer = e.pointerId;
+            _downPos = e.position; _downTime = Time.unscaledTime;
+        }
+
+        public void OnPointerUp(PointerEventData e)
+        {
+            if (e.pointerId == _pointer) _pointer = int.MinValue;
+            // a quick tap (not a camera drag) goes to whatever is underneath, e.g. the minimap
+            if (Time.unscaledTime - _downTime < 0.3f && (e.position - _downPos).magnitude < 25f) VirtualInput.Tap?.Invoke(e.position);
+        }
 
         public void OnDrag(PointerEventData e)
         {

@@ -14,6 +14,8 @@ namespace Veil.Match
         public static Vector2 LookDelta;        // pixels this frame (consumed by the camera)
         public static bool FireHeld, JumpHeld, TalkHeld;
         public static bool ScopeOn;             // sniper scope (toggle button)
+        public static Vector2 MarkPos;          // world X/Z of the last map marker (sent with Buttons.Mark)
+        public static System.Func<Vector2, bool> Tap;   // a quick tap on the look pad (screen position) — e.g. the minimap
         private static Buttons _latched;
 
         public static void Press(Buttons b) => _latched |= b;

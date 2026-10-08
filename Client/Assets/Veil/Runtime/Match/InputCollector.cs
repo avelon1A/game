@@ -72,6 +72,7 @@ namespace Veil.Match
             if (VirtualInput.FireHeld) b |= Buttons.Fire;
             if (VirtualInput.JumpHeld) b |= Buttons.Jump;
             cmd.Buttons = b;
+            if (b.HasFlag(Buttons.Mark)) { cmd.MarkX = VirtualInput.MarkPos.x; cmd.MarkY = VirtualInput.MarkPos.y; }
             _latched = Buttons.None;
             return cmd;
         }

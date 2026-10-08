@@ -127,6 +127,7 @@ namespace Veil.Sim
                 w.U8((byte)(sbyte)MathF.Round(MathUtil.Clamp(c.MoveY, -1, 1) * 127f));
                 w.Angle(c.Yaw);
                 w.U16((ushort)c.Buttons);
+                if (c.Has(Buttons.Mark)) { w.I16((short)MathF.Round(c.MarkX * 10f)); w.I16((short)MathF.Round(c.MarkY * 10f)); }
             }
         }
 
@@ -141,6 +142,7 @@ namespace Veil.Sim
                 c.MoveY = (sbyte)r.U8() / 127f;
                 c.Yaw = r.Angle();
                 c.Buttons = (Buttons)r.U16();
+                if (c.Has(Buttons.Mark)) { c.MarkX = r.I16() / 10f; c.MarkY = r.I16() / 10f; }
                 output.Add(c);
             }
         }

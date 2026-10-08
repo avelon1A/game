@@ -34,6 +34,7 @@ namespace Veil.Sim
         Switch = 1 << 10,    // toggle gun <-> fists
         Ping = 1 << 11,      // squad ping at the crosshair (enemy / go here / need help / loot)
         Grenade = 1 << 12,   // throw a grenade (picked up in the world)
+        Mark = 1 << 13,      // "go here" marker placed on the map (MarkX / MarkY)
     }
 
     /// <summary>One tick of player intent. Move is world-space (already rotated by the camera).</summary>
@@ -43,6 +44,7 @@ namespace Veil.Sim
         public float MoveX, MoveY;
         public float Yaw;
         public Buttons Buttons;
+        public float MarkX, MarkY;      // world position of a map marker (only with Buttons.Mark)
 
         public bool Has(Buttons b) => (Buttons & b) != 0;
         public Vec2 Move => new Vec2(MoveX, MoveY).ClampLength(1f);

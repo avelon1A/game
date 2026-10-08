@@ -44,6 +44,7 @@ namespace Veil.UI
         private MatchPhase _lastPhase = (MatchPhase)255;
         private bool _overtimeShown;
         private HudExtras _extras;
+        private readonly Transform canvasRoot;
         private RectTransform _cine, _barTop, _barBottom;
         private Text _cineTitle, _cineSub;
 
@@ -130,6 +131,14 @@ namespace Veil.UI
             _m = m;
             _view = view;
             _cam = cam;
+            canvasRoot = canvas;
+            // phones: a quick tap on the minimap (under the camera look pad) opens the big map
+            VirtualInput.Tap = pos =>
+            {
+                if (_minimap == null || _mapScreen == null || !RectTransformUtility.RectangleContainsScreenPoint(_minimap.Root, pos, null)) return false;
+                _mapScreen.Toggle();
+                return true;
+            };
             Root = UIKit.Fill(canvas, "HUD");
             _labels = UIKit.Fill(Root, "WorldLabels");
             BuildOverlays();
@@ -161,7 +170,7 @@ namespace Veil.UI
             BuildScoreboard();
             foreach (var z in m.Map.Zones) _zoneMarkers.Add(MakeZoneMarker(z));
             BuildCinematic(canvas);
-            _extras = new HudExtras(Root, m, cam, _minimap, mobile, Feed, (a, b, t) => Banner(a, b, t), Popup);
+            _extras = new HudExtras(Root, m, view, cam, _minimap, mobile, Feed, (a, b, t) => Banner(a, b, t), Popup);
             view.OnEvent += HandleEvent;
             view.OnEvent += _extras.HandleEvent;
             _mobile = mobile;
@@ -172,6 +181,8 @@ namespace Veil.UI
         {
             _view.OnEvent -= HandleEvent;
             _view.OnEvent -= _extras.HandleEvent;
+            VirtualInput.Tap = null;
+            _mapScreen?.Destroy();
             _extras.Dispose();
             Object.Destroy(_cine.gameObject);
             Object.Destroy(Root.gameObject);
@@ -697,7 +708,7 @@ namespace Veil.UI
             var me = _m.Predicted;
             if (_mapScreen == null && _m.Map.Island)
             {
-                _mapScreen = new MapScreen(Root, _m);
+                _mapScreen = new MapScreen(canvasRoot, _m, _minimap);
                 var tap = _minimap.Root.gameObject.AddComponent<Button>();
                 tap.onClick.AddListener(() => _mapScreen.Toggle());
                 _minimap.Root.GetComponent<Image>().raycastTarget = true;

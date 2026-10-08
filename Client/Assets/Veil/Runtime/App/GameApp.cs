@@ -722,7 +722,7 @@ namespace Veil.App
             if (kb != null && kb.f9Key.wasPressedThisFrame) _match.Driver.DebugSkip(60f);
 
             bool inputOn = !_paused && _endTimer < 0 && !_match.Driver.Autopilot && (Application.isFocused || Platform.IsMobile);
-            bool lockCursor = inputOn && !Platform.IsMobile && !(_hud != null && _hud.PuzzleOpen);   // free the mouse for the circuit puzzle
+            bool lockCursor = inputOn && !Platform.IsMobile && !(_hud != null && (_hud.PuzzleOpen || _hud.MapOpen));   // free the mouse for the circuit puzzle
             Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !lockCursor;
             if (_touch != null) { _touch.Update(); _hud?.SetScoreboard(_touch.ScoreboardOpen); }

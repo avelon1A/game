@@ -54,6 +54,13 @@ namespace Veil.Sim
 
             // Ping (squad only)
             if (cmd.Has(Buttons.Ping) && p.PingCd <= 0) Ping(p, cmd.Yaw);
+            // map marker: "go here" at the tapped spot (Value -2 = placed on the map, lasts longer)
+            if (cmd.Has(Buttons.Mark))
+            {
+                p.PingCd = GameConfig.PingCooldown;
+                var at = new Vec2(MathUtil.Clamp(cmd.MarkX, -Map.Half, Map.Half), MathUtil.Clamp(cmd.MarkY, -Map.Half, Map.Half));
+                Events.Add(new SimEvent(EventType.Ping, p.Id, (int)PingKind.Go, -2, at));
+            }
 
             // Pulse (E) — reveal nearby players, pop decoys
             if (cmd.Has(Buttons.Pulse) && p.PulseCd <= 0 && p.Energy >= GameConfig.PulseCost)

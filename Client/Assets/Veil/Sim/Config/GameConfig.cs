@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 17;
+        public const int ProtocolVersion = 18;
         public const float ExtractSeeRange = 70f;      // squads without the Vault only see the helicopter with their own eyes, this close;
 
         // ---- Simulation ----

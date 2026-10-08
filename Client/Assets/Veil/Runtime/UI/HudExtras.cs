@@ -20,6 +20,7 @@ namespace Veil.UI
     {
         private readonly RectTransform _root;
         private readonly ClientMatch _m;
+        private readonly MatchView _view;
         private readonly Camera _cam;
         private readonly Minimap _minimap;
         private readonly Action<string, Color> _feed;
@@ -38,10 +39,10 @@ namespace Veil.UI
         private float _slowT, _finaleBeepT;
         private int _lastFinaleSec = -1;
 
-        public HudExtras(RectTransform root, ClientMatch m, Camera cam, Minimap minimap, bool mobile,
+        public HudExtras(RectTransform root, ClientMatch m, MatchView view, Camera cam, Minimap minimap, bool mobile,
                          Action<string, Color> feed, Action<string, string, float> banner, Action<string> popup)
         {
-            _root = root; _m = m; _cam = cam; _minimap = minimap; _feed = feed; _banner = banner; _popup = popup;
+            _root = root; _m = m; _view = view; _cam = cam; _minimap = minimap; _feed = feed; _banner = banner; _popup = popup;
             _status = UIKit.LabelAt(root, "", 20, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, mobile ? -150 : -46), new Vector2(900, 28), TextAnchor.MiddleCenter, UIKit.BoldFont);
             _status.supportRichText = true;
             UIKit.Outline(_status, new Color(0, 0, 0, 0.8f), 2);
@@ -81,7 +82,7 @@ namespace Veil.UI
                     Color c = kind == PingKind.Enemy ? Theme.Red : kind == PingKind.Help ? Theme.Green : kind == PingKind.Loot ? Theme.Gold : Theme.Cyan;
                     // one ping per player: a new one replaces the old
                     _markers.RemoveAll(mk => { bool same = mk.Label.EndsWith("·" + e.A); if (same) UnityEngine.Object.Destroy(mk.Text.gameObject); return same; });
-                    AddMarker(e.Pos, label + "·" + e.A, c, kind == PingKind.Enemy ? 6f : 9f, kind == PingKind.Enemy ? e.Value : kind == PingKind.Help ? e.A : -1);
+                    AddMarker(e.Pos, label + "·" + e.A, c, kind == PingKind.Enemy ? 6f : e.Value == -2 ? 45f : 9f, kind == PingKind.Enemy ? e.Value : kind == PingKind.Help ? e.A : -1);
                     _feed($"<color=#{ColorUtility.ToHtmlStringRGB(c)}>{who}: {label}</color>", Theme.Text);
                     Sfx.Play(Sfx.PingSnd, 0.6f, kind == PingKind.Enemy ? 1.15f : 1f);
                     break;
@@ -201,6 +202,8 @@ namespace Veil.UI
             var me = _m.Predicted;
             var self = s.Self;
             _minimap.Blips.Clear();
+            // route to your marker / objective
+            for (int i = 1; i < _view.Route.Count; i += 2) _minimap.Blips.Add((_view.Route[i], UIKit.Circle, new Color(1f, 0.85f, 0.3f, 0.9f), 5f));
 
             // damage numbers float up and fade
             for (int i = _numbers.Count - 1; i >= 0; i--)

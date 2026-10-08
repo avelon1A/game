@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using Veil.Match;
 using Veil.Sim;
 using Veil.View;
@@ -81,7 +82,18 @@ namespace Veil.UI
         }
     }
 
-    /// <summary>Full-screen island map (M key / tap the minimap): regions, roads, your squad, objective, extraction, legend.</summary>
+    /// <summary>Tap / click on the big map → world position.</summary>
+    public sealed class MapClick : MonoBehaviour, IPointerClickHandler
+    {
+        public System.Action<Vector2> OnClick;   // local point in the map rect (centre = world origin)
+        public void OnPointerClick(PointerEventData e)
+        {
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, e.position, e.pressEventCamera, out var lp)) OnClick?.Invoke(lp);
+        }
+    }
+
+    /// <summary>Full-screen island map (M / Tab / tap the minimap): regions, roads, your squad, objective, extraction, legend.
+    /// Tap anywhere on the island to drop a "GO HERE" marker for your squad.</summary>
     public sealed class MapScreen
     {
         private readonly RectTransform _root, _map;
@@ -90,11 +102,15 @@ namespace Veil.UI
         private readonly List<Image> _dots = new List<Image>();
         private readonly Image _self;
         private int _used;
+        private readonly Minimap _minimap;
+        private float _markFlashT;
+        private Vec2 _markFlash;
         public bool Open { get; private set; }
 
-        public MapScreen(Transform parent, ClientMatch m)
+        public MapScreen(Transform parent, ClientMatch m, Minimap minimap)
         {
             _m = m;
+            _minimap = minimap;
             var map = m.Map;
             _root = UIKit.Fill(parent, "MapScreen");
             UIKit.Image(_root, UIKit.Square, new Color(0.02f, 0.03f, 0.08f, 0.92f), true);
@@ -103,7 +119,24 @@ namespace Veil.UI
             _map = UIKit.At(_root, "Map", new Vector2(0.5f, 0.5f), new Vector2(-120, -10), new Vector2(_size, _size));
             var raw = _map.gameObject.AddComponent<RawImage>();
             raw.texture = Minimap.MapTexture(map, 512);
-            raw.raycastTarget = false;
+            raw.raycastTarget = true;
+            _map.gameObject.AddComponent<MapClick>().OnClick = lp =>
+            {
+                var world = new Vec2(lp.x / _scale, lp.y / _scale);
+                if (Mathf.Abs(world.X) > map.Half || Mathf.Abs(world.Y) > map.Half) return;
+                VirtualInput.MarkPos = new Vector2(world.X, world.Y);
+                VirtualInput.Press(Buttons.Mark);
+                _markFlash = world; _markFlashT = 0.6f;
+                Audio.Sfx.Play(Audio.Sfx.PingSnd, 0.6f);
+            };
+            // jump pads (static)
+            foreach (var jp in map.JumpPads)
+            {
+                var pr = UIKit.At(_map, "Pad", new Vector2(0.5f, 0.5f), W(jp.Pos), new Vector2(12, 12));
+                var pi = UIKit.Image(pr, Icons.Arrow, new Color(0.37f, 0.85f, 1f, 0.9f));
+                pi.raycastTarget = false;
+                pr.localRotation = Quaternion.Euler(0, 0, -jp.Dir.Yaw);
+            }
             // grid letters / numbers
             for (int i = 0; i < 8; i++)
             {
@@ -126,23 +159,30 @@ namespace Veil.UI
             // header + legend
             var title = UIKit.LabelAt(_root, "RILO ISLAND", 34, Color.white, new Vector2(0, 1), new Vector2(40, -30), new Vector2(400, 44), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
-            var hint = UIKit.LabelAt(_root, "M / tap to close", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(42, -74), new Vector2(400, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            var hint = UIKit.LabelAt(_root, "Tap the island to mark GO HERE for your squad · tap outside to close", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(42, -74), new Vector2(400, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
             hint.rectTransform.pivot = new Vector2(0, 1);
             var legend = UIKit.LabelAt(_root,
-                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective / enemy terminal to raid\n<color=#c08cff>●</color> Central terminal (+bonus)\n<color=#ffffff>●</color> Extraction\n<color=#ff4d6d>●</color><color=#38d6ff>●</color><color=#b06bff>●</color> Hack nodes\n<color=#e8d7a8>●</color> Roads   <color=#b88a52>●</color> Bridges",
+                "<color=#ffd84a>●</color> You\n<color=#7dff9a>●</color> Squadmate   <color=#7dff9a>✚</color> Squadmate's tag\n<color=#ff5a6a>●</color> Enemy (spotted)\n<color=#ffd23f>●</color> Your objective\n<color=#c08cff>●</color> Central terminal (+bonus)\n<color=#ffffff>●</color> Helicopter (after your Vault)\n<color=#ffb04a>●</color> Weapons / supply drop\n<color=#5fd8ff>▲</color> Jump pad\n<color=#38d6ff>◆</color> Markers & pings   <color=#ffd84a>···</color> Your route",
                 18, Theme.Text, new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(300, 260), TextAnchor.MiddleLeft, UIKit.BoldFont);
             legend.rectTransform.pivot = new Vector2(1, 0.5f);
             legend.supportRichText = true; legend.lineSpacing = 1.4f;
 
             var close = _root.gameObject.AddComponent<Button>();
             close.onClick.AddListener(() => Show(false));
+            var x = UIKit.Button(_root, "CLOSE", new Vector2(1, 1), new Vector2(-150, -50), new Vector2(180, 64), UIKit.ButtonStyle.Secondary, () => Show(false), 22);
             Show(false);
         }
 
         private Vector2 W(Vec2 p) => new Vector2(p.X, p.Y) * _scale;
 
-        public void Show(bool v) { Open = v; _root.gameObject.SetActive(v); }
+        public void Show(bool v)
+        {
+            Open = v;
+            _root.gameObject.SetActive(v);
+            if (v) _root.SetAsLastSibling();   // above the touch controls
+        }
         public void Toggle() => Show(!Open);
+        public void Destroy() => Object.Destroy(_root.gameObject);   // lives on the canvas, not under the HUD
 
         private Image Dot(Sprite s, Color c, Vec2 at, float size)
         {
@@ -178,6 +218,18 @@ namespace Veil.UI
                 if (s.ExtractRevealed) Dot(Icons.Trophy, Color.white, s.ExtractPos, 34);
                 foreach (var n in s.Nodes) Dot(UIKit.Diamond, HackPanel.KindColor(n.Kind), n.Pos, 16);
             }
+            // loot, squadmates' tags
+            foreach (var pk in _m.Pickups.Values)
+            {
+                if (MatchSim.IsLoot(pk.Type)) Dot(Icons.Blaster, new Color(1f, 0.69f, 0.29f), pk.Pos, 16);
+                else if (pk.Type == PickupType.Tag && _m.IsAlly(pk.Spot)) Dot(Icons.Plus, new Color(0.45f, 1f, 0.55f), pk.Pos, 22);
+            }
+            // your route
+            var route = view.Route;
+            for (int i = 0; i < route.Count; i += 2) Dot(UIKit.Circle, new Color(1f, 0.85f, 0.3f, 0.85f), route[i], 6);
+            // pings, markers, events, alerts (same as the minimap)
+            foreach (var b in _minimap.Blips) Dot(b.sprite, b.color, b.pos, b.size + 6);
+            if (_markFlashT > 0) { _markFlashT -= Time.unscaledDeltaTime; Dot(UIKit.Ring, new Color(0.37f, 0.85f, 1f, _markFlashT / 0.6f), _markFlash, 30 + (0.6f - _markFlashT) * 60); }
             for (int i = _used; i < _dots.Count; i++) _dots[i].gameObject.SetActive(false);
         }
     }
