@@ -761,15 +761,20 @@ namespace Veil.App
                     else if (Stage.SquadMode || Stage.SoloMode)
                     {
                         // painted lobby: squad left of the squad panel / your hero left of the Characters & Leaderboard panels
-                        float x = Stage.SquadMode ? 0f : 1.75f;   // squad: centred between the side menu and the right cards
+                        // squad: centred between the side menu and the right cards; Characters / Store: your hero in the middle of
+                        // the free space between the side menu and the big right panel (wide phones included)
+                        float x = Stage.SquadMode ? 0f : 1.05f;
                         int key = Stage.SquadMode ? 1 : 2;
                         // slow "breathing" drift so the 3D heroes and the motes move against the painted scene
                         var breath = new Vector3(Mathf.Sin(t * 0.21f) * 0.12f, Mathf.Sin(t * 0.33f) * 0.04f, Mathf.Sin(t * 0.17f) * 0.1f);
                         // squad: low hero shot (camera just under chest height, looking slightly up) like the concept art
                         // pinch / scroll zoom moves the camera along its line to the hero (Stage.Zoom)
                         var lookAt = Stage.SquadMode ? new Vector3(0, 1.1f, 0) : new Vector3(x, 1.4f, 0);
-                        var from = Stage.SquadMode ? new Vector3(0, 0.95f, -3.15f) : new Vector3(x, 1.3f, -3.9f);
-                        CamRig.Shot(Stage.Origin + lookAt + (from - lookAt) * Stage.Zoom + breath, Stage.Origin + lookAt, dt, _lobbyShot == key ? 6f : 10000f);
+                        // squad: pulled back a little so four heroes fit between the side menu and the right cards on wide phones
+                        var from = Stage.SquadMode ? new Vector3(0, 1.0f, -4.1f) : new Vector3(x, 1.25f, -4.6f);
+                        // squad lobby: the full 4-hero framing is the closest the camera goes (alone or with friends); zooming out is fine
+                        float zoom = Stage.SquadMode ? Mathf.Max(Stage.Zoom, 1f) : Stage.Zoom;
+                        CamRig.Shot(Stage.Origin + lookAt + (from - lookAt) * zoom + breath, Stage.Origin + lookAt, dt, _lobbyShot == key ? 6f : 10000f);
                         _lobbyShot = key;
                     }
                     else CamRig.Shot(Stage.Origin + new Vector3(1.9f, 2.0f, -7.2f), Stage.Origin + new Vector3(1.9f, 1.45f, 0), dt, 3f);
@@ -1202,6 +1207,8 @@ namespace Veil.App
             _menu.SelectTab(1);
             yield return new WaitForSeconds(2.5f);
             yield return Shot("03_characters");
+            Stage.DebugTurnHero(90f); yield return new WaitForSeconds(0.6f); yield return Shot("03d_characters_side");
+            Stage.DebugTurnHero(-90f);
             _menu.SelectTab(2);
             yield return new WaitForSeconds(3f);
             yield return Shot("03b_leaderboard");
@@ -1558,6 +1565,8 @@ namespace Veil.App
 
         /// <summary>Lobby / Characters: camera zoom (pinch or mouse wheel), 0.55 = close-up … 1.3 = wide.</summary>
         public static float Zoom = 1f;
+        /// <summary>Test: turn your hero (autotest side-view shot).</summary>
+        public void DebugTurnHero(float deg) => _rigs[0].transform.Rotate(0, deg, 0);
         private bool _dragging;
         private float _pinchDist;
 
@@ -1579,15 +1588,16 @@ namespace Veil.App
             var m = Mouse.current;
             bool mouseDown = fingers == 0 && m != null && (m.leftButton.isPressed || m.rightButton.isPressed);
             if (mouseDown) { p0 = m.position.ReadValue(); d0 = m.delta.ReadValue(); fingers = 1; }
+            float minZoom = SquadMode ? 1f : 0.55f;   // squad lobby never zooms in past the 4-hero framing
             if (m != null && Mathf.Abs(m.scroll.ReadValue().y) > 0.01f && !OverControl(m.position.ReadValue()))
-                Zoom = Mathf.Clamp(Zoom - m.scroll.ReadValue().y / 120f * 0.08f, 0.55f, 1.3f);
+                Zoom = Mathf.Clamp(Zoom - m.scroll.ReadValue().y / 120f * 0.08f, minZoom, 1.3f);
 
             if (fingers == 0) { _dragging = false; _pinchDist = 0; return; }
             if (!_dragging) { if (OverControl(p0)) return; _dragging = true; }
             if (fingers >= 2)
             {
                 float d = Vector2.Distance(p0, p1);
-                if (_pinchDist > 0) Zoom = Mathf.Clamp(Zoom * _pinchDist / Mathf.Max(d, 1f), 0.55f, 1.3f);
+                if (_pinchDist > 0) Zoom = Mathf.Clamp(Zoom * _pinchDist / Mathf.Max(d, 1f), minZoom, 1.3f);
                 _pinchDist = d;
                 return;
             }

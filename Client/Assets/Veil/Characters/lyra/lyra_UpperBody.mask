@@ -13,6 +13,12 @@ AvatarMask:
     m_Weight: 0
   - m_Path: lyra/output_unwrapped
     m_Weight: 0
+  - m_Path: lyra/output_unwrapped/output_unwrapped_MeshPart0
+    m_Weight: 0
+  - m_Path: lyra/output_unwrapped/output_unwrapped_MeshPart1
+    m_Weight: 0
+  - m_Path: lyra/output_unwrapped/output_unwrapped_MeshPart2
+    m_Weight: 0
   - m_Path: lyra/target_character
     m_Weight: 0
   - m_Path: lyra/target_character/mixamorig:Hips

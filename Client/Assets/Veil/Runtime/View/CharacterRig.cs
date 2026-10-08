@@ -339,18 +339,18 @@ namespace Veil.View
             Vector3 fwd = root.forward;
             // torso: hips → neck straight up with a hint of forward lean (at most 25° of correction)
             Vector3 torso = neck.position - hips.position;
-            var q = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(torso, (Vector3.up + fwd * 0.06f).normalized), 25f);
+            // dead zone: an idle that is already upright (made on the hero's own skeleton) is left alone
+            var full = Quaternion.FromToRotation(torso, (Vector3.up + fwd * 0.06f).normalized);
+            float off = Quaternion.Angle(Quaternion.identity, full);
+            var q = Quaternion.RotateTowards(Quaternion.identity, full, Mathf.Clamp(off - 6f, 0f, 25f));
             spine.rotation = Quaternion.Slerp(Quaternion.identity, q, w) * spine.rotation;
-            // head: follow the (now upright) torso line instead of world-up — every skull sits differently on its neck,
-            // so only take out a backward tilt, never push the chin down (at most 18°)
+            // head: line the neck→head direction up with the (now upright) torso — chin neither up nor down —
+            // whichever way this skeleton tilts it (at most 22°)
             torso = (neck.position - hips.position).normalized;
             Vector3 hd = (head.position - neck.position).normalized;
-            float back = Vector3.Dot(Vector3.Cross(torso, hd), root.right);   // > 0: head tipped back relative to the torso
-            if (back > 0f)
-            {
-                var hq = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(hd, torso), 18f);
-                neck.rotation = Quaternion.Slerp(Quaternion.identity, hq, w) * neck.rotation;
-            }
+            var hfull = Quaternion.FromToRotation(hd, torso);
+            var hq = Quaternion.RotateTowards(Quaternion.identity, hfull, Mathf.Clamp(Quaternion.Angle(Quaternion.identity, hfull) - 8f, 0f, 22f));
+            neck.rotation = Quaternion.Slerp(Quaternion.identity, hq, w) * neck.rotation;
         }
 
         private void LateUpdate()

@@ -115,7 +115,7 @@ namespace Veil.UI
         private sealed class Plate
         {
             public RectTransform Root;
-            public Image Crown, Spk, ReadyBg, ReadyIcon;
+            public Image Crown, Spk, ReadyBg, ReadyIcon, Accent, LevelBg;
             public Text Name, Level;
             public bool Shown, LastReady;
         }
@@ -198,6 +198,7 @@ namespace Veil.UI
             _status = UIKit.LabelAt(tab, "", 17, Theme.Text, new Vector2(1, 0), new Vector2(-484, 68), new Vector2(620, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
             _status.rectTransform.pivot = new Vector2(1, 0.5f);
             _status.supportRichText = true;
+            UIKit.Outline(_status, new Color(0, 0, 0, 0.85f), 2);
             UIKit.Shadow(_status);
             _action = UIKit.Button(tab, "START", new Vector2(1, 0), new Vector2(-24, 24), new Vector2(340, 92), UIKit.ButtonStyle.Primary, OnAction, 50);
             ((RectTransform)_action.transform).pivot = new Vector2(1, 0);
@@ -244,8 +245,9 @@ namespace Veil.UI
             ((RectTransform)modeBtn.transform).pivot = new Vector2(0, 0.5f);
             _voiceMode = UIKit.ButtonLabel(modeBtn);
             _voiceMode.supportRichText = true;
-            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf), 30);
+            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => { _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf); _howTo.SetAsLastSibling(); }, 30);
             ((RectTransform)help.transform).pivot = new Vector2(0, 0);
+            _help = (RectTransform)help.transform;
             _howTo = BuildHowTo(tab);
             _howTo.gameObject.SetActive(false);
 
@@ -256,7 +258,7 @@ namespace Veil.UI
             EnterFx.Add(_squadPanel, new Vector2(48, 0));
             for (int i = 0; i < _rows.Length; i++) EnterFx.Add(_rows[i].Root, new Vector2(36, 0), 0.08f + i * 0.05f);
             EnterFx.Add(_modePanel, new Vector2(48, 0), 0.1f);
-            EnterFx.Add(_length.Root, new Vector2(0, -18), 0.16f);
+            _length.Root.gameObject.SetActive(false);
             EnterFx.Add(_action, new Vector2(0, -28), 0.2f);
             EnterFx.Add(_side, new Vector2(0, -28), 0.24f);
             EnterFx.Add(_voicePill, new Vector2(-36, 0), 0.2f);
@@ -342,7 +344,7 @@ namespace Veil.UI
                 int sec = party.queueSeconds;
                 _mmTitle.text = "FINDING MATCH";
                 _mmTime.text = $"{sec / 60}:{sec % 60:00}";
-                _mmSub.text = $"Squads · {_app.Profile.MatchMinutes} min · est. 0:30";
+                _mmSub.text = "Squads · est. 0:30";
                 _mmCancel.gameObject.SetActive(g.IsLeader);
                 for (int i = 0; i < 4; i++) _mmDots[i].color = i < n ? Theme.Yellow : new Color(1, 1, 1, 0.15f * (1 + Mathf.Sin(Time.unscaledTime * 4 + i)));
             }
@@ -404,13 +406,15 @@ namespace Veil.UI
             if (op == null) UIKit.LabelAt(p, "Sign in and play online to track missions", 16, Theme.Red, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(620, 24), TextAnchor.MiddleCenter, UIKit.BoldFont);
         }
         private Bar _bpBar;
+        private RectTransform _help;
 
         private void ToggleSquadList()
         {
             bool on = !_squadPanel.gameObject.activeSelf;
             _squadPanel.gameObject.SetActive(on);
             _modePanel.gameObject.SetActive(!on);
-            _length.Root.gameObject.SetActive(!on);
+            _length.Root.gameObject.SetActive(false);
+            _cards.gameObject.SetActive(!on);   // the list takes the right column (it overlapped the cards on phones)
         }
 
         private static Image Dark(RectTransform rt) => UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.82f), true);
@@ -612,50 +616,105 @@ namespace Veil.UI
             return b;
         }
 
+        private readonly List<Plate> _shownPlates = new List<Plate>();
+
+        /// <summary>Cards never overlap: left to right with a gap, kept between the side menu and the right cards,
+        /// shrunk a little (down to 75 %) when four don't fit side by side.</summary>
+        private void SpreadPlates()
+        {
+            _shownPlates.Clear();
+            foreach (var p in _plate) if (p.Root.gameObject.activeSelf) _shownPlates.Add(p);
+            if (_shownPlates.Count == 0) return;
+            _shownPlates.Sort((a, b) => a.Root.anchoredPosition.x.CompareTo(b.Root.anchoredPosition.x));
+            float halfW = _plates.rect.width * 0.5f;
+            float left = -halfW + 430f, right = halfW - 490f;   // free space between the side menu and the right column
+            int n = _shownPlates.Count;
+            float baseW = 224f, gap = 10f;
+            float scale = Mathf.Clamp((right - left - gap * (n - 1)) / (baseW * n), 0.75f, 1f);
+            float w = baseW * scale, step = w + gap;
+            float minX = left + w * 0.5f, maxX = right - w * 0.5f;
+            var xs = new float[n];
+            for (int k = 0; k < n; k++) xs[k] = Mathf.Clamp(_shownPlates[k].Root.anchoredPosition.x, minX, maxX);
+            for (int k = 1; k < n; k++) xs[k] = Mathf.Max(xs[k], xs[k - 1] + step);              // push right
+            for (int k = n - 1; k >= 0; k--) xs[k] = Mathf.Min(xs[k], maxX - (n - 1 - k) * step); // then back inside
+            for (int k = 1; k < n; k++) xs[k] = Mathf.Max(xs[k], xs[k - 1] + step);
+            // same height for all cards (a tidy row), just above the tallest head
+            float y = float.MinValue;
+            foreach (var p in _shownPlates) y = Mathf.Max(y, p.Root.anchoredPosition.y);
+            for (int k = 0; k < n; k++)
+            {
+                var rt = _shownPlates[k].Root;
+                rt.anchoredPosition = new Vector2(xs[k], y);
+                rt.localScale = Vector3.one * scale;
+            }
+        }
+
         private static Plate MakePlate(RectTransform parent, int i)
         {
+            // player card over each hero: colour strip (you / squadmate / bot), name (scrolls when long), level tag,
+            // voice + ready on the right
             var p = new Plate();
-            p.Root = UIKit.At(parent, "Plate" + i, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(168, 50));
-            UIKit.Image(p.Root, UIKit.RoundedSmall, new Color(0.05f, 0.06f, 0.16f, 0.82f));
-            var cr = UIKit.At(p.Root, "Crown", new Vector2(0, 0.5f), new Vector2(8, 2), new Vector2(22, 22));
+            p.Root = UIKit.At(parent, "Plate" + i, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(224, 60));
+            UIKit.Image(p.Root, UIKit.RoundedSmall, new Color(0.05f, 0.06f, 0.16f, 0.9f));
+            var ol = p.Root.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(1, 1, 1, 0.14f); ol.effectDistance = new Vector2(1.2f, -1.2f);
+            var acc = UIKit.At(p.Root, "Accent", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(6, 48));
+            acc.pivot = new Vector2(0, 0.5f);
+            p.Accent = UIKit.Image(acc, UIKit.Pill, Theme.Gold);
+            var cr = UIKit.At(p.Root, "Crown", new Vector2(0, 0.5f), new Vector2(14, 8), new Vector2(22, 22));
             cr.pivot = new Vector2(0, 0.5f);
             p.Crown = UIKit.Image(cr, Icons.Crown, Theme.Gold);
-            p.Name = UIKit.LabelAt(p.Root, "", 17, Theme.Text, new Vector2(0, 1), new Vector2(34, -3), new Vector2(92, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            p.Name.horizontalOverflow = HorizontalWrapMode.Wrap;
-            p.Name.rectTransform.pivot = new Vector2(0, 1);
-            p.Level = UIKit.LabelAt(p.Root, "", 13, Theme.TextDim, new Vector2(0, 0), new Vector2(34, 3), new Vector2(92, 20), TextAnchor.MiddleLeft, UIKit.BodyFont);
-            p.Level.rectTransform.pivot = new Vector2(0, 0);
-            var sp = UIKit.At(p.Root, "Spk", new Vector2(1, 0.5f), new Vector2(-38, 0), new Vector2(20, 20));
+            var win = UIKit.At(p.Root, "NameWindow", new Vector2(0, 1), new Vector2(40, -6), new Vector2(118, 26));
+            win.pivot = new Vector2(0, 1);
+            win.gameObject.AddComponent<RectMask2D>();
+            p.Name = UIKit.LabelAt(win, "", 19, Color.white, new Vector2(0, 0.5f), Vector2.zero, new Vector2(400, 26), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            p.Name.horizontalOverflow = HorizontalWrapMode.Overflow;
+            p.Name.rectTransform.pivot = new Vector2(0, 0.5f);
+            var lv = UIKit.At(p.Root, "LevelTag", new Vector2(0, 0), new Vector2(40, 6), new Vector2(62, 20));
+            lv.pivot = new Vector2(0, 0);
+            p.LevelBg = UIKit.Image(lv, UIKit.Pill, new Color(1, 1, 1, 0.1f));
+            p.Level = UIKit.Label(lv, "", 13, Theme.TextDim, TextAnchor.MiddleCenter, UIKit.BoldFont);
+            UIKit.Fit(p.Level, 9);
+            var sp = UIKit.At(p.Root, "Spk", new Vector2(1, 0.5f), new Vector2(-44, 0), new Vector2(22, 22));
             sp.pivot = new Vector2(1, 0.5f);
             p.Spk = UIKit.Image(sp, Icons.Speaker, Theme.TextDim);
-            var rd = UIKit.At(p.Root, "Ready", new Vector2(1, 0.5f), new Vector2(-8, 0), new Vector2(24, 24));
+            var rd = UIKit.At(p.Root, "Ready", new Vector2(1, 0.5f), new Vector2(-10, 0), new Vector2(28, 28));
             rd.pivot = new Vector2(1, 0.5f);
             p.ReadyBg = UIKit.Image(rd, UIKit.Circle, Theme.Green);
-            var ri = UIKit.At(rd, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(18, 18));
+            var ri = UIKit.At(rd, "I", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(20, 20));
             p.ReadyIcon = UIKit.Image(ri, Icons.Check, new Color(0.05f, 0.2f, 0.08f));
             return p;
         }
 
         private RectTransform BuildHowTo(RectTransform tab)
         {
-            var info = UIKit.Panel(tab, "HowTo", new Vector2(0, 0), new Vector2(24, 104), new Vector2(560, 330));
-            info.rectTransform.pivot = new Vector2(0, 0);
-            var h = UIKit.LabelAt(info.transform, "HOW TO PLAY", 26, Theme.Yellow, new Vector2(0, 1), new Vector2(26, -22), new Vector2(500, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            // full-screen dim (tap outside to close) + a centred card that always fits its text
+            var root = UIKit.Fill(tab, "HowTo");
+            var dim = UIKit.Image(root, UIKit.Square, new Color(0, 0, 0, 0.55f), true);
+            var dimBtn = root.gameObject.AddComponent<Button>(); dimBtn.targetGraphic = dim;
+            dimBtn.onClick.AddListener(() => root.gameObject.SetActive(false));
+            var card = UIKit.Panel(root, "Card", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(820, 560)).rectTransform;
+            var block = card.gameObject.AddComponent<Button>(); block.transition = Selectable.Transition.None;   // taps on the card don't close it
+            var h = UIKit.LabelAt(card, "HOW TO PLAY", 34, Theme.Yellow, new Vector2(0, 1), new Vector2(36, -30), new Vector2(560, 44), TextAnchor.MiddleLeft, UIKit.TitleFont);
             h.rectTransform.pivot = new Vector2(0, 1);
-            var body = UIKit.LabelAt(info.transform,
-                "Squads of <color=#ffd84a>4</color>, four squads per match. Each of you has a <color=#c7a6ff>secret objective</color>, " +
-                "your squad shares one more — and your vision. Outthink the other squads.\n\n" +
+            var close = UIKit.Button(card, "CLOSE", new Vector2(1, 1), new Vector2(-28, -28), new Vector2(150, 52), UIKit.ButtonStyle.Secondary, () => root.gameObject.SetActive(false), 20);
+            ((RectTransform)close.transform).pivot = new Vector2(1, 1);
+            var body = UIKit.LabelAt(card,
+                "<color=#ffd84a>4 squads of 4</color> on Rilo Island. Work through your squad's objectives:\n" +
+                "<color=#c7a6ff>Hack</color> a terminal → <color=#c7a6ff>capture</color> → <color=#c7a6ff>collect</color> → open your <color=#ffc93a>Vault</color> → " +
+                "reach the <color=#7dff9a>helicopter</color> and hold it to escape. <color=#ffd84a>First squad out wins.</color>\n\n" +
                 (Veil.Match.Platform.IsMobile
-                    ? "<color=#ffd84a>Left thumb</color> move · <color=#ffd84a>right side</color> look · <color=#ffd84a>FIRE</color> hold\n<color=#ffd84a>DASH  PULSE  DECOY</color> abilities · <color=#ffd84a>TALK</color> hold for voice"
-                    : "<color=#ffd84a>WASD</color> move · <color=#ffd84a>Mouse</color> aim · <color=#ffd84a>LMB</color> blast · <color=#ffd84a>Space</color> jump\n" +
-                      "<color=#ffd84a>Shift</color> sprint · <color=#ffd84a>Q</color> Dash · <color=#ffd84a>E</color> Pulse · <color=#ffd84a>R</color> Decoy\n" +
-                      "<color=#ffd84a>1/2/3</color> Market · <color=#ffd84a>V</color> push-to-talk · <color=#ffd84a>Tab</color> players · <color=#ffd84a>Esc</color> pause"),
-                18, Theme.Text, new Vector2(0, 1), new Vector2(26, -66), new Vector2(510, 250), TextAnchor.UpperLeft, UIKit.BodyFont);
-            body.rectTransform.pivot = new Vector2(0, 1);
+                    ? "<color=#ffd84a>Left thumb</color> move · <color=#ffd84a>right side</color> look · hold <color=#ffd84a>FIRE</color>\n" +
+                      "<color=#ffd84a>DASH · PULSE · DECOY</color> abilities · <color=#ffd84a>PING</color> mark for your squad\n" +
+                      "<color=#ffd84a>FISTS</color> switch weapon · tap the <color=#ffd84a>minimap</color> for the full map · hold <color=#ffd84a>TALK</color> for voice"
+                    : "<color=#ffd84a>WASD</color> move · <color=#ffd84a>Mouse</color> aim · <color=#ffd84a>LMB</color> fire · <color=#ffd84a>Space</color> jump · <color=#ffd84a>Shift</color> sprint\n" +
+                      "<color=#ffd84a>Q</color> Dash · <color=#ffd84a>E</color> Pulse · <color=#ffd84a>R</color> Decoy · <color=#ffd84a>G</color> grenade · <color=#ffd84a>X</color> fists\n" +
+                      "<color=#ffd84a>Z / middle mouse</color> ping · <color=#ffd84a>M</color> map · <color=#ffd84a>V</color> talk · <color=#ffd84a>Esc</color> pause"),
+                24, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(748, 420), TextAnchor.UpperLeft, UIKit.BodyFont);
+            body.rectTransform.pivot = new Vector2(0.5f, 1);
             body.supportRichText = true;
-            body.lineSpacing = 1.15f;
-            body.horizontalOverflow = HorizontalWrapMode.Wrap;
-            return info.rectTransform;
+            body.lineSpacing = 1.2f;
+            UIKit.Fit(body, 14);
+            return root;
         }
 
         // ------------------------------------------------------------------ mode
@@ -871,7 +930,7 @@ namespace Veil.UI
             _modeSub.text = !_online ? "Practice with your squad against AI bots"
                 : needConnect ? (g.Status == GatewayClient.State.Connecting ? "Connecting…" : "Server (found automatically on Wi-Fi):")
                 : $"4 squads of 4 · bots fill empty seats\n<color=#7dff9a>●</color> {g.Handle} · {g.PingMs} ms";
-            _length.Root.gameObject.SetActive(!_online || party.Empty || g.IsLeader);
+            _length.Root.gameObject.SetActive(false);   // no match length to pick: a match runs until a squad escapes
             UpdateStage();
             UpdateStatus();
         }
@@ -930,7 +989,7 @@ namespace Veil.UI
                         bool all = ready == party.members.Count;
                         action = all ? "START" : "WAITING";
                         actionOn = all;
-                        s = all ? $"{minutes} min match · press START to find a match" : $"Waiting for squad to ready up ({ready}/{party.members.Count})";
+                        s = all ? "Press START to find a match" : $"Waiting for squad to ready up ({ready}/{party.members.Count})";
                     }
                     else
                     {
@@ -973,6 +1032,7 @@ namespace Veil.UI
             }
             // voice pill (voice only exists online)
             _voicePill.gameObject.SetActive(_online);
+            if (_help != null) _help.anchoredPosition = new Vector2(_online ? 366 : 28, 110);   // no voice pill offline: take its corner
             _micPillIcon.sprite = v.MicMuted ? Icons.MicOff : Icons.Mic;
             _micPillIcon.color = v.MicMuted ? Theme.Red : v.LocalSpeaking ? Theme.Green : Theme.Text;
             _spkPillIcon.sprite = v.Deafened ? Icons.SpeakerOff : Icons.Speaker;
@@ -994,13 +1054,27 @@ namespace Veil.UI
                 var sp = _app.Cam.WorldToScreenPoint(_app.Stage.HeadPoint(i) + Vector3.down * 0.4f);
                 if (sp.z <= 0) { p.Root.gameObject.SetActive(false); continue; }
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(_plates, sp, null, out var lp);
-                p.Root.anchoredPosition = lp + new Vector2(0, 30);   // pinned to the head, no sliding
+                // pinned to the head, but kept between the left menu and the right cards
+                float halfW = _plates.rect.width * 0.5f;
+                float minX = -halfW + 430f + 112f, maxX = halfW - 490f - 112f;
+                p.Root.anchoredPosition = new Vector2(Mathf.Clamp(lp.x, minX, Mathf.Max(minX, maxX)), lp.y + 30);
                 p.Name.text = m.Name;
                 p.Level.text = m.Bot ? "BOT" : $"Lv. {m.Level}";
                 bool crown = m.Leader && !m.Bot && _online;
                 p.Crown.gameObject.SetActive(crown);
-                p.Name.rectTransform.anchoredPosition = new Vector2(crown ? 34 : 12, -3);
-                p.Level.rectTransform.anchoredPosition = new Vector2(crown ? 34 : 12, 3);
+                bool me = i == 0;
+                p.Accent.color = me ? Theme.Gold : m.Bot ? new Color(0.6f, 0.62f, 0.75f) : Theme.Green;
+                p.LevelBg.color = m.Bot ? new Color(1, 1, 1, 0.08f) : new Color(1f, 0.82f, 0.25f, 0.2f);
+                p.Level.color = m.Bot ? Theme.TextDim : Theme.Gold;
+                var nameWin = (RectTransform)p.Name.rectTransform.parent;
+                nameWin.anchoredPosition = new Vector2(crown ? 40 : 16, -6);
+                nameWin.sizeDelta = new Vector2(crown ? 118 : 142, 26);
+                ((RectTransform)p.LevelBg.transform).anchoredPosition = new Vector2(crown ? 40 : 16, 6);
+                // marquee: hold, scroll to the end, hold, jump back
+                float over = p.Name.preferredWidth - nameWin.sizeDelta.x;
+                float tm = over > 0 ? Mathf.Repeat(Time.time, 2f + over / 28f + 1.2f) : 0f;
+                float shift = over > 0 ? Mathf.Clamp((tm - 1.2f) * 28f, 0f, over) : 0f;
+                p.Name.rectTransform.anchoredPosition = new Vector2(-shift, 0);
                 bool talking = voiceOn && !m.Bot && v.IsSpeaking(m.Id);
                 p.Spk.gameObject.SetActive(!m.Bot);
                 p.Spk.color = talking ? Theme.Green : new Color(1, 1, 1, 0.55f);
@@ -1010,6 +1084,7 @@ namespace Veil.UI
                 p.LastReady = ready;
                 p.ReadyIcon.enabled = ready;
             }
+            SpreadPlates();
 
             if (_online && _app.Gateway.Party.phase == (int)PartyPhase.Queued) UpdateStatus();
             if (!_online && _offlineCountdown)

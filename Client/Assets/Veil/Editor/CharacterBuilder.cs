@@ -128,10 +128,15 @@ namespace Veil.EditorTools
         /// The heroes were rigged in an A-pose (arms down). Unity's humanoid retargeting needs a T-pose reference, so
         /// rotate the arms straight out to the sides in the avatar's skeleton description (like "Enforce T-Pose").
         /// </summary>
+        private static readonly HashSet<string> OwnBindPose = new HashSet<string> { "lyra", "volt", "sol" };
+
         private static void EnsureTPose(string fbx)
         {
             var mi = (ModelImporter)AssetImporter.GetAtPath(fbx);
             if (mi == null || mi.animationType != ModelImporterAnimationType.Human || mi.userData == "tpose-v4") return;
+            // Meshy rigs exported in a clean T-pose keep their own bind pose as the reference: forcing the spine straight
+            // on a hero that naturally stands a little curved (Lyra) made every clip bend her spine far too much
+            if (OwnBindPose.Contains(Path.GetFileNameWithoutExtension(fbx))) { mi.userData = "tpose-v4"; mi.SaveAndReimport(); return; }
             var hd = mi.humanDescription;
             if (hd.human == null || hd.human.Length == 0) { Debug.LogWarning($"[VEIL] {fbx}: humanoid mapping failed"); return; }
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
@@ -177,11 +182,25 @@ namespace Veil.EditorTools
             ("jump", "jump_start"), ("fall", "jump_loop"), ("dash", "roll"),
         };
 
+        /// <summary>hero → (clip, source hero): e.g. Lyra runs and sprints with Vanguard's Meshy run / RunFast.</summary>
+        private static readonly Dictionary<string, (string clip, string from)[]> Borrow = new Dictionary<string, (string, string)[]>
+        {
+            // (Lyra's run / sprint are now Vanguard's clips copied bone-by-bone in Blender — Tools/ai3d/blender/copy_clips.py —
+            //  humanoid retargeting bent her spine far more than his)
+        };
+
         private static void BuildOne(string name, string fbx)
         {
             bool humanoid = CharacterImport.HumanoidHeroes.Contains(name);
             if (humanoid) EnsureTPose(fbx);
             var clips = ClipsOf(fbx);
+            // clips borrowed from another hero (humanoid retargeting), replacing this hero's own
+            if (humanoid && Borrow.TryGetValue(name, out var borrow))
+                foreach (var (clip, from) in borrow)
+                {
+                    var other = ClipsOf($"{Root}/{from}/{from}.fbx");
+                    if (other.TryGetValue(clip, out var bc)) clips[clip] = bc;
+                }
             // the hero's own Meshy idle (made for this exact rig) beats a retargeted library idle in matches too
             if (!clips.ContainsKey("idle") && clips.TryGetValue("lobby", out var ownIdle)) clips["idle"] = ownIdle;
             // shared RILO pack first (made for these exact Meshy / Mixamo rigs): it beats the retargeted library, whose clips

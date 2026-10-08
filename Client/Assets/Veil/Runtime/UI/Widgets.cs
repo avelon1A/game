@@ -25,7 +25,9 @@ namespace Veil.UI
                 var b = UIKit.Button(Root, options[i], new Vector2(0, 0.5f), new Vector2(labelWidth + i * (chipWidth + 8), 0), new Vector2(chipWidth, 44), UIKit.ButtonStyle.Ghost, () => { Select(idx); onPick(idx); }, options[i].Length > 7 ? 15 : 18);
                 ((RectTransform)b.transform).pivot = new Vector2(0, 0.5f);
                 _chips.Add((Image)b.targetGraphic);
-                _labels.Add(UIKit.ButtonLabel(b));
+                var lbl = UIKit.ButtonLabel(b);
+                UIKit.Fit(lbl, 10);   // long options shrink to fit their chip instead of spilling out
+                _labels.Add(lbl);
             }
             Select(selected);
         }

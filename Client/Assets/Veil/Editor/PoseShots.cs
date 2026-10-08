@@ -45,5 +45,32 @@ namespace Veil.EditorTools
             }
             Debug.Log("[VEIL] pose shots done");
         }
+
+        /// <summary>Vanguard and Lyra mid-run and mid-sprint, side view, 4 moments of the cycle.</summary>
+        public static void RunCompare()
+        {
+            var cam = new GameObject("cam").AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.62f, 0.7f, 0.82f); cam.fieldOfView = 30;
+            var light = new GameObject("light").AddComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.3f;
+            light.transform.rotation = Quaternion.Euler(35, 150, 0);
+            RenderSettings.ambientLight = new Color(0.55f, 0.55f, 0.6f);
+            var rt = new RenderTexture(300, 420, 24); cam.targetTexture = rt;
+            Directory.CreateDirectory("/private/tmp/claude-501/runs");
+            foreach (var hero in new[] { "vanguard", "sol" })
+                foreach (var (label, speed) in new[] { ("run", 6.2f), ("sprint", 8.8f) })
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var go = Object.Instantiate(Resources.Load<GameObject>("Characters/" + hero));
+                        var an = go.GetComponentInChildren<Animator>();
+                        an.Rebind(); an.SetFloat("Speed", speed); an.SetBool("Grounded", true);
+                        for (int i = 0; i < 30 + k * 4; i++) an.Update(0.033f);
+                        cam.transform.position = new Vector3(4.6f, 1.0f, 0); cam.transform.LookAt(new Vector3(0, 0.95f, 0));
+                        cam.Render(); RenderTexture.active = rt;
+                        var tex = new Texture2D(300, 420, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 300, 420), 0, 0); tex.Apply();
+                        File.WriteAllBytes($"/private/tmp/claude-501/runs/{hero}_{label}_{k}.png", tex.EncodeToPNG());
+                        Object.DestroyImmediate(go);
+                    }
+            Debug.Log("[VEIL] run compare done");
+        }
     }
 }

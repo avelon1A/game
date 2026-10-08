@@ -77,7 +77,7 @@ namespace Veil.App
             p.AutoServer = boot != null && !string.IsNullOrEmpty(boot.server) ? boot.server.Trim() : baked;
             p.ServerOverride = PlayerPrefs.GetString("serverOverride", "");
             p.ParseAddress(p.EffectiveServer);
-            p.MatchMinutes = p.MatchMinutes >= 15 ? 15 : p.MatchMinutes >= 10 ? 10 : 5;   // lobby offers 5 / 10 / 15
+            p.MatchMinutes = 10;   // no length choice any more: 10 min is only the pacing plan, matches run until a squad escapes
             p.Look = new Appearance
             {
                 Outfit = (byte)PlayerPrefs.GetInt("outfit", 0),

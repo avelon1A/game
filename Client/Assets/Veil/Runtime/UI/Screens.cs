@@ -369,7 +369,7 @@ namespace Veil.UI
             var p = panel.transform;
             var title = UIKit.LabelAt(p, "CHARACTER", 34, Theme.Text, new Vector2(0, 1), new Vector2(30, -26), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
             title.rectTransform.pivot = new Vector2(0, 1);
-            var note = UIKit.LabelAt(p, CharacterRig.HasModel(0) ? "Pick your hero — cosmetic only, no gameplay advantage. Right-drag to rotate." : "Cosmetic only — no gameplay advantage. Right-drag the character to rotate.", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -68), new Vector2(700, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            var note = UIKit.LabelAt(p, CharacterRig.HasModel(0) ? "Pick your hero — cosmetic only. Drag the hero to turn, pinch or scroll to zoom." : "Cosmetic only — no gameplay advantage. Right-drag the character to rotate.", 16, Theme.TextDim, new Vector2(0, 1), new Vector2(30, -68), new Vector2(700, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
             note.rectTransform.sizeDelta = new Vector2(660, 24); UIKit.Fit(note, 11);
             note.rectTransform.pivot = new Vector2(0, 1);
 
@@ -453,7 +453,8 @@ namespace Veil.UI
                     prof.Look = l; Changed();
                 }, 150);
                 wr.Root.pivot = new Vector2(0, 0.5f);
-                var wdesc = UIKit.LabelAt(p, "RIFLE: fast, 30 m  ·  SNIPER: 48 dmg, 75 m, scope  ·  in a match switch to FISTS anytime (X key / FISTS button)", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(210, -432), new Vector2(760, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                var wdesc = UIKit.LabelAt(p, "RIFLE fast · 30 m   ·   SNIPER 48 dmg · 75 m · scope   ·   FISTS anytime", 15, Theme.TextDim, new Vector2(0, 1), new Vector2(210, -432), new Vector2(470, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                UIKit.Fit(wdesc, 10);
                 wdesc.rectTransform.pivot = new Vector2(0, 0.5f);
                 // gun skin (Appearance.Accessory): STANDARD, or a Meshy store gun — picking one also picks its gun type
                 string[] skinNames = { "STANDARD", "PLASMA" + (App.Owns("gun:1") ? "" : " ●900"), "DRAGON" + (App.Owns("gun:2") ? "" : " ●1500") };
@@ -768,71 +769,182 @@ namespace Veil.UI
 
         private void BuildSettings(RectTransform tab)
         {
-            var panel = UIKit.Panel(tab, "Settings", new Vector2(0.5f, 0.5f), new Vector2(0, -50), new Vector2(900, 900));
-            EnterFx.Add(panel, new Vector2(0, -30));
-            var p = panel.transform;
-            var title = UIKit.LabelAt(p, "SETTINGS", 34, Theme.Text, new Vector2(0, 1), new Vector2(40, -30), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
-            title.rectTransform.pivot = new Vector2(0, 1);
+            // one panel filling the space right of the side menu: a pinned header and a scrolling list of sections.
+            // Every row has the same height, a label column on the left and a stretched control on the right, and all
+            // text shrinks to fit — nothing overlaps or overflows on any screen shape.
             var prof = App.Profile;
             void Save() { prof.Save(); App.ApplySettings(); }
-
-            // account: guest or Google (Android) — signing in keeps your progress and brings it to any phone
-            var acct = UIKit.LabelAt(p, "", 17, Theme.TextDim, new Vector2(0, 1), new Vector2(90, -92), new Vector2(420, 32), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            acct.rectTransform.pivot = new Vector2(0, 0.5f);
-            acct.supportRichText = true;
-            UIKit.Fit(acct);
-            var gBtn = UIKit.Button(p, "SIGN IN WITH GOOGLE", new Vector2(1, 1), new Vector2(-60, -92), new Vector2(300, 42), UIKit.ButtonStyle.Secondary,
-                () => { if (App.SignedInWithGoogle) App.SignOutGoogle(); else App.SignInWithGoogle(); }, 16);
-            ((RectTransform)gBtn.transform).pivot = new Vector2(1, 0.5f);
-            var gLabel = UIKit.ButtonLabel(gBtn);
-            void RefreshAccount()
+            var panel = UIKit.Rect(tab, "Settings", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            panel.offsetMin = new Vector2(450, 24); panel.offsetMax = new Vector2(-24, -124);
+            UIKit.Image(panel, UIKit.Rounded, new Color(0.07f, 0.08f, 0.17f, 0.94f), true);
+            EnterFx.Add(panel, new Vector2(0, -30));
+            var title = UIKit.LabelAt(panel, "SETTINGS", 36, Theme.Text, new Vector2(0, 1), new Vector2(36, -22), new Vector2(400, 48), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            title.rectTransform.pivot = new Vector2(0, 1);
+            if (Application.platform != RuntimePlatform.IPhonePlayer && !Application.isMobilePlatform)
             {
-                var g = App.Gateway;
-                string who = !string.IsNullOrEmpty(g.Handle) ? g.Handle : prof.Name;
-                acct.text = App.SignedInWithGoogle
-                    ? $"ACCOUNT  <color=#ffffff>{who}</color>  <color=#7dff9a>● {prof.GoogleEmail}</color>"
-                    : $"ACCOUNT  <color=#ffffff>{who}</color>  <color=#8a90b8>guest</color>";
-                gBtn.gameObject.SetActive(Veil.Net.GoogleSignIn.Supported);
-                gLabel.text = App.SignedInWithGoogle ? "SIGN OUT" : "SIGN IN WITH GOOGLE";
-            }
-            RefreshAccount();
-            App.AccountChanged += RefreshAccount;
-            App.Gateway.Changed += RefreshAccount;
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -130), "MOUSE SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; Save(); }, v => (v * 10).ToString("0.0"));
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -200), "MUSIC", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
-            // one-tap music pause next to the volume slider
-            UnityEngine.UI.Button mt = null;
-            mt = UIKit.Button(p, prof.MusicOn ? "MUSIC ON" : "MUSIC OFF", new Vector2(1, 1), new Vector2(-225, -30), new Vector2(150, 48), UIKit.ButtonStyle.Secondary, () =>
-            {
-                prof.MusicOn = !prof.MusicOn; Save();
-                UIKit.ButtonLabel(mt).text = prof.MusicOn ? "MUSIC ON" : "MUSIC OFF";
-            }, 18);
-            ((RectTransform)mt.transform).pivot = new Vector2(1, 1);
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -270), "SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
-            var q = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -330), "GRAPHICS", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, 200);
-            var f = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -390), "DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); }, 200);
-            if (Application.isMobilePlatform) f.Root.gameObject.SetActive(false);   // phones are always fullscreen
-            // empty = automatic: the server comes from the remote boot config, so moving the server needs no new app
-            var hp = Widgets.InputRow(p, new Vector2(0.5f, 1), new Vector2(-150, -450), "SERVER", prof.ServerOverride, v => prof.SetServerAddress(v), 340, "AUTO (recommended)");
-            var upd = UIKit.Button(p, "UPDATE", new Vector2(0.5f, 1), new Vector2(330, -450), new Vector2(150, 48), UIKit.ButtonStyle.Ghost, () => App.OpenUpdate(), 18);
-            var build = UIKit.LabelAt(p, $"build {BootConfig.Build}", 14, Theme.TextDim, new Vector2(0.5f, 1), new Vector2(330, -496), new Vector2(150, 20), TextAnchor.MiddleCenter, UIKit.BodyFont);
-            // squad voice
-            var vm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -515), "VOICE CHAT", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode,
-                i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); }, 160);
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -575), "VOICE VOLUME", 0f, 2f, prof.VoiceVolume, v => { prof.VoiceVolume = v; App.Voice.OutputVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -630), "OPEN MIC THRESHOLD", 0f, 1f, prof.MicSensitivity, v => { prof.MicSensitivity = v; App.Voice.Sensitivity = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
-            // gyroscope aiming (phones)
-            var gm = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -695), "GYROSCOPE", new[] { "OFF", "WHILE FIRING", "ALWAYS" }, prof.GyroMode, i => { prof.GyroMode = i; Save(); }, 160);
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(0, -755), "GYRO SENSITIVITY", 0.2f, 3f, prof.GyroSensitivity, v => { prof.GyroSensitivity = v; Save(); }, v => v.ToString("0.0") + "x");
-            int inv = (prof.GyroInvertX ? 1 : 0) + (prof.GyroInvertY ? 2 : 0);
-            var gi = new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-10, -815), "GYRO INVERT", new[] { "NONE", "HORIZONTAL", "VERTICAL", "BOTH" }, inv,
-                i => { prof.GyroInvertX = (i & 1) != 0; prof.GyroInvertY = (i & 2) != 0; Save(); }, 130);
-            if (Application.platform != RuntimePlatform.IPhonePlayer)
-            {
-                var quit = UIKit.Button(p, "QUIT GAME", new Vector2(1, 1), new Vector2(-40, -30), new Vector2(170, 48), UIKit.ButtonStyle.Ghost, () => Application.Quit(), 18);
+                var quit = UIKit.Button(panel, "QUIT GAME", new Vector2(1, 1), new Vector2(-28, -24), new Vector2(180, 48), UIKit.ButtonStyle.Ghost, () => Application.Quit(), 18);
                 ((RectTransform)quit.transform).pivot = new Vector2(1, 1);
             }
-            var help = UIKit.LabelAt(p, Veil.Match.Platform.IsMobile ? "Gyroscope: turn and tilt your phone to aim. Hold TALK for squad voice." : "Hold V to talk to your squad. F9 in a match skips 60 seconds (testing).", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(800, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            // scroll view
+            var view = UIKit.Rect(panel, "View", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            view.offsetMin = new Vector2(16, 16); view.offsetMax = new Vector2(-16, -86);
+            UIKit.Image(view, UIKit.Square, new Color(0, 0, 0, 0), true);
+            view.gameObject.AddComponent<RectMask2D>();
+            var content = UIKit.Rect(view, "Content", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, Vector2.zero);
+            var scroll = view.gameObject.AddComponent<ScrollRect>();
+            scroll.content = content; scroll.horizontal = false; scroll.vertical = true; scroll.movementType = ScrollRect.MovementType.Elastic;
+            scroll.scrollSensitivity = 40f;
+            float y = 0;
+            const float RowH = 64f;
+
+            RectTransform Row(float h = RowH)
+            {
+                var r = UIKit.Rect(content, "Row", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -y), new Vector2(-24, h));
+                y += h + 6;
+                return r;
+            }
+            void Section(string name)
+            {
+                y += 10;
+                var r = Row(44);
+                var t = UIKit.LabelAt(r, name, 22, Theme.Yellow, new Vector2(0, 0.5f), new Vector2(20, 0), new Vector2(600, 36), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                t.rectTransform.pivot = new Vector2(0, 0.5f);
+                var line = UIKit.Rect(r, "Line", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, new Vector2(-20, 2));
+                UIKit.Image(line, UIKit.Square, new Color(1f, 0.82f, 0.25f, 0.25f));
+            }
+            RectTransform Labeled(string label, string hint = null)
+            {
+                var r = Row();
+                UIKit.Image(r, UIKit.RoundedSmall, new Color(1, 1, 1, 0.04f));
+                var t = UIKit.LabelAt(r, label, 20, Theme.Text, new Vector2(0, 0.5f), new Vector2(20, hint != null ? 9 : 0), new Vector2(10, 30), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                var tr = t.rectTransform; tr.anchorMin = new Vector2(0, 0.5f); tr.anchorMax = new Vector2(0.36f, 0.5f); tr.pivot = new Vector2(0, 0.5f);
+                tr.offsetMin = new Vector2(20, -15 + (hint != null ? 9 : 0)); tr.offsetMax = new Vector2(-10, 15 + (hint != null ? 9 : 0));
+                UIKit.Fit(t, 11);
+                if (hint != null)
+                {
+                    var h = UIKit.LabelAt(r, hint, 13, Theme.TextDim, new Vector2(0, 0.5f), Vector2.zero, new Vector2(10, 20), TextAnchor.MiddleLeft, UIKit.BodyFont);
+                    var hr = h.rectTransform; hr.anchorMin = new Vector2(0, 0.5f); hr.anchorMax = new Vector2(0.36f, 0.5f); hr.pivot = new Vector2(0, 0.5f);
+                    hr.offsetMin = new Vector2(20, -24); hr.offsetMax = new Vector2(-10, -6);
+                    UIKit.Fit(h, 9);
+                }
+                var c = UIKit.Rect(r, "Control", new Vector2(0.36f, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+                c.offsetMin = new Vector2(0, 8); c.offsetMax = new Vector2(-16, -8);
+                return c;
+            }
+            void Slider(string label, float min, float max, float value, System.Action<float> set, System.Func<float, string> fmt, string hint = null)
+            {
+                var c = Labeled(label, hint);
+                var val = UIKit.LabelAt(c, fmt(value), 20, Theme.Text, new Vector2(1, 0.5f), Vector2.zero, new Vector2(96, 36), TextAnchor.MiddleRight, UIKit.BoldFont);
+                val.rectTransform.pivot = new Vector2(1, 0.5f); UIKit.Fit(val, 12);
+                var sRt = UIKit.Rect(c, "Slider", new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(0, 24));
+                sRt.offsetMin = new Vector2(4, -12); sRt.offsetMax = new Vector2(-112, 12);
+                UIKit.Image(sRt, UIKit.Pill, new Color(1, 1, 1, 0.12f), true);
+                var fillArea = UIKit.Rect(sRt, "FillArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-12, -8));
+                var fill = UIKit.Rect(fillArea, "Fill", Vector2.zero, new Vector2(0, 1), new Vector2(0, 0.5f), Vector2.zero, Vector2.zero);
+                UIKit.Image(fill, UIKit.Pill, Theme.Purple);
+                var handleArea = UIKit.Rect(sRt, "HandleArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-28, 0));
+                var handle = UIKit.Rect(handleArea, "Handle", Vector2.zero, new Vector2(0, 1), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 12));
+                var hImg = UIKit.Image(handle, UIKit.Circle, Color.white, true);
+                var s = sRt.gameObject.AddComponent<UnityEngine.UI.Slider>();
+                s.fillRect = fill; s.handleRect = handle; s.targetGraphic = hImg;
+                s.minValue = min; s.maxValue = max; s.value = value;
+                s.onValueChanged.AddListener(v => { val.text = fmt(v); set(v); });
+            }
+            void Chips(string label, string[] options, int selected, System.Action<int> pick, string hint = null)
+            {
+                var c = Labeled(label, hint);
+                var imgs = new List<Image>(); var lbls = new List<Text>();
+                void Select(int k) { for (int n = 0; n < imgs.Count; n++) { imgs[n].color = n == k ? new Color(0.62f, 0.38f, 1f, 0.92f) : new Color(1, 1, 1, 0.08f); lbls[n].color = n == k ? Color.white : Theme.TextDim; } }
+                for (int i = 0; i < options.Length; i++)
+                {
+                    int idx = i;
+                    var b = UIKit.Button(c, options[i], new Vector2(0, 0.5f), Vector2.zero, new Vector2(10, 44), UIKit.ButtonStyle.Ghost, () => { Select(idx); pick(idx); }, 17);
+                    var br = (RectTransform)b.transform;
+                    br.anchorMin = new Vector2((float)i / options.Length, 0); br.anchorMax = new Vector2((float)(i + 1) / options.Length, 1);
+                    br.offsetMin = new Vector2(i == 0 ? 0 : 4, 0); br.offsetMax = new Vector2(i == options.Length - 1 ? 0 : -4, 0);
+                    imgs.Add((Image)b.targetGraphic);
+                    var l = UIKit.ButtonLabel(b); UIKit.Fit(l, 10); lbls.Add(l);
+                }
+                Select(selected);
+            }
+
+            // ---------------- ACCOUNT
+            Section("ACCOUNT");
+            {
+                var c = Labeled("SIGNED IN AS");
+                var acct = UIKit.LabelAt(c, "", 18, Theme.Text, new Vector2(0, 0.5f), Vector2.zero, new Vector2(10, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                var ar = acct.rectTransform; ar.anchorMin = new Vector2(0, 0); ar.anchorMax = new Vector2(1, 1); ar.offsetMin = new Vector2(4, 0); ar.offsetMax = new Vector2(-250, 0);
+                acct.supportRichText = true; UIKit.Fit(acct, 11);
+                var gBtn = UIKit.Button(c, "SIGN IN WITH GOOGLE", new Vector2(1, 0.5f), Vector2.zero, new Vector2(236, 46), UIKit.ButtonStyle.Secondary,
+                    () => { if (App.SignedInWithGoogle) App.SignOutGoogle(); else App.SignInWithGoogle(); }, 16);
+                ((RectTransform)gBtn.transform).pivot = new Vector2(1, 0.5f);
+                var gLabel = UIKit.ButtonLabel(gBtn); UIKit.Fit(gLabel, 10);
+                void RefreshAccount()
+                {
+                    var g = App.Gateway;
+                    string who = !string.IsNullOrEmpty(g.Handle) ? g.Handle : prof.Name;
+                    acct.text = App.SignedInWithGoogle ? $"{who}   <color=#7dff9a>● {prof.GoogleEmail}</color>" : $"{who}   <color=#8a90b8>guest</color>";
+                    gBtn.gameObject.SetActive(Veil.Net.GoogleSignIn.Supported);
+                    gLabel.text = App.SignedInWithGoogle ? "SIGN OUT" : "SIGN IN WITH GOOGLE";
+                }
+                RefreshAccount();
+                App.AccountChanged += RefreshAccount;
+                App.Gateway.Changed += RefreshAccount;
+            }
+
+            // ---------------- AUDIO
+            Section("AUDIO");
+            Chips("MUSIC", new[] { "ON", "OFF" }, prof.MusicOn ? 0 : 1, i => { prof.MusicOn = i == 0; Save(); });
+            Slider("MUSIC VOLUME", 0f, 1f, prof.Music, v => { prof.Music = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
+            Slider("SOUND EFFECTS", 0f, 1f, prof.SfxVolume, v => { prof.SfxVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
+
+            // ---------------- VOICE
+            Section("VOICE CHAT");
+            Chips("MODE", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode, i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); },
+                  Veil.Match.Platform.IsMobile ? "hold TALK to speak" : "hold V to speak");
+            Slider("VOICE VOLUME", 0f, 2f, prof.VoiceVolume, v => { prof.VoiceVolume = v; App.Voice.OutputVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
+            Slider("OPEN MIC LEVEL", 0f, 1f, prof.MicSensitivity, v => { prof.MicSensitivity = v; App.Voice.Sensitivity = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%", "how loud before it sends");
+
+            // ---------------- CONTROLS
+            Section("CONTROLS");
+            Slider(Veil.Match.Platform.IsMobile ? "LOOK SENSITIVITY" : "MOUSE SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; Save(); }, v => (v * 10).ToString("0.0"));
+            Chips("GYROSCOPE", new[] { "OFF", "WHILE FIRING", "ALWAYS" }, prof.GyroMode, i => { prof.GyroMode = i; Save(); }, "turn the phone to aim");
+            Slider("GYRO SENSITIVITY", 0.2f, 3f, prof.GyroSensitivity, v => { prof.GyroSensitivity = v; Save(); }, v => v.ToString("0.0") + "x");
+            int inv = (prof.GyroInvertX ? 1 : 0) + (prof.GyroInvertY ? 2 : 0);
+            Chips("GYRO INVERT", new[] { "NONE", "LEFT-RIGHT", "UP-DOWN", "BOTH" }, inv, i => { prof.GyroInvertX = (i & 1) != 0; prof.GyroInvertY = (i & 2) != 0; Save(); });
+
+            // ---------------- GRAPHICS
+            Section("GRAPHICS & DISPLAY");
+            Chips("QUALITY", new[] { "PERFORMANCE", "QUALITY" }, prof.Quality, i => { prof.Quality = i; Save(); }, "performance = smoother on phones");
+            if (!Application.isMobilePlatform)
+                Chips("DISPLAY", new[] { "WINDOWED", "FULLSCREEN" }, prof.Fullscreen ? 1 : 0, i => { prof.Fullscreen = i == 1; Save(); });
+
+            // ---------------- SERVER
+            Section("SERVER");
+            {
+                var c = Labeled("ADDRESS", "leave empty = automatic");
+                var fRt = UIKit.Rect(c, "Field", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+                fRt.offsetMin = new Vector2(4, 0); fRt.offsetMax = new Vector2(-176, 0);
+                var img = UIKit.Image(fRt, UIKit.RoundedSmall, new Color(1, 1, 1, 0.1f), true);
+                var textRt = UIKit.Fill(fRt, "Text", 0); textRt.offsetMin = new Vector2(14, 2); textRt.offsetMax = new Vector2(-14, -2);
+                var text = textRt.gameObject.AddComponent<Text>();
+                text.font = UIKit.BoldFont; text.fontSize = UIKit.Fs(20); text.color = Theme.Text; text.alignment = TextAnchor.MiddleLeft; text.supportRichText = false;
+                var field = fRt.gameObject.AddComponent<InputField>();
+                field.textComponent = text; field.targetGraphic = img; field.characterLimit = 64;
+                var ph = UIKit.Label(textRt, "AUTO (recommended)", 18, new Color(1, 1, 1, 0.4f), TextAnchor.MiddleLeft, UIKit.BodyFont, "Placeholder");
+                ph.fontStyle = FontStyle.Italic; UIKit.Fit(ph, 10);
+                field.placeholder = ph;
+                field.text = prof.ServerOverride;
+                field.onEndEdit.AddListener(v => prof.SetServerAddress(v));
+                var upd = UIKit.Button(c, "UPDATE", new Vector2(1, 0.5f), Vector2.zero, new Vector2(164, 46), UIKit.ButtonStyle.Ghost, () => App.OpenUpdate(), 18);
+                ((RectTransform)upd.transform).pivot = new Vector2(1, 0.5f);
+            }
+            {
+                var r = Row(36);
+                var b = UIKit.LabelAt(r, $"RILO build {BootConfig.Build}  ·  {Application.version}", 15, Theme.TextDim, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(600, 28), TextAnchor.MiddleCenter, UIKit.BodyFont);
+                UIKit.Fit(b, 10);
+            }
+            content.sizeDelta = new Vector2(0, y + 20);
         }
     }
 
