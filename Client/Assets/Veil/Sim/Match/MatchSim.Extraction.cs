@@ -136,6 +136,7 @@ namespace Veil.Sim
                     if (!p.HackRequest) continue;
                     hacker = p.Id; p.BotHackT = 0;
                     Events.Add(new SimEvent(EventType.HackActivity, sq.Id, home ? 1 : 0, (int)((home ? sq.HomeProg : sq.CenterProg) * 100), at));
+                    if (home) AlertHomeOwner(sq, at, (int)(sq.HomeProg * 100));
                     break;
                 }
             bool contested = enemy && hacker >= 0;
@@ -147,12 +148,17 @@ namespace Veil.Sim
 
             float time = home ? GameConfig.HackTime : GameConfig.CenterHackTime;
             float before = home ? sq.HomeProg : sq.CenterProg;
-            float prog = MathF.Min(1f, before + dt / time);
+            float prog = MathF.Min(1f, before + dt / time * ProgressMult(sq));
             if (home) sq.HomeProg = prog; else sq.CenterProg = prog;
             // pressure: enemies hear about it every 25 %
             int step = (int)(prog * 4f);
             ref int alerted = ref (home ? ref sq.HomeAlertPct : ref sq.CenterAlertPct);
-            if (step > alerted && step < 4) { alerted = step; Events.Add(new SimEvent(EventType.HackActivity, sq.Id, home ? 1 : 0, step * 25, at)); }
+            if (step > alerted && step < 4)
+            {
+                alerted = step;
+                Events.Add(new SimEvent(EventType.HackActivity, sq.Id, home ? 1 : 0, step * 25, at));
+                if (home) AlertHomeOwner(sq, at, step * 25);
+            }
         }
 
         private void UpdateNodes(SquadState sq, float dt)
@@ -270,7 +276,7 @@ namespace Veil.Sim
                     if (mine > 0 && !enemy)
                     {
                         float rate = task == ChainTask.Capture ? 1f + 0.25f * (mine - 1) : 1f;
-                        sq.StageProg = MathF.Min(1f, sq.StageProg + dt / time * rate);
+                        sq.StageProg = MathF.Min(1f, sq.StageProg + dt / time * rate * ProgressMult(sq));
                     }
                 }
                 if (sq.StageProg >= 1f) CompleteStage(sq);

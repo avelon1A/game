@@ -131,6 +131,21 @@ namespace Veil.View
                     }
                     break;
                 }
+                case 6: // jump pad: metal base, glowing ring, chevrons pointing where it throws you
+                {
+                    float r = d.Radius;
+                    var glow = MaterialLib.Glow(Palette.Hex("#5fd8ff"), 2.6f);
+                    Add(MeshGen.Cylinder(32), MaterialLib.Toon(Palette.Hex("#2b2f3d"), 0.4f), Build.V(d.Center, 0.06f), new Vector3(r * 2 + 0.6f, 0.12f, r * 2 + 0.6f));
+                    Add(MeshGen.Ring(0.42f, 0.5f, 40), glow, Build.V(d.Center, 0.13f), new Vector3(r * 2, 1, r * 2), null, false);
+                    var rot = Quaternion.Euler(0, d.Rot, 0);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        Vector3 c = Build.V(d.Center, 0.14f) + rot * new Vector3(0, 0, -0.6f + i * 0.55f);
+                        Add(MeshGen.Box, glow, c + rot * new Vector3(-0.22f, 0, 0), new Vector3(0.12f, 0.02f, 0.55f), rot * Quaternion.Euler(0, 40f, 0), false);
+                        Add(MeshGen.Box, glow, c + rot * new Vector3(0.22f, 0, 0), new Vector3(0.12f, 0.02f, 0.55f), rot * Quaternion.Euler(0, -40f, 0), false);
+                    }
+                    break;
+                }
                 case 2: // plaza
                 {
                     float r = d.Radius;

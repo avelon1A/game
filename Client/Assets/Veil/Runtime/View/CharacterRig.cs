@@ -131,6 +131,33 @@ namespace Veil.View
         private bool Fists => _fists;
         public bool FistsMode => _fists;
 
+        private int _special;
+        private GameObject _specialGun;
+        private Transform _defaultTip;
+        public int Special => _special;
+
+        /// <summary>A picked-up weapon (1 shotgun, 2 SMG — Kenney blasters) replaces the gun model until its ammo runs out.</summary>
+        public void SetSpecial(int k)
+        {
+            if (_special == k || !_gun) return;
+            _special = k;
+            if (_specialGun) { Destroy(_specialGun); _specialGun = null; }
+            if (_defaultTip == null) _defaultTip = _blasterTip;
+            for (int i = 0; i < _gun.childCount; i++) _gun.GetChild(i).gameObject.SetActive(k == 0);
+            if (k == 0) { _blasterTip = _defaultTip; return; }
+            var prefab = Resources.Load<GameObject>("Weapons/" + (k == 1 ? "blaster-g" : "blaster-j"));
+            if (prefab == null) return;
+            _specialGun = Instantiate(prefab, _gun, false);
+            _specialGun.transform.localPosition = Vector3.zero; _specialGun.transform.localRotation = Quaternion.identity;
+            _specialGun.transform.localScale = Vector3.one * (k == 1 ? 1.25f : 1.05f);
+            foreach (var r in _specialGun.GetComponentsInChildren<Renderer>())
+            {
+                r.sharedMaterial = WeaponMaterial();
+                r.shadowCastingMode = _shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            _blasterTip = _specialGun.transform.Find("Muzzle") ?? _defaultTip;
+        }
+
         /// <summary>In a match: bare hands (gun hidden, jabs) or the chosen gun.</summary>
         public void SetFists(bool on)
         {

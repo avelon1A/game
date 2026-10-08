@@ -18,7 +18,7 @@ namespace Veil.Sim
 
     public static class AvatarState
     {
-        public const byte Downed = 1, Reviving = 2, Fists = 4;
+        public const byte Downed = 1, Reviving = 2, Fists = 4, SpecialShift = 3, Bounty = 32;   // bits 3-4: picked-up weapon (0 none, 1 shotgun, 2 smg)
     }
 
     /// <summary>A visible character. Decoys are sent exactly like players (OwnerId = the player they imitate).</summary>
@@ -37,6 +37,8 @@ namespace Veil.Sim
         public bool Downed => (State & AvatarState.Downed) != 0;
         public bool Reviving => (State & AvatarState.Reviving) != 0;
         public bool Fists => (State & AvatarState.Fists) != 0;
+        public int Special => (State >> AvatarState.SpecialShift) & 3;   // 1 shotgun, 2 smg
+        public bool Bounty => (State & AvatarState.Bounty) != 0;
 
         public AvatarSnap Clone() => (AvatarSnap)MemberwiseClone();
     }
@@ -45,6 +47,7 @@ namespace Veil.Sim
     {
         public int Id, Owner;
         public Vec2 Pos, Vel;
+        public byte Kind;   // 0 bullet, 1 grenade, 2 punch
     }
 
     public sealed class ZoneSnap
@@ -91,6 +94,8 @@ namespace Veil.Sim
         public bool HomeContested, NodesHome;
         public int HomeHacker = -1, CenterHacker = -1;
         public readonly float[] SquadProg = new float[GameConfig.SquadCount];   // every squad's progress on its current step (public)
+        public float HackSurgeT, JamT;      // world event: hacking x2 · own squad sabotaged
+        public int BountyTarget = -1;
     }
 
     public sealed class RosterEntry
@@ -120,6 +125,7 @@ namespace Veil.Sim
             d.BleedT = s.BleedT; d.ReviveProg = s.ReviveProg; d.Reviving = s.Reviving; d.Revives = s.Revives; d.Assists = s.Assists; d.DownedBy = s.DownedBy;
             d.Primary.CopyFrom(s.Primary); d.Secondary.CopyFrom(s.Secondary); d.Score.CopyFrom(s.Score);
             d.LastSeq = s.LastSeq; d.LastInput = s.LastInput;
+            d.Special = s.Special; d.Ammo = s.Ammo; d.Grenades = s.Grenades; d.TagProg = s.TagProg; d.Fists = s.Fists;
         }
 
         public static void Build(MatchSim sim, PlayerState viewer, Snapshot snap)
@@ -159,6 +165,8 @@ namespace Veil.Sim
                 if (p.Downed) { a.State |= AvatarState.Downed; a.ReviveProg = p.ReviveProg; }
                 if (p.Reviving >= 0) a.State |= AvatarState.Reviving;
                 if (p.Fists) a.State |= AvatarState.Fists;
+                else if (p.Special > 0) a.State |= (byte)((p.Special - GameConfig.Shotgun + 1) << AvatarState.SpecialShift);
+                if (p.Id == sim.BountyTarget) a.State |= AvatarState.Bounty;
                 snap.Avatars.Add(a);
             }
             foreach (var d in sim.Decoys)
@@ -191,12 +199,13 @@ namespace Veil.Sim
             snap.ExtractFinal = sim.ExtractFinal; snap.ExtractLockT = sim.ExtractLockT; snap.ExtractSecure = sim.ExtractSecure;
             for (int i = 0; i < GameConfig.SquadCount; i++) { snap.SquadStage[i] = (byte)sim.Squads[i].Stage; snap.SquadExtract[i] = sim.Squads[i].ExtractProg; }
 
+            snap.HackSurgeT = sim.HackSurgeT; snap.JamT = squad.JamT; snap.BountyTarget = sim.BountyTarget;
             snap.Projectiles.Clear();
             float pr = GameConfig.VisionRadius + 6f;
             foreach (var p in sim.Projectiles)
             {
                 if (p.Owner != viewer.Id && !NearSquad(sim, viewer, p.Pos, pr)) continue;
-                snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel });
+                snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel, Kind = p.Kind });
             }
 
             if (snap.Zones.Length != sim.Zones.Length)
@@ -237,7 +246,16 @@ namespace Veil.Sim
                 case EventType.HackContested:
                     return e.A == viewer.Squad;
                 case EventType.CenterBonus:
+                case EventType.WorldEvent:
+                case EventType.Sabotage:
+                case EventType.SquadWiped:
                     return true;
+                case EventType.Ping:
+                    return Ally(sim, viewer, e.A);
+                case EventType.BeingHacked:
+                    return e.B == viewer.Squad;
+                case EventType.Redeployed:
+                    return Ally(sim, viewer, e.B);
                 case EventType.HackActivity:
                     return e.A != viewer.Squad;     // everyone else hears "terminal activity detected"
                 case EventType.NodeDestroyed:

@@ -52,6 +52,11 @@ namespace Veil.UI
             // gun <-> fists
             _switch = UIKit.Button(Root, "FISTS", new Vector2(1, 0), new Vector2(-520, 120), new Vector2(130, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.Press(Buttons.Switch), 20);
             ((RectTransform)_switch.transform).pivot = new Vector2(0.5f, 0.5f);
+            // squad ping at the crosshair, grenade throw (only while carrying some)
+            _ping = UIKit.Button(Root, "PING", new Vector2(1, 0), new Vector2(-520, 200), new Vector2(130, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.Press(Buttons.Ping), 20);
+            ((RectTransform)_ping.transform).pivot = new Vector2(0.5f, 0.5f);
+            _grenade = UIKit.Button(Root, "GRENADE", new Vector2(1, 0), new Vector2(-520, 280), new Vector2(130, 64), UIKit.ButtonStyle.Primary, () => VirtualInput.Press(Buttons.Grenade), 18);
+            ((RectTransform)_grenade.transform).pivot = new Vector2(0.5f, 0.5f);
 
             // squad voice: hold to talk (push-to-talk mode)
             var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
@@ -74,7 +79,7 @@ namespace Veil.UI
             var board = UIKit.Button(Root, "LIST", new Vector2(1, 1), new Vector2(-400, -24), new Vector2(90, 72), UIKit.ButtonStyle.Ghost, () => ScoreboardOpen = !ScoreboardOpen, 20);
         }
 
-        private UnityEngine.UI.Button _scope;
+        private UnityEngine.UI.Button _scope, _ping, _grenade;
 
         private ActionButton Btn(string name, Sprite icon, Vector2 pos, float size, Color c, bool hold, Buttons b)
         {
@@ -91,11 +96,16 @@ namespace Veil.UI
             _dash.SetCooldown(me.DashCd / GameConfig.DashCooldown, me.Energy >= GameConfig.DashCost);
             _pulse.SetCooldown(me.PulseCd / GameConfig.PulseCooldown, me.Energy >= GameConfig.PulseCost);
             _decoy.SetCooldown(me.DecoyCd / GameConfig.DecoyCooldown, me.Energy >= GameConfig.DecoyCost);
-            bool fistsNow = _m.Latest?.Self?.Fists ?? false;
-            var ws = GameConfig.Current(me.Look.Weapon, fistsNow);
+            var self = _m.Latest?.Self;
+            bool fistsNow = self?.Fists ?? false;
+            int special = self?.Special ?? 0;
+            var ws = GameConfig.Current(me.Look.Weapon, fistsNow, special);
             _fire.SetCooldown(me.FireCd / ws.Cooldown, true);
-            UIKit.ButtonLabel(_switch).text = fistsNow ? (me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") : "FISTS";
-            bool sniper = me.Look.Weapon == 1 && me.Alive && !fistsNow;
+            UIKit.ButtonLabel(_switch).text = fistsNow ? (special > 0 ? SpecialName(special) : me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") : "FISTS";
+            int nades = self?.Grenades ?? 0;
+            if (_grenade.gameObject.activeSelf != (nades > 0 && me.Alive)) _grenade.gameObject.SetActive(nades > 0 && me.Alive);
+            UIKit.ButtonLabel(_grenade).text = $"GRENADE ×{nades}";
+            bool sniper = me.Look.Weapon == 1 && me.Alive && !fistsNow && special == 0;
             if (_scope.gameObject.activeSelf != sniper) _scope.gameObject.SetActive(sniper);
             if (!sniper) VirtualInput.ScopeOn = false;
             UIKit.ButtonLabel(_scope).text = VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE";
@@ -103,6 +113,8 @@ namespace Veil.UI
             if (_market.gameObject.activeSelf != market) _market.gameObject.SetActive(market);
             Root.gameObject.SetActive(!_m.Ended && !_m.Paused);
         }
+
+        public static string SpecialName(int special) => special == GameConfig.Shotgun ? "SHOTGUN" : special == GameConfig.Smg ? "SMG" : "";
 
         public void Dispose()
         {

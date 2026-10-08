@@ -279,6 +279,19 @@ namespace Veil.Sim
                 Consider(Goal.HoldZone, 36 - Vec2.Dist(rz.Center, _p.Pos) * 0.2f, rz.Center, -1, rz.Id);
             }
 
+            // ---- loot: grab a weapon / grenades when one is close ----
+            if (_p.Special == 0 || _p.Grenades == 0)
+            {
+                Pickup loot = null; float ld = 26f;
+                foreach (var pk in _sim.Pickups.Values)
+                {
+                    if (!MatchSim.IsLoot(pk.Type) || (pk.Type == PickupType.Grenades ? _p.Grenades > 0 : _p.Special > 0)) continue;
+                    float d = Vec2.Dist(pk.Pos, _p.Pos);
+                    if (d < ld) { ld = d; loot = pk; }
+                }
+                if (loot != null) Consider(Goal.Pickup, 58 - ld * 0.9f, loot.Pos);
+            }
+
             // ---- personality flavour ----
             if (Kind == BotKind.Collector)
             {
@@ -489,10 +502,17 @@ namespace Veil.Sim
             {
                 var t = target.Value;
                 float d = Vec2.Dist(t.Pos, _p.Pos);
-                if (d < GameConfig.Weapon(_p.Look.Weapon).Range - 3f && _sim.Map.HasLineOfSight(_p.Pos, t.Pos))
+                var ws = GameConfig.Current(_p.Look.Weapon, _p.Fists, _p.Special);
+                // grenade: lob one at a target at mid range now and then
+                if (_p.Grenades > 0 && d > 8f && d < GameConfig.GrenadeRange - 2f && _p.FireCd <= 0 && _rng.Chance(0.02f))
+                {
+                    cmd.Yaw = (t.Pos - _p.Pos).Yaw;
+                    cmd.Buttons |= Buttons.Grenade;
+                }
+                if (d < ws.Range - 3f && _sim.Map.HasLineOfSight(_p.Pos, t.Pos))
                 {
                     fighting = true;
-                    float lead = d / GameConfig.Weapon(_p.Look.Weapon).Speed;
+                    float lead = d / ws.Speed;
                     Vec2 aimAt = t.Pos + t.Vel * lead * _skill;
                     float err = (1.2f - _skill) * 14f;
                     float desired = (aimAt - _p.Pos).Yaw + _rng.Range(-err, err);

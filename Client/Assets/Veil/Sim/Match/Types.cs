@@ -7,7 +7,13 @@ namespace Veil.Sim
 
     public enum BotKind : byte { None, Explorer, Collector, Hunter, Defender, Opportunist }
 
-    public enum PickupType : byte { Orb, Core, Key }
+    public enum PickupType : byte { Orb, Core, Key, Shotgun, Smg, Grenades, Tag }
+
+    /// <summary>Squad pings (quick-chat markers, visible to the squad only).</summary>
+    public enum PingKind : byte { Go, Enemy, Help, Loot }
+
+    /// <summary>Random mid-match events (MatchSim.Events.cs).</summary>
+    public enum WorldEventKind : byte { SupplyDrop, HackSurge, Bounty, BountyClaimed, SurgeOver }
 
     public enum ObjectiveType : byte { TowerControl, CollectCores, VaultRaid, CaptureTwo, HighEnergy, Nemesis }
 
@@ -26,6 +32,8 @@ namespace Veil.Sim
         Buy3 = 1 << 8,
         Hack = 1 << 9,       // start / take over a terminal hack (sent after the circuit puzzle is solved)
         Switch = 1 << 10,    // toggle gun <-> fists
+        Ping = 1 << 11,      // squad ping at the crosshair (enemy / go here / need help / loot)
+        Grenade = 1 << 12,   // throw a grenade (picked up in the world)
     }
 
     /// <summary>One tick of player intent. Move is world-space (already rotated by the camera).</summary>
@@ -169,7 +177,13 @@ namespace Veil.Sim
         public int Reviving = -1;       // id of the downed squadmate this player is reviving (-1 none)
         public int Revives, Assists;
         public bool HackRequest;
-        public bool Fists;              // switched to bare hands (Buttons.Switch); else the chosen gun       // pressed HACK this tick
+        public bool Fists;              // switched to bare hands (Buttons.Switch); else the chosen gun
+        public byte Special;            // picked-up weapon (GameConfig.Shotgun / Smg), 0 = none; replaces the gun until its ammo runs out
+        public int Ammo;                // shots left in the picked-up weapon
+        public int Grenades;
+        public float LaunchT;           // flying off a jump pad: air control is off until landing
+        public float PingCd;
+        public float TagProg;           // 0..1 while redeploying a fallen squadmate from their tag
         public float BotHackT;         // bots: time spent "solving" the puzzle
         public readonly float[] DamagedAt = new float[GameConfig.MaxPlayers + 1];   // sim time each attacker last hit this player
 
@@ -210,7 +224,7 @@ namespace Veil.Sim
         {
             Pos = o.Pos; Vel = o.Vel; Knock = o.Knock; DashDir = o.DashDir; H = o.H; VH = o.VH; Yaw = o.Yaw;
             Grounded = o.Grounded; DashT = o.DashT; DashCd = o.DashCd; SpeedBuffT = o.SpeedBuffT;
-            Energy = o.Energy; Alive = o.Alive; Downed = o.Downed;
+            Energy = o.Energy; Alive = o.Alive; Downed = o.Downed; Fists = o.Fists; LaunchT = o.LaunchT;
         }
     }
 
@@ -222,6 +236,7 @@ namespace Veil.Sim
         public float Travelled;
         public bool Dead;
         public float Damage = GameConfig.ProjectileDamage, Range = GameConfig.ProjectileRange;
+        public byte Kind;           // 0 bullet, 1 grenade (explodes where it stops)
     }
 
     public sealed class Decoy
@@ -262,6 +277,7 @@ namespace Veil.Sim
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
         AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested, CenterBonus, ExtractOpen, ExtractAlert, ExtractFinal,
+        Explosion, SquadWiped, Ping, Redeployed, WorldEvent, Sabotage, BeingHacked,
     }
 
     public struct SimEvent
@@ -318,6 +334,8 @@ namespace Veil.Sim
         public readonly ObjectiveState Objective = new ObjectiveState { IsSquad = true };
         public float TowerTime;
         public int CapturedMask;
+        public float JamT;              // sabotaged: progress slowed (comeback for the last squad)
+        public bool SabotageUsed;
         public int Total;       // sum of members' scores (updated at match end / snapshots)
         public int Rank;
     }

@@ -27,9 +27,12 @@ namespace Veil.Match
                 if (kb.digit3Key.wasPressedThisFrame) _latched |= Buttons.Buy3;
                 if (kb.spaceKey.wasPressedThisFrame) _latched |= Buttons.Jump;
                 if (kb.xKey.wasPressedThisFrame) _latched |= Buttons.Switch;   // gun <-> fists
+                if (kb.gKey.wasPressedThisFrame) _latched |= Buttons.Grenade;
+                if (kb.zKey.wasPressedThisFrame || kb.tKey.wasPressedThisFrame) _latched |= Buttons.Ping;
             }
             var m = Mouse.current;
             if (!VirtualInput.Active && m != null && m.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) _latched |= Buttons.Fire;
+            if (!VirtualInput.Active && m != null && m.middleButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) _latched |= Buttons.Ping;
             _latched |= VirtualInput.TakeLatched();
         }
 

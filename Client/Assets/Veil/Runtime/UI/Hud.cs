@@ -43,6 +43,7 @@ namespace Veil.UI
         private float _bannerT, _hitT, _damageT, _revealT, _popupT;
         private MatchPhase _lastPhase = (MatchPhase)255;
         private bool _overtimeShown;
+        private HudExtras _extras;
         private RectTransform _scoreboard;
         private Text _scoreboardText;
         private readonly Dictionary<int, Nameplate> _plates = new Dictionary<int, Nameplate>();
@@ -122,7 +123,9 @@ namespace Veil.UI
             BuildCenter();
             BuildScoreboard();
             foreach (var z in m.Map.Zones) _zoneMarkers.Add(MakeZoneMarker(z));
+            _extras = new HudExtras(Root, m, cam, _minimap, mobile, Feed, (a, b, t) => Banner(a, b, t), Popup);
             view.OnEvent += HandleEvent;
+            view.OnEvent += _extras.HandleEvent;
             _mobile = mobile;
             if (mobile) ApplyMobileLayout();
         }
@@ -130,6 +133,8 @@ namespace Veil.UI
         public void Dispose()
         {
             _view.OnEvent -= HandleEvent;
+            _view.OnEvent -= _extras.HandleEvent;
+            _extras.Dispose();
             Object.Destroy(Root.gameObject);
         }
 
@@ -594,6 +599,7 @@ namespace Veil.UI
                     Banner("OBJECTIVE COMPLETE", $"{ObjectiveState.Title((ObjectiveType)e.Value)}   +{(e.B == 1 ? GameConfig.PrimaryPoints : GameConfig.SecondaryPoints)}", 3f);
                     break;
                 case EventType.AbilityPlay:
+                    if (e.B == 3 || e.B == 4) break;   // squad combos: HudExtras
                     Popup(e.B == 99 ? $"FINAL TOWER  +{e.Value}" : e.B == 1 ? $"PULSE REVEAL  +{e.Value}" : $"DECOY FOOLED THEM  +{e.Value}");
                     break;
                 case EventType.Hit:
@@ -655,6 +661,7 @@ namespace Veil.UI
             if (Keyboard.current != null && Keyboard.current.mKey.wasPressedThisFrame) _mapScreen?.Toggle();
             _mapScreen?.Update(_view);
             _compass.Update(s, me, cameraYaw);
+            _extras.Update(dt, cameraYaw);
             if (_scope.gameObject.activeSelf != GameApp.Scoped) _scope.gameObject.SetActive(GameApp.Scoped);
 
             // phase

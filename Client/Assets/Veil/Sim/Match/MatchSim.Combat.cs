@@ -12,22 +12,48 @@ namespace Veil.Sim
             // Blaster (LMB)
             if (cmd.Has(Buttons.Fire) && p.FireCd <= 0 && p.DashT <= 0)
             {
-                var ws = GameConfig.Current(p.Look.Weapon, p.Fists);
+                int special = p.Fists ? 0 : p.Special;
+                var ws = GameConfig.Current(p.Look.Weapon, p.Fists, special);
                 p.FireCd = ws.Cooldown;
                 p.FireSeq++;
-                p.NoiseT = GameConfig.FireNoiseTime;
+                if (!p.Fists) p.NoiseT = GameConfig.FireNoiseTime;   // fists are silent
                 p.SpawnProtT = 0;
                 Vec2 dir = Vec2.FromYaw(cmd.Yaw);
                 Vec2 origin = p.Pos + dir * 0.6f;
                 if (!Map.BlocksShotAt(origin, GameConfig.ProjectileHeight + p.H, GameConfig.ProjectileRadius))
                 {
-                    Projectiles.Add(new Projectile
+                    int pellets = special == GameConfig.Shotgun ? GameConfig.ShotgunPellets : 1;
+                    for (int i = 0; i < pellets; i++)
                     {
-                        Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = dir * ws.Speed, Damage = ws.Damage, Range = ws.Range,
-                    });
+                        float off = pellets > 1 ? (i / (float)(pellets - 1) - 0.5f) * GameConfig.ShotgunSpread : 0f;
+                        Projectiles.Add(new Projectile
+                        {
+                            Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = Vec2.FromYaw(cmd.Yaw + off) * ws.Speed, Damage = ws.Damage, Range = ws.Range,
+                            Kind = (byte)(p.Fists ? 2 : 0),
+                        });
+                    }
                 }
-                Events.Add(new SimEvent(EventType.Fire, p.Id, 0, 0, p.Pos));
+                if (special > 0 && --p.Ammo <= 0) { p.Special = 0; p.Ammo = 0; }
+                Events.Add(new SimEvent(EventType.Fire, p.Id, special, 0, p.Pos));
             }
+
+            // Grenade (G) — lobbed, explodes where it lands
+            if (cmd.Has(Buttons.Grenade) && p.Grenades > 0 && p.FireCd <= 0)
+            {
+                p.Grenades--;
+                p.FireCd = 0.5f;
+                p.CastSeq++;
+                p.SpawnProtT = 0;
+                Vec2 dir = Vec2.FromYaw(cmd.Yaw);
+                Projectiles.Add(new Projectile
+                {
+                    Id = NextEntityId(), Owner = p.Id, Pos = p.Pos + dir * 0.6f, Vel = dir * GameConfig.GrenadeSpeed,
+                    Damage = GameConfig.GrenadeDamage, Range = GameConfig.GrenadeRange, Kind = 1,
+                });
+            }
+
+            // Ping (squad only)
+            if (cmd.Has(Buttons.Ping) && p.PingCd <= 0) Ping(p, cmd.Yaw);
 
             // Pulse (E) — reveal nearby players, pop decoys
             if (cmd.Has(Buttons.Pulse) && p.PulseCd <= 0 && p.Energy >= GameConfig.PulseCost)
@@ -120,6 +146,17 @@ namespace Veil.Sim
                 {
                     pr.Pos += step;
                     pr.Travelled += len / steps;
+                    if (pr.Kind == 1)
+                    {
+                        // grenade: flies over people, stops at walls or its range, then explodes
+                        if (pr.Travelled > pr.Range || Map.BlocksShotAt(pr.Pos, 0.5f, GameConfig.ProjectileRadius))
+                        {
+                            if (pr.Travelled <= pr.Range) pr.Pos -= step;
+                            pr.Dead = true;
+                            Explode(pr);
+                        }
+                        continue;
+                    }
                     if (pr.Travelled > pr.Range) { pr.Dead = true; break; }
                     if (Map.BlocksShotAt(pr.Pos, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius))
                     {
@@ -134,7 +171,7 @@ namespace Veil.Sim
                     {
                         if (p.Id == pr.Owner || Allies(p, shooter) || !p.Alive) continue;   // no friendly fire
                         if (Vec2.DistSq(p.Pos, pr.Pos) > hitR2) continue;
-                        Damage(p, pr.Owner, pr.Damage, pr.Vel.Normalized);
+                        Damage(p, pr.Owner, pr.Damage, pr.Vel.Normalized * (pr.Kind == 2 ? GameConfig.FistsKnockback : 1f));
                         pr.Dead = true;
                         break;
                     }
@@ -151,6 +188,24 @@ namespace Veil.Sim
                 }
             }
             Projectiles.RemoveAll(x => x.Dead);
+        }
+
+        private void Explode(Projectile pr)
+        {
+            var thrower = Players[pr.Owner];
+            Events.Add(new SimEvent(EventType.Explosion, pr.Owner, 0, 0, pr.Pos));
+            float r = GameConfig.GrenadeRadius;
+            foreach (var p in Players)
+            {
+                if (!p.Alive || (Allies(p, thrower) && p != thrower)) continue;
+                float d = Vec2.Dist(p.Pos, pr.Pos);
+                if (d > r || !Map.HasLineOfSight(pr.Pos, p.Pos)) continue;
+                float dmg = pr.Damage * (1f - 0.6f * d / r) * (p == thrower ? 0.5f : 1f);
+                Vec2 dir = d > 0.01f ? (p.Pos - pr.Pos) / d : Vec2.FromYaw(0);
+                Damage(p, p == thrower ? -1 : pr.Owner, dmg, dir * 1.8f);
+            }
+            foreach (var d in Decoys) if (!d.Dead && Vec2.Dist(d.Pos, pr.Pos) <= r && !Allies(Players[d.Owner], thrower)) PopDecoy(d);
+            HitNode(thrower, pr.Pos);
         }
 
         // ------------------------------------------------------------------ decoys
@@ -286,6 +341,11 @@ namespace Veil.Sim
             v.H = 0; v.VH = 0; v.Grounded = true;
             v.VaultChannel = 0;
             v.Energy *= GameConfig.DeathEnergyKeep;
+            v.ReviveProg = 0;
+            // a picked-up weapon falls where you die; your tag lets a squadmate bring you back early
+            if (v.Special > 0) AddPickup(v.Special == GameConfig.Shotgun ? PickupType.Shotgun : PickupType.Smg, v.Pos + new Vec2(0.8f, 0.5f), -1);
+            v.Special = 0; v.Ammo = 0; v.Grenades = 0; v.Fists = false;
+            DropTag(v);
 
             // dropped keys can be stolen
             for (int i = 0; i < v.Keys; i++)
@@ -315,6 +375,8 @@ namespace Veil.Sim
             }
             Array.Clear(v.DamagedAt, 0, v.DamagedAt.Length);
             Events.Add(new SimEvent(EventType.Eliminated, killer, v.Id, 0, v.Pos));
+            OnBountyKill(v, killer);
+            CheckWipe(v, killer);
             CheckSquadWipe(v.Squad);
         }
 
@@ -322,8 +384,14 @@ namespace Veil.Sim
         {
             p.RespawnT -= dt;
             if (p.RespawnT > 0) return;
-            p.Pos = PickRespawnPoint(p);
+            Respawn(p, PickRespawnPoint(p));
+        }
+
+        private void Respawn(PlayerState p, Vec2 at)
+        {
+            p.Pos = at;
             p.Yaw = (-p.Pos).Yaw;
+            p.ReviveProg = 0;
             p.Health = GameConfig.MaxHealth;
             p.Alive = true;
             p.SpawnProtT = GameConfig.SpawnProtection;

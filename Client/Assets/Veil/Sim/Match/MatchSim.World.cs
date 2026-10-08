@@ -85,6 +85,7 @@ namespace Veil.Sim
             {
                 foreach (var p in Players)
                 {
+                    if (pk.Type == PickupType.Tag) break;   // tags are channelled (UpdateTags)
                     if (!p.Alive || p.Downed || Vec2.DistSq(p.Pos, pk.Pos) > r2 || p.H > 1.6f) continue;
                     if (!Collect(p, pk)) continue;
                     _collected.Add(pk.Id);
@@ -103,7 +104,7 @@ namespace Veil.Sim
                 {
                     var pk = Pickups[id];
                     Pickups.Remove(id);
-                    if (pk.Spot >= 0) _respawns.Add((1f, pk.Type));
+                    if (pk.Spot >= 0 && (pk.Type == PickupType.Core || pk.Type == PickupType.Key)) _respawns.Add((1f, pk.Type));
                     Events.Add(new SimEvent(EventType.PickupCollected, -1, id, (int)pk.Type, pk.Pos));
                 }
             }
@@ -128,6 +129,20 @@ namespace Veil.Sim
                     p.Keys++;
                     p.Score.Resources += GameConfig.KeyPoints;
                     if (pk.Spot >= 0) _respawns.Add((GameConfig.KeyRespawn, PickupType.Key));
+                    break;
+                case PickupType.Shotgun:
+                case PickupType.Smg:
+                {
+                    int w = pk.Type == PickupType.Shotgun ? GameConfig.Shotgun : GameConfig.Smg;
+                    if (p.Special == w && p.Ammo >= (w == GameConfig.Shotgun ? GameConfig.ShotgunAmmo : GameConfig.SmgAmmo)) return false;
+                    p.Special = (byte)w;
+                    p.Ammo = w == GameConfig.Shotgun ? GameConfig.ShotgunAmmo : GameConfig.SmgAmmo;
+                    p.Fists = false;
+                    break;
+                }
+                case PickupType.Grenades:
+                    if (p.Grenades >= GameConfig.MaxGrenades) return false;
+                    p.Grenades = Math.Min(GameConfig.MaxGrenades, p.Grenades + 2);
                     break;
             }
             Events.Add(new SimEvent(EventType.PickupCollected, p.Id, pk.Id, (int)pk.Type, pk.Pos));

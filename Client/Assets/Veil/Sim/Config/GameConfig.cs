@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 15;
+        public const int ProtocolVersion = 16;
 
         // ---- Simulation ----
         public const int TickRate = 30;
@@ -42,7 +42,7 @@ namespace Veil.Sim
         public const float StartEnergy = 50f;
         public const float HealthRegenDelay = 5f;
         public const float HealthRegenPerSec = 7f;
-        public const float RespawnTime = 5f;
+        public const float RespawnTime = 10f;              // squadmates can bring you back sooner from your tag
         public const float SpawnProtection = 2f;
 
         // ---- extraction mode (Rilo v2): Objective 1 → 2 → 3 → central Vault → Extraction, one winning squad ----
@@ -118,10 +118,37 @@ namespace Veil.Sim
             new WeaponStats { Cooldown = FireCooldown, Damage = ProjectileDamage, Range = ProjectileRange, Speed = ProjectileSpeed },
             new WeaponStats { Cooldown = 1.25f, Damage = 48f, Range = 75f, Speed = 1500f },   // sniper: 3 hits kill, slow, long reach
             new WeaponStats { Cooldown = 0.42f, Damage = 22f, Range = 2.4f, Speed = 900f },   // fists: close range only, quick, hits hard
+            new WeaponStats { Cooldown = 0.85f, Damage = 9f, Range = 13f, Speed = 900f },     // shotgun (pickup): 7 pellets, deadly up close
+            new WeaponStats { Cooldown = 0.1f, Damage = 6.5f, Range = 22f, Speed = 900f },    // SMG (pickup): fast, short reach
         };
+        public const int Shotgun = 3, Smg = 4;
+        public const int ShotgunPellets = 7;
+        public const float ShotgunSpread = 20f;          // degrees, whole fan
+        public const int ShotgunAmmo = 8, SmgAmmo = 45;
         public static WeaponStats Weapon(int w) => Weapons[Math.Clamp(w, 0, Weapons.Length - 1)];
-        /// <summary>What a player fires right now: fists when switched to them, else the chosen gun (rifle / sniper).</summary>
-        public static WeaponStats Current(int gun, bool fists) => fists ? Weapons[FistsWeapon] : Weapons[Math.Clamp(gun, 0, FistsWeapon - 1)];
+        /// <summary>What a player fires right now: fists when switched to them, else a picked-up weapon, else the chosen gun (rifle / sniper).</summary>
+        public static WeaponStats Current(int gun, bool fists, int special = 0) => fists ? Weapons[FistsWeapon] : special > 0 ? Weapons[special] : Weapons[Math.Clamp(gun, 0, FistsWeapon - 1)];
+        // fists are a real choice: faster on foot, silent (no minimap noise), heavy knockback
+        public const float FistsSpeedMult = 1.12f;
+        public const float FistsKnockback = 2.2f;
+        // grenades (pickup)
+        public const int MaxGrenades = 3;
+        public const float GrenadeSpeed = 22f, GrenadeRange = 24f, GrenadeRadius = 5f, GrenadeDamage = 65f;
+        // squad tags: a fallen player drops a tag; a squadmate standing on it redeploys them early
+        public const float TagRedeployTime = 2.5f, TagRadius = 1.8f;
+        // pings
+        public const float PingCooldown = 0.6f, PingRange = 70f;
+        // squad combos: Pulse overcharges nearby allies' shields, dashing next to an ally gives you both a speed burst
+        public const float ComboRadius = 10f, ComboShield = 20f, ComboSpeedTime = 2.5f;
+        // jump pads (map) and mantling over low cover
+        public const float PadRadius = 1.6f, PadUpVelocity = 13f, PadSpeed = 24f;
+        public const float MantleMaxHeight = 1.5f, MantleVelocity = 12.4f;   // a quick hop with short-hop gravity: apex ≈ 1.6 m
+        // random world events
+        public const float WorldEventFirst = 75f, WorldEventEvery = 95f;
+        public const float HackSurgeTime = 40f, HackSurgeMult = 2f;
+        public const float BountyTime = 45f; public const int BountyPoints = 200;
+        // comeback: the last squad, far behind, jams the leader once
+        public const float SabotageTime = 25f, SabotageSlow = 0.55f, SabotageReveal = 12f;
         public const float ScopeFov = 26f;
         public const float ProjectileHeight = 1.0f;
         public const float HitRadius = 0.55f;

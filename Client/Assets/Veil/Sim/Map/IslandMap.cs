@@ -161,6 +161,33 @@ namespace Veil.Sim
                 for (int j = 0; j < 3; j++)
                     m.SpawnPoints.Add(FreeSpot(m, m.SpawnPoints[s] + Vec2.FromYaw(j * 120f + 30f) * 4f, 1.2f));
 
+            // ---------------- cover at every objective site (capture pads on the cardinals, squad Vaults on the diagonals, r 100):
+            // four vaultable crates around each, so fights there aren't in open ground
+            for (int k = 0; k < 8; k++)
+            {
+                var site = Vec2.FromYaw(k * 45f) * 100f;
+                for (int j = 0; j < 4; j++)
+                {
+                    float a = k * 45f + 22.5f + j * 90f;
+                    var c = site + Vec2.FromYaw(a) * 8f;
+                    if (m.IsBlockedForStanding(c, 1.6f)) continue;
+                    Box(m, ObstacleKind.Crate, c, new Vec2(1.1f, 0.8f), a + 90f, 1.2f);
+                }
+            }
+
+            // ---------------- jump pads on every spoke road: one in front of the city heading out, one in the outer region heading in ----------------
+            for (int k = 0; k < 8; k++)
+            {
+                float yaw = k * 45f;
+                foreach (var (r, dir) in new[] { (80f, 1f), (142f, -1f) })
+                {
+                    var p = Vec2.FromYaw(yaw) * r;
+                    if (m.IsBlockedForStanding(p, GameConfig.PadRadius)) continue;
+                    m.JumpPads.Add(new JumpPad { Pos = p, Dir = Vec2.FromYaw(yaw) * dir });
+                    m.Decals.Add(new GroundDecal { Kind = 6, Center = p, Radius = GameConfig.PadRadius, Rot = (Vec2.FromYaw(yaw) * dir).Yaw });
+                }
+            }
+
             // ---------------- pickups: same pattern in every region ----------------
             for (int k = 0; k < 8; k++)
             {
@@ -176,6 +203,7 @@ namespace Veil.Sim
             reserved.AddRange(m.SpawnPoints); reserved.AddRange(m.KeySpots); reserved.AddRange(m.CoreSpots);
             foreach (var t in m.HomeTerminals) for (int a = 0; a < 8; a++) reserved.Add(t + Vec2.FromYaw(a * 45f) * 5f);
             foreach (var t in m.HomeTerminals) reserved.Add(t);
+            foreach (var jp in m.JumpPads) { reserved.Add(jp.Pos); reserved.Add(jp.Pos + jp.Dir * 14f); reserved.Add(jp.Pos + jp.Dir * 27f); }
 
             // ---------------- street furniture (solid, so nobody walks through lamps and benches) ----------------
             BuildFurniture(m, rng);
@@ -269,6 +297,7 @@ namespace Veil.Sim
             foreach (var q in m.CoreSpots) if (Vec2.Dist(p, q) < 2.5f) return;
             foreach (var q in m.KeySpots) if (Vec2.Dist(p, q) < 2.5f) return;
             foreach (var q in m.HomeTerminals) if (Vec2.Dist(p, q) < 9f) return;
+            foreach (var q in m.JumpPads) if (Vec2.Dist(p, q.Pos) < 4f) return;
             foreach (var d in m.Decals) if (d.Kind == 1 && Vec2.Dist(p, d.Center) < Math.Max(d.Half.X, d.Half.Y) + 2f) return;   // never on bridges
             var o = Circle(m, ObstacleKind.Decor, p, r, h);
             o.Rot = yaw; o.Variant = cat * 1000 + Math.Abs(v) % 1000;

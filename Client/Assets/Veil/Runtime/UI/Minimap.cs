@@ -42,6 +42,7 @@ namespace Veil.UI
                     foreach (var d in map.Decals)
                     {
                         if (d.Kind == 2 && Vec2.Dist(p, d.Center) < d.Radius) c = Palette.Stone * 0.8f;
+                        else if (d.Kind == 6) { if (Vec2.Dist(p, d.Center) < d.Radius + 1.5f) c = Palette.Hex("#5fd8ff"); }   // jump pad
                         else if (d.Kind != 2)
                         {
                             var l = Vec2.InverseRotateYaw(p - d.Center, d.Rot);
@@ -135,6 +136,9 @@ namespace Veil.UI
             return img;
         }
 
+        /// <summary>Extra markers for this frame (pings, events, alerts) — filled by HudExtras before Update.</summary>
+        public readonly List<(Vec2 pos, Sprite sprite, Color color, float size)> Blips = new List<(Vec2, Sprite, Color, float)>();
+
         public void Update(ClientMatch m, MatchView view, float cameraYaw)
         {
             var snap = m.Latest;
@@ -167,9 +171,11 @@ namespace Veil.UI
             {
                 if (pk.Type == PickupType.Orb) continue;
                 if (Vec2.Dist(pk.Pos, me.Pos) > 60) continue;
+                bool tag = pk.Type == PickupType.Tag;
+                if (tag && !m.IsAlly(pk.Spot)) continue;
                 var d = Dot();
-                d.sprite = pk.Type == PickupType.Key ? Icons.Key : Icons.Core;
-                d.color = pk.Type == PickupType.Key ? Palette.Key : Palette.Core;
+                d.sprite = tag ? Icons.Skull : MatchSim.IsLoot(pk.Type) ? Icons.Blaster : pk.Type == PickupType.Key ? Icons.Key : Icons.Core;
+                d.color = tag ? new Color(0.4f, 1f, 0.55f) : MatchSim.IsLoot(pk.Type) ? new Color(1f, 0.75f, 0.3f) : pk.Type == PickupType.Key ? Palette.Key : Palette.Core;
                 d.rectTransform.sizeDelta = new Vector2(14, 14);
                 d.rectTransform.anchoredPosition = W(pk.Pos);
                 d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
@@ -224,6 +230,14 @@ namespace Veil.UI
                 d.rectTransform.sizeDelta = ally && !decoy ? new Vector2(15, 15) : full ? new Vector2(12, 12) : new Vector2(18, 18);
                 d.rectTransform.anchoredPosition = W(a.Pos);
                 d.rectTransform.localRotation = Quaternion.identity;
+            }
+            foreach (var b in Blips)
+            {
+                var d = Dot();
+                d.sprite = b.sprite; d.color = b.color;
+                d.rectTransform.sizeDelta = new Vector2(b.size, b.size);
+                d.rectTransform.anchoredPosition = W(b.pos);
+                d.rectTransform.localRotation = Quaternion.Euler(0, 0, -cameraYaw);
             }
             for (int i = _used; i < _dots.Count; i++) _dots[i].gameObject.SetActive(false);
         }

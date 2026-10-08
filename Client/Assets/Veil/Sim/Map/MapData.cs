@@ -92,6 +92,12 @@ namespace Veil.Sim
         }
     }
 
+    /// <summary>Step on it: launched along Dir (Movement.Step).</summary>
+    public struct JumpPad
+    {
+        public Vec2 Pos, Dir;
+    }
+
     public sealed class ZoneDef
     {
         public int Id;
@@ -126,6 +132,7 @@ namespace Veil.Sim
         public readonly List<GroundDecal> Decals = new List<GroundDecal>();
         public readonly List<RegionDef> Regions = new List<RegionDef>();
         public readonly List<Vec2> HomeTerminals = new List<Vec2>();   // one per spawn region (Objective 1, home option)
+        public readonly List<JumpPad> JumpPads = new List<JumpPad>();   // launch pads along the long routes (Movement)
         public bool Island;
         public NavGrid Nav;
 
@@ -218,6 +225,29 @@ namespace Veil.Sim
             p.X = MathUtil.Clamp(p.X, -lim, lim);
             p.Y = MathUtil.Clamp(p.Y, -lim, lim);
             return hit;
+        }
+
+        /// <summary>The jump pad under p, or -1.</summary>
+        public int PadAt(Vec2 p)
+        {
+            float r2 = GameConfig.PadRadius * GameConfig.PadRadius;
+            for (int i = 0; i < JumpPads.Count; i++) if (Vec2.DistSq(JumpPads[i].Pos, p) <= r2) return i;
+            return -1;
+        }
+
+        /// <summary>Mantling: is the way ahead blocked only by something low enough to vault (crates, low walls)?</summary>
+        public bool CanMantle(Vec2 p, Vec2 dir, float r)
+        {
+            Vec2 probe = p + dir * (r + 0.35f);
+            bool low = false;
+            foreach (int oi in Query(probe))
+            {
+                var o = Obstacles[oi];
+                if (!o.BlocksMove || o.SignedDistance(probe) > 0.05f) continue;
+                if (o.Height > GameConfig.MantleMaxHeight || o.Kind == ObstacleKind.Water) return false;
+                low = true;
+            }
+            return low;
         }
 
         /// <summary>True if a point at the given height is inside something that stops projectiles.</summary>

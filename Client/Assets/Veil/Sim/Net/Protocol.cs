@@ -173,6 +173,7 @@ namespace Veil.Sim
             w.U8((byte)p.Keys); w.U8((byte)p.CoresCollected); w.U8((byte)(p.ZoneId + 1)); w.Time(p.VaultChannel);
             w.I32(p.CapturedMask); w.F32(p.TowerControlTime); w.U8((byte)p.Deaths); w.U8((byte)p.Elims);
             w.Bool(p.Downed); w.Time(p.BleedT); w.Unit(p.ReviveProg, 1f); w.U8((byte)(p.Reviving + 1)); w.U8((byte)p.Revives); w.U8((byte)p.Assists); w.U8((byte)(p.DownedBy + 1)); w.Bool(p.Fists);
+            w.U8(p.Special); w.U8((byte)p.Ammo); w.U8((byte)p.Grenades); w.Time(p.LaunchT); w.Unit(p.TagProg, 1f);
             WriteObjective(w, p.Primary); WriteObjective(w, p.Secondary);
             var sc = p.Score;
             w.I32(sc.Primary); w.I32(sc.Secondary); w.I32(sc.Resources); w.I32(sc.Territory); w.I32(sc.Eliminations); w.I32(sc.Survival); w.I32(sc.Bonus); w.I32(sc.Squad);
@@ -191,7 +192,7 @@ namespace Veil.Sim
             for (int i = 0; i < Math.Min(s.Projectiles.Count, 255); i++)
             {
                 var pr = s.Projectiles[i];
-                w.I32(pr.Id); w.U8((byte)pr.Owner); w.Vec(pr.Pos); w.VelQ(pr.Vel);
+                w.I32(pr.Id); w.U8((byte)pr.Owner); w.Vec(pr.Pos); w.VelQ(pr.Vel); w.U8(pr.Kind);
             }
 
             w.U8((byte)s.Zones.Length);
@@ -209,6 +210,7 @@ namespace Veil.Sim
             w.Bool(s.ExtractRevealed); w.Bool(s.ExtractContested); w.Vec(s.ExtractPos); w.U8((byte)(s.ExtractController + 1)); w.U8((byte)(s.Winner + 1));
             w.Bool(s.ExtractFinal); w.U8((byte)MathF.Ceiling(s.ExtractLockT)); w.Unit(s.ExtractSecure, 1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { w.U8(s.SquadStage[i]); w.U16((ushort)MathF.Round(s.SquadExtract[i] * 65535f)); }
+            w.Time(s.HackSurgeT); w.Time(s.JamT); w.U8((byte)(s.BountyTarget + 1));
         }
 
         private static void WriteObjective(ByteWriter w, ObjectiveState o)
@@ -240,6 +242,7 @@ namespace Veil.Sim
             p.Keys = r.U8(); p.CoresCollected = r.U8(); p.ZoneId = r.U8() - 1; p.VaultChannel = r.Time();
             p.CapturedMask = r.I32(); p.TowerControlTime = r.F32(); p.Deaths = r.U8(); p.Elims = r.U8();
             p.Downed = r.Bool(); p.BleedT = r.Time(); p.ReviveProg = r.Unit(1f); p.Reviving = r.U8() - 1; p.Revives = r.U8(); p.Assists = r.U8(); p.DownedBy = r.U8() - 1; p.Fists = r.Bool();
+            p.Special = r.U8(); p.Ammo = r.U8(); p.Grenades = r.U8(); p.LaunchT = r.Time(); p.TagProg = r.Unit(1f);
             ReadObjective(r, p.Primary); ReadObjective(r, p.Secondary);
             var sc = p.Score;
             sc.Primary = r.I32(); sc.Secondary = r.I32(); sc.Resources = r.I32(); sc.Territory = r.I32(); sc.Eliminations = r.I32(); sc.Survival = r.I32(); sc.Bonus = r.I32(); sc.Squad = r.I32();
@@ -256,7 +259,7 @@ namespace Veil.Sim
             }
             int np = r.U8();
             for (int i = 0; i < np; i++)
-                s.Projectiles.Add(new ProjectileSnap { Id = r.I32(), Owner = r.U8(), Pos = r.Vec(), Vel = r.VelQ() });
+                s.Projectiles.Add(new ProjectileSnap { Id = r.I32(), Owner = r.U8(), Pos = r.Vec(), Vel = r.VelQ(), Kind = r.U8() });
             int nz = r.U8();
             s.Zones = new ZoneSnap[nz];
             for (int i = 0; i < nz; i++)
@@ -276,6 +279,7 @@ namespace Veil.Sim
             s.ExtractRevealed = r.Bool(); s.ExtractContested = r.Bool(); s.ExtractPos = r.Vec(); s.ExtractController = r.U8() - 1; s.Winner = r.U8() - 1;
             s.ExtractFinal = r.Bool(); s.ExtractLockT = r.U8(); s.ExtractSecure = r.Unit(1f);
             for (int i = 0; i < GameConfig.SquadCount; i++) { s.SquadStage[i] = r.U8(); s.SquadExtract[i] = r.U16() / 65535f; }
+            s.HackSurgeT = r.Time(); s.JamT = r.Time(); s.BountyTarget = r.U8() - 1;
             return s;
         }
 

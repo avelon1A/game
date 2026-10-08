@@ -217,8 +217,10 @@ namespace Veil.Sim
                 p.ZoneId = Map.ZoneAt(p.Pos);
             }
 
+            SquadCombos();
             foreach (var p in Players) if (p.Alive && p.Downed) UpdateDowned(p, dt);
             UpdateProjectiles(dt);
+            UpdateSpice(dt);
             UpdateDecoys(dt);
             UpdatePickups(dt);
             UpdateZones(dt);

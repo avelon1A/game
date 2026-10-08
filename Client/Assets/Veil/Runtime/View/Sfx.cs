@@ -8,7 +8,7 @@ namespace Veil.Audio
     /// </summary>
     public static class Sfx
     {
-        public static AudioClip Step, Click, Hover, Shoot, Hit, HitMe, Dash, Pulse, Decoy, Orb, Core, Key, Capture, Vault, Eliminate, Beep, Start, Jump, Land, Objective, Error, Buy, Reveal;
+        public static AudioClip HitTick, Boom, PingSnd, Alarm, Step, Click, Hover, Shoot, Hit, HitMe, Dash, Pulse, Decoy, Orb, Core, Key, Capture, Vault, Eliminate, Beep, Start, Jump, Land, Objective, Error, Buy, Reveal;
         public static float Volume = 0.8f;
         public static float MusicVolume = 0.35f;
 
@@ -57,6 +57,15 @@ namespace Veil.Audio
             Objective = Tone(1.2f, t => (Sin(t, t < 0.2f ? 659 : t < 0.4f ? 784 : 1046) + Sin(t, 1318) * 0.3f) * Env(t, 1.2f, 0.005f) * 0.4f);
             Error = Tone(0.2f, t => Sq(t, 150) * Env(t, 0.2f, 0.002f) * 0.3f);
             Buy = Tone(0.3f, t => (Sin(t, 988) + Sin(t, 1318) * (t > 0.08f ? 1 : 0)) * Env(t, 0.3f, 0.002f) * 0.3f);
+            HitTick = Tone(0.06f, t => (Sin(t, 2200) * 0.7f + Sq(t, 1100) * 0.2f) * Env(t, 0.06f, 0.001f) * 0.45f);
+            float blp = 0;
+            Boom = Tone(1.1f, t =>
+            {
+                blp += (Noise() - blp) * Mathf.Lerp(0.5f, 0.03f, t / 1.1f);
+                return (blp * 1.4f + Sin(t, Mathf.Lerp(90, 30, t / 1.1f)) * 0.8f) * Env(t, 1.1f, 0.002f) * 0.7f;
+            });
+            PingSnd = Tone(0.32f, t => (Sin(t, t < 0.1f ? 1046 : 1568) * 0.7f + Sin(t, 2093) * 0.15f) * Env(t, 0.32f, 0.002f) * 0.35f);
+            Alarm = Tone(0.9f, t => Sq(t, (int)(t * 6) % 2 == 0 ? 740 : 554) * Env(t, 0.9f, 0.01f) * 0.22f);
             Reveal = Tone(0.6f, t => Sin(t, 440 + Mathf.Sin(t * 40) * 60) * Env(t, 0.6f, 0.01f) * 0.35f);
 
             _music = _host.AddComponent<AudioSource>();
@@ -86,6 +95,14 @@ namespace Veil.Audio
             s.maxDistance = 45;
             s.pitch = pitch * Random.Range(0.94f, 1.06f);
             s.PlayOneShot(clip, vol * Volume);
+        }
+
+        /// <summary>Finale: the music speeds up and gets louder while someone is about to win.</summary>
+        public static void SetIntense(bool on)
+        {
+            if (!_music) return;
+            _music.pitch = Mathf.MoveTowards(_music.pitch, on ? 1.14f : 1f, 0.02f);
+            _music.volume = Mathf.MoveTowards(_music.volume, on ? Mathf.Min(1f, MusicVolume * 1.5f) : MusicVolume, 0.02f);
         }
 
         public static void SetMusic(float v)

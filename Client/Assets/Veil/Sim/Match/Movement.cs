@@ -37,7 +37,7 @@ namespace Veil.Sim
                 events?.Add(new SimEvent(EventType.DashStart, p.Id, 0, 0, p.Pos));
             }
 
-            float speedMul = p.SpeedBuffT > 0 ? GameConfig.SpeedBuffMult : 1f;
+            float speedMul = (p.SpeedBuffT > 0 ? GameConfig.SpeedBuffMult : 1f) * (p.Fists ? GameConfig.FistsSpeedMult : 1f);
             if (p.SpeedBuffT > 0) p.SpeedBuffT = System.MathF.Max(0, p.SpeedBuffT - dt);
 
             Vec2 move = cmd.Move;
@@ -51,6 +51,12 @@ namespace Veil.Sim
                 p.DashT -= dt;
                 if (p.DashT <= 0) p.Vel = p.DashDir * speed;
             }
+            else if (p.LaunchT > 0)
+            {
+                // flying off a jump pad: keep the launch velocity, a little steering
+                p.LaunchT -= dt;
+                p.Vel = Vec2.MoveTowards(p.Vel, p.Vel.Normalized * GameConfig.PadSpeed + desired * 0.25f, GameConfig.AirAccel * 0.3f * dt);
+            }
             else
             {
                 float accel;
@@ -61,18 +67,41 @@ namespace Veil.Sim
                 p.Vel = Vec2.MoveTowards(p.Vel, desired, accel * dt);
             }
 
-            // ---- Jump ----
+            // ---- Jump pad ----
+            if (p.Grounded && p.DashT <= 0)
+            {
+                int pad = map.PadAt(p.Pos);
+                if (pad >= 0)
+                {
+                    var jp = map.JumpPads[pad];
+                    p.VH = GameConfig.PadUpVelocity;
+                    p.Vel = jp.Dir * GameConfig.PadSpeed;
+                    p.Grounded = false;
+                    p.LaunchT = 2.5f;
+                    p.JumpSeq++;
+                    events?.Add(new SimEvent(EventType.DashStart, p.Id, 1, 0, p.Pos));
+                }
+            }
+
+            // ---- Jump / mantle (running into low cover vaults over it) ----
             if (cmd.Has(Buttons.Jump) && p.Grounded)
             {
                 p.VH = GameConfig.JumpVelocity;
                 p.Grounded = false;
                 p.JumpSeq++;
             }
+            else if (p.Grounded && move.LengthSq > 0.25f && map.CanMantle(p.Pos, move.Normalized, GameConfig.PlayerRadius))
+            {
+                p.VH = GameConfig.MantleVelocity;
+                p.Grounded = false;
+                p.JumpSeq++;
+            }
             if (!p.Grounded)
             {
                 float g = GameConfig.Gravity;
+                bool held = cmd.Has(Buttons.Jump) || p.LaunchT > 0;
                 if (p.VH < 0) g *= GameConfig.FallGravityMult;
-                else if (!cmd.Has(Buttons.Jump)) g *= GameConfig.ShortHopGravityMult;
+                else if (!held) g *= GameConfig.ShortHopGravityMult;
                 p.VH -= g * dt;
                 p.H += p.VH * dt;
                 if (p.H <= 0)
@@ -80,6 +109,7 @@ namespace Veil.Sim
                     p.H = 0;
                     p.VH = 0;
                     p.Grounded = true;
+                    p.LaunchT = 0;
                     events?.Add(new SimEvent(EventType.Land, p.Id, 0, 0, p.Pos));
                 }
             }

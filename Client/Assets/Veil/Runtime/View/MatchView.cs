@@ -302,7 +302,7 @@ namespace Veil.View
             av.Alive = p.Alive;
             av.Downed = p.Alive && p.Downed;
             av.Reviving = snap != null && snap.Self.Reviving >= 0;
-            if (snap != null) av.Rig.SetFists(snap.Self.Fists);
+            if (snap != null) { av.Rig.SetFists(snap.Self.Fists); av.Rig.SetSpecial(snap.Self.Special > 0 ? snap.Self.Special - GameConfig.Shotgun + 1 : 0); }
             av.ReviveProg = snap != null ? snap.Self.ReviveProg : 0;
             av.Health01 = p.HealthFrac;
             av.Grounded = p.Grounded;
@@ -399,6 +399,7 @@ namespace Veil.View
                     av.Downed = src.Downed;
                     av.Reviving = src.Reviving;
                     av.Rig.SetFists(src.Fists);
+                    av.Rig.SetSpecial(src.Special);
                     av.ReviveProg = src.ReviveProg;
                     TriggerSeqs(av, src.FireSeq, src.CastSeq, src.HitSeq, src.JumpSeq, false);
                     av.Fade = Mathf.MoveTowards(av.Fade, av.Vis == Visibility.Full ? 1 : 0, dt * 5f);
@@ -444,11 +445,20 @@ namespace Veil.View
                     if (seen) { Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.95f : 0.75f, 0.55f); Sfx.PlayAt(Sfx.Hit, av.Pos + Vector3.up, local ? 0.4f : 0.3f, 0.5f); }
                     if (local) _cam.Shake(0.45f);
                 }
+                else if (av.Rig.Special == 1)
+                {
+                    // shotgun: wide flash, a fan of short streaks, a heavy boom
+                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.75f, 0.35f), 1.0f, 0.1f);
+                    if (seen) for (int i = 0; i < 5; i++) Tracer(av, false, (i / 4f - 0.5f) * GameConfig.ShotgunSpread);
+                    if (seen) { Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.9f : 0.7f, 0.6f); Sfx.PlayAt(Sfx.Hit, av.Pos + Vector3.up, local ? 0.5f : 0.35f, 0.7f); }
+                    if (local) _cam.Shake(0.35f);
+                }
                 else
                 {
-                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], 0.4f);
+                    bool smg = av.Rig.Special == 2;
+                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], smg ? 0.3f : 0.4f);
                     if (seen) Tracer(av, local);
-                    if (seen) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.55f : 0.45f);
+                    if (seen) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? (smg ? 0.4f : 0.55f) : 0.4f, smg ? 1.35f : 1f);
                 }
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }
@@ -466,17 +476,17 @@ namespace Veil.View
         }
 
         // instant hit-scan streak from the gun to where the shot lands (local: the predicted impact point)
-        private void Tracer(AvatarView av, bool local)
+        private void Tracer(AvatarView av, bool local, float yawOffset = 0f)
         {
             Vector3 from = av.Rig.BlasterTip ? av.Rig.BlasterTip.position : av.Pos + Vector3.up * (GameConfig.ProjectileHeight + 0.1f);
             Vector3 to;
             if (local && HasShotImpact) to = ShotImpact;
             else
             {
-                var dir = Vec2.FromYaw(av.Yaw);
+                var dir = Vec2.FromYaw(av.Yaw + yawOffset);
                 var start = new Vec2(av.Pos.x, av.Pos.z) + dir * 0.6f;
                 float d = 0;
-                float range = GameConfig.Current(av.Rig.Look.Weapon, av.Rig.FistsMode).Range;
+                float range = GameConfig.Current(av.Rig.Look.Weapon, av.Rig.FistsMode, av.Rig.Special > 0 ? av.Rig.Special + GameConfig.Shotgun - 1 : 0).Range;
                 for (; d < range; d += 0.4f)
                     if (Match.Map.BlocksShotAt(start + dir * d, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
                 var end = start + dir * Mathf.Min(d, range);
@@ -547,6 +557,8 @@ namespace Veil.View
             }, dt);
         }
 
+        private readonly Dictionary<int, Vec2> _grenadeStart = new Dictionary<int, Vec2>();
+
         private void UpdateProjectiles(Snapshot snap)
         {
             float ahead = Mathf.Clamp(Match.ServerNow - snap.Time, 0, 0.15f);
@@ -554,6 +566,24 @@ namespace Veil.View
             foreach (var kv in _projectiles) _scratch.Add(kv.Key);
             foreach (var p in snap.Projectiles)
             {
+                if (p.Kind == 2) continue;   // punches: no visible bolt
+                if (p.Kind == 1)
+                {
+                    // grenade: a glowing ball on an arc from where it was first seen
+                    if (!_projectiles.TryGetValue(p.Id, out var g))
+                    {
+                        g = Build.Part(Root, MeshGen.Sphere, MaterialLib.Toon(Palette.Hex("#2b2f3d"), 0.4f), Vector3.zero, Vector3.one * 0.32f, null, "Grenade", false);
+                        Build.Part(g.transform, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.45f, 0.2f), 3f), new Vector3(0, 0.45f, 0), Vector3.one * 0.4f, null, "Light", false);
+                        _projectiles[p.Id] = g;
+                        _grenadeStart[p.Id] = p.Pos;
+                    }
+                    _scratch.Remove(p.Id);
+                    var gp = p.Pos + p.Vel * ahead;
+                    float f = Mathf.Clamp01(Vec2.Dist(gp, _grenadeStart[p.Id]) / GameConfig.GrenadeRange);
+                    g.transform.position = new Vector3(gp.X, 1.2f + Mathf.Sin(f * Mathf.PI) * 3.2f - f * 0.9f, gp.Y);
+                    g.transform.Rotate(400f * Time.deltaTime, 0, 0);
+                    continue;
+                }
                 if (!_projectiles.TryGetValue(p.Id, out var go))
                 {
                     var owner = Match.Entry(p.Owner);
@@ -575,6 +605,7 @@ namespace Veil.View
             {
                 Object.Destroy(_projectiles[id]);
                 _projectiles.Remove(id);
+                _grenadeStart.Remove(id);
             }
         }
 
@@ -600,6 +631,47 @@ namespace Veil.View
                     Build.Part(go.transform, MeshGen.Ring(0.35f, 0.5f, 32), MaterialLib.Unlit(new Color(0.4f, 0.7f, 1f, 0.6f), MaterialLib.Blend.Additive), Vector3.up * 0.05f, Vector3.one * 1.6f, null, "Base", false);
                     Build.Part(go.transform, MeshGen.Cylinder(12), MaterialLib.Unlit(new Color(0.4f, 0.7f, 1f, 0.1f), MaterialLib.Blend.Additive), Vector3.up * 4f, new Vector3(0.5f, 8f, 0.5f), null, "Beam", false);
                     break;
+                case PickupType.Shotgun:
+                case PickupType.Smg:
+                case PickupType.Grenades:
+                {
+                    // loot: the weapon (or a grenade pair) spinning over a glowing orange base, with a short beacon
+                    var orange = new Color(1f, 0.6f, 0.2f);
+                    if (pk.Type == PickupType.Grenades)
+                    {
+                        var shell = MaterialLib.Toon(Palette.Hex("#3a4031"), 0.4f);
+                        Build.Part(body, MeshGen.Sphere, shell, new Vector3(-0.17f, 0, 0), Vector3.one * 0.3f, null, "G1");
+                        Build.Part(body, MeshGen.Sphere, shell, new Vector3(0.17f, 0, 0), Vector3.one * 0.3f, null, "G2");
+                        Build.Part(body, MeshGen.Cylinder(8), MaterialLib.Glow(orange, 3f), new Vector3(-0.17f, 0.17f, 0), new Vector3(0.08f, 0.08f, 0.08f), null, "Pin1", false);
+                        Build.Part(body, MeshGen.Cylinder(8), MaterialLib.Glow(orange, 3f), new Vector3(0.17f, 0.17f, 0), new Vector3(0.08f, 0.08f, 0.08f), null, "Pin2", false);
+                    }
+                    else
+                    {
+                        var prefab = Resources.Load<GameObject>("Weapons/" + (pk.Type == PickupType.Shotgun ? "blaster-g" : "blaster-j"));
+                        if (prefab != null)
+                        {
+                            var gun = Object.Instantiate(prefab, body, false);
+                            gun.transform.localRotation = Quaternion.Euler(0, 0, 90);
+                            gun.transform.localScale = Vector3.one * 1.6f;
+                            foreach (var r in gun.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                        }
+                    }
+                    Build.Part(go.transform, MeshGen.Ring(0.35f, 0.5f, 32), MaterialLib.Unlit(new Color(1f, 0.6f, 0.2f, 0.7f), MaterialLib.Blend.Additive), Vector3.up * 0.05f, Vector3.one * 1.8f, null, "Base", false);
+                    Build.Part(go.transform, MeshGen.Cylinder(12), MaterialLib.Unlit(new Color(1f, 0.6f, 0.2f, 0.12f), MaterialLib.Blend.Additive), Vector3.up * 2.5f, new Vector3(0.4f, 5f, 0.4f), null, "Beam", false);
+                    break;
+                }
+                case PickupType.Tag:
+                {
+                    // a fallen player's tag: their squad colour, only bright for their own squad
+                    bool ally = Match.IsAlly(pk.Spot);
+                    var c = ally ? new Color(0.4f, 1f, 0.55f) : new Color(1f, 0.4f, 0.45f);
+                    Build.Part(body, MeshGen.Box, MaterialLib.Toon(Palette.Hex("#c9ccd8"), 0.7f, 1f), Vector3.zero, new Vector3(0.36f, 0.5f, 0.05f), null, "Plate");
+                    Build.Part(body, MeshGen.Box, MaterialLib.Glow(c, 3f), new Vector3(0, 0, 0.03f), new Vector3(0.22f, 0.08f, 0.02f), null, "Bar", false);
+                    Build.Part(body, MeshGen.Box, MaterialLib.Glow(c, 3f), new Vector3(0, 0, 0.03f), new Vector3(0.08f, 0.22f, 0.02f), null, "Bar2", false);
+                    Build.Part(go.transform, MeshGen.Ring(0.42f, 0.5f, 32), MaterialLib.Unlit(new Color(c.r, c.g, c.b, 0.7f), MaterialLib.Blend.Additive), Vector3.up * 0.05f, Vector3.one * GameConfig.TagRadius * 2f, null, "Base", false);
+                    if (ally) Build.Part(go.transform, MeshGen.Cylinder(12), MaterialLib.Unlit(new Color(c.r, c.g, c.b, 0.15f), MaterialLib.Blend.Additive), Vector3.up * 5f, new Vector3(0.4f, 10f, 0.4f), null, "Beam", false);
+                    break;
+                }
                 default:
                 {
                     var gold = MaterialLib.Toon(Palette.Key, 0.6f, 1f);
@@ -677,10 +749,10 @@ namespace Veil.View
                 case EventType.PickupCollected:
                     if (e.A >= 0)
                     {
-                        var c = e.Value == (int)PickupType.Orb ? Palette.Energy : e.Value == (int)PickupType.Core ? Palette.Core : Palette.Key;
+                        var c = e.Value == (int)PickupType.Orb ? Palette.Energy : e.Value == (int)PickupType.Core ? Palette.Core : MatchSim.IsLoot((PickupType)e.Value) ? new Color(1f, 0.6f, 0.2f) : Palette.Key;
                         Fx.I.Flash(pos + Vector3.up * 0.8f, c, 0.8f, 0.15f);
                         if (e.Value != (int)PickupType.Orb) Fx.I.Shards(pos, c, 8);
-                        if (me) Sfx.Play(e.Value == (int)PickupType.Orb ? Sfx.Orb : e.Value == (int)PickupType.Core ? Sfx.Core : Sfx.Key, 0.6f, 1f + Random.Range(0, 0.1f));
+                        if (me) Sfx.Play(e.Value == (int)PickupType.Orb ? Sfx.Orb : e.Value == (int)PickupType.Core ? Sfx.Core : MatchSim.IsLoot((PickupType)e.Value) ? Sfx.Buy : Sfx.Key, 0.6f, 1f + Random.Range(0, 0.1f));
                     }
                     break;
                 case EventType.ZoneCaptured:
@@ -695,8 +767,20 @@ namespace Veil.View
                     Sfx.PlayAt(Sfx.Vault, pos, 1f);
                     break;
                 case EventType.DashStart:
-                    Sfx.PlayAt(Sfx.Dash, pos, me ? 0.7f : 0.5f);
+                    Sfx.PlayAt(Sfx.Dash, pos, me ? 0.7f : 0.5f, e.B == 1 ? 0.6f : 1f);
+                    if (e.B == 1) Fx.I.Column(pos, Palette.Hex("#5fd8ff"), 6f, 0.6f);   // jump pad launch
                     break;
+                case EventType.Explosion:
+                {
+                    Fx.I.Flash(pos + Vector3.up * 0.8f, new Color(1f, 0.8f, 0.4f), 3.2f, 0.18f);
+                    Fx.I.Flash(pos + Vector3.up * 0.8f, new Color(1f, 0.35f, 0.15f), 5f, 0.3f);
+                    Fx.I.PulseWave(pos, GameConfig.GrenadeRadius, new Color(1f, 0.5f, 0.2f));
+                    Fx.I.Shards(pos, new Color(1f, 0.6f, 0.25f), 18);
+                    Fx.I.Puff(pos, new Color(0.35f, 0.33f, 0.36f, 0.9f), 18, 1.3f);
+                    float d = Vector3.Distance(pos, Local.Pos);
+                    if (d < 22f) _cam.Shake(Mathf.Lerp(1.3f, 0.2f, d / 22f));
+                    break;
+                }
                 case EventType.ShieldBreak:
                     Fx.I.Shards(pos + Vector3.up, Palette.Energy, 12);
                     break;
