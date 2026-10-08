@@ -151,13 +151,14 @@ namespace Veil.View
         private Renderer _extractRing, _extractBeam;
         private Transform _heli, _heliRotor, _heliTail;
         private float _heliH = 32f, _heliYaw;
-        private bool _heliCalled;   // an eligible squad reached the zone: the helicopter has come down and stays down
+        private bool _heliCalled;
+        private Quaternion _rotorBase = Quaternion.identity;   // an eligible squad reached the zone: the helicopter has come down and stays down
 
         /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
         private void BuildHelicopter()
         {
             _heli = Build.Node(Root, "Helicopter", Vector3.zero);
-            // Meshy model (Tools/ai3d/blender/build_meshy_vehicle.py: nose forward, separate "Rotor"); procedural one as fallback
+            // Meshy model (Tools/ai3d/blender/build_meshy_vehicle.py: nose forward, spinning "Rotor" split off); procedural fallback below
             var prefab = Resources.Load<GameObject>("Vehicles/meshy_heli");
             if (prefab != null)
             {
@@ -171,8 +172,9 @@ namespace Veil.View
                 mat.SetFloat("_Ramp", 0.35f); mat.SetFloat("_ArtKeep", 0.6f); mat.SetFloat("_ShadowStrength", 0.6f);
                 mat.SetColor("_EmissionColor", Color.black);
                 foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = mat;
-                _heliRotor = FindChild(inst.transform, "Rotor") ?? Build.Node(_heli, "Rotor", Vector3.up * 6f);
-                _heliTail = Build.Node(_heli, "TailRotor", Vector3.zero);   // painted into the body
+                _heliRotor = FindChild(inst.transform, "Rotor") ?? Build.Node(_heli, "Rotor", Vector3.up * 4f);
+                _rotorBase = _heliRotor.localRotation;   // keep the import orientation, spin about the vertical
+                _heliTail = Build.Node(_heli, "TailRotor", Vector3.zero);
                 _heli.gameObject.SetActive(false);
                 return;
             }
@@ -303,7 +305,7 @@ namespace Veil.View
             _heli.position = heliPos;
             var face = Quaternion.LookRotation(_escDir);
             _heli.rotation = face * Quaternion.Euler(Mathf.Clamp(fly * 6f, 0, 14f), 0, Mathf.Sin(t * 0.8f) * 2f);
-            _heliRotor.localRotation = Quaternion.Euler(0, Time.time * 1600f, 0);
+            _heliRotor.localRotation = Quaternion.AngleAxis(Time.time * 1600f, Vector3.up) * _rotorBase;
             _heliTail.localRotation = Quaternion.Euler(Time.time * 2200f, 0, 0);
             _heliH = climb;
             // winners jog to the door (side of the cabin) and vanish inside
@@ -369,7 +371,7 @@ namespace Veil.View
             var q = Quaternion.Euler(0, _heliYaw, 0);
             _heli.position = centre + q * new Vector3(orbit, 0, 0) + Vector3.up * (_heliH + Mathf.Sin(Time.time * 1.7f) * 0.15f);
             _heli.rotation = q * Quaternion.Euler(orbit > 1f ? 8f : 0f, 0, 0);
-            _heliRotor.localRotation = Quaternion.Euler(0, Time.time * 1400f, 0);
+            _heliRotor.localRotation = Quaternion.AngleAxis(Time.time * 1400f, Vector3.up) * _rotorBase;
             _heliTail.localRotation = Quaternion.Euler(Time.time * 2000f, 0, 0);
         }
         private Material _xWhite, _xGreen, _xRed, _xGold;

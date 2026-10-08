@@ -1355,7 +1355,7 @@ namespace Veil.App
         // squad lobby: you centre-front, squadmates left, right and far right (stage local +X is screen-left)
         // dockyard lobby: you centre-front, squadmates left and right a step behind, the 4th further out (stage +X = screen-left)
         // you in front, two spots on the left (more free screen there, local +X is screen-left), one on the right
-        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.3f, 0, -0.3f), new Vector3(-1.3f, 0, -0.3f), new Vector3(2.7f, 0, -0.5f) };
+        private static readonly Vector3[] SquadSlots = { new Vector3(0, 0, 0.35f), new Vector3(1.0f, 0, -0.3f), new Vector3(-1.35f, 0, -0.3f), new Vector3(2.1f, 0, -0.6f) };
         public static Vector3[] Slots => SquadSlots;
         public const int LobbyLayer = 9;   // squad lobby renders only this layer, in front of the painted backdrop
         public bool SquadMode { get; private set; }
