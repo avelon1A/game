@@ -35,3 +35,8 @@ Tools/playit/
 Tools/assets_dl/
 *.key
 PlayStore/source/
+
+# Blender character master output (large binaries; rebuild with Tools/ai3d/blender/rilo_characters_master.py)
+Art/rilo_final/*.blend
+Art/rilo_final/*.blend1
+Art/rilo_final/fbx/
