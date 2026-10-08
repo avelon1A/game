@@ -361,7 +361,48 @@ namespace Veil.UI
         private Text _chat;
         private int _chatIdx;
         private float _chatT;
-        private Text _bpLevel;
+        private Text _bpLevel, _missionsLabel;
+        private RectTransform _missionsPanel;
+
+        /// <summary>Today's three missions (Progression.DailyMissions): progress from the backend profile, coins paid automatically.</summary>
+        private void ShowMissions(RectTransform anchor)
+        {
+            if (_missionsPanel != null) { UnityEngine.Object.Destroy(_missionsPanel.gameObject); _missionsPanel = null; }
+            var canvas = anchor.GetComponentInParent<Canvas>().transform;
+            _missionsPanel = UIKit.Fill(canvas, "Missions");
+            var block = UIKit.Image(_missionsPanel, UIKit.Square, new Color(0, 0, 0, 0.6f), true);
+            var close = _missionsPanel.gameObject.AddComponent<Button>(); close.targetGraphic = block;
+            close.onClick.AddListener(() => { UnityEngine.Object.Destroy(_missionsPanel.gameObject); _missionsPanel = null; });
+            var p = UIKit.At(_missionsPanel, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(680, 430));
+            UIKit.Image(p, UIKit.Rounded, new Color(0.07f, 0.08f, 0.18f, 0.97f), true);
+            var title = UIKit.LabelAt(p, "DAILY MISSIONS", 34, Color.white, new Vector2(0.5f, 1), new Vector2(0, -36), new Vector2(600, 44), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            title.fontStyle = FontStyle.Italic;
+            var now = System.DateTime.UtcNow;
+            var left = now.Date.AddDays(1) - now;
+            UIKit.LabelAt(p, $"New missions in {(int)left.TotalHours}h {left.Minutes:00}m · coins are paid when you finish one", 16, Theme.TextDim, new Vector2(0.5f, 1), new Vector2(0, -74), new Vector2(620, 24), TextAnchor.MiddleCenter, UIKit.BoldFont);
+            var op = _app.OnlineProfile;
+            int day = op != null && op.missionDay > 0 ? op.missionDay : Progression.Today;
+            var ms = Progression.DailyMissions(day);
+            var prog = Progression.ParseMissions(op?.missions, day);
+            for (int i = 0; i < ms.Length && ms[i] != null; i++)
+            {
+                var m = ms[i];
+                bool done = prog[i] >= m.Target;
+                var row = UIKit.At(p, "M" + i, new Vector2(0.5f, 1), new Vector2(0, -116 - i * 96), new Vector2(620, 84));
+                row.pivot = new Vector2(0.5f, 1);
+                UIKit.Image(row, UIKit.RoundedSmall, done ? new Color(0.25f, 0.6f, 0.35f, 0.35f) : new Color(1, 1, 1, 0.06f));
+                var t = UIKit.LabelAt(row, m.Title.ToUpper(), 22, Color.white, new Vector2(0, 1), new Vector2(20, -12), new Vector2(420, 30), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                t.rectTransform.pivot = new Vector2(0, 1);
+                var bar = new Bar(row, new Vector2(0, 0), new Vector2(20, 16), new Vector2(420, 12), done ? Theme.Green : Theme.Yellow, new Color(1, 1, 1, 0.12f));
+                bar.Root.pivot = new Vector2(0, 0);
+                bar.Set(Mathf.Clamp01(prog[i] / (float)m.Target), 100f);
+                var n = UIKit.LabelAt(row, $"{Mathf.Min(prog[i], m.Target):N0}/{m.Target:N0}", 16, Theme.TextDim, new Vector2(0, 0), new Vector2(450, 10), new Vector2(110, 24), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                n.rectTransform.pivot = new Vector2(0, 0);
+                var rw = UIKit.LabelAt(row, done ? "DONE ✓" : $"● {m.Reward}", 24, done ? Theme.Green : Theme.Gold, new Vector2(1, 0.5f), new Vector2(-20, 0), new Vector2(140, 36), TextAnchor.MiddleRight, UIKit.TitleFont);
+                rw.rectTransform.pivot = new Vector2(1, 0.5f);
+            }
+            if (op == null) UIKit.LabelAt(p, "Sign in and play online to track missions", 16, Theme.Red, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(620, 24), TextAnchor.MiddleCenter, UIKit.BoldFont);
+        }
         private Bar _bpBar;
 
         private void ToggleSquadList()
@@ -407,21 +448,23 @@ namespace Veil.UI
             _bpBar.Root.pivot = new Vector2(0, 0);
             var bb = bp.gameObject.AddComponent<Button>(); bb.targetGraphic = bpBg; bb.onClick.AddListener(() => Soon("BATTLE PASS"));
             // MISSIONS, DAILY REWARDS
-            void Row(string label, Sprite icon, float y, bool dot)
+            Text Row(string label, Sprite icon, float y, bool dot, System.Action onClick = null)
             {
                 var rt = UIKit.At(root, label, new Vector2(0, 1), new Vector2(0, y), new Vector2(440, 64));
                 rt.pivot = new Vector2(0, 1);
                 var bg = Dark(rt);
                 var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = bg;
-                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); Soon(label); });
+                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); if (onClick != null) onClick(); else Soon(label); });
                 rt.gameObject.AddComponent<ButtonFx>();
                 var ic = UIKit.At(rt, "I", new Vector2(0, 0.5f), new Vector2(22, 0), new Vector2(34, 34)); ic.pivot = new Vector2(0, 0.5f);
                 UIKit.Image(ic, icon, Color.white);
                 var l = UIKit.LabelAt(rt, label, 22, Color.white, new Vector2(0, 0.5f), new Vector2(76, 0), new Vector2(330, 36), TextAnchor.MiddleLeft, UIKit.BoldFont);
                 l.rectTransform.pivot = new Vector2(0, 0.5f);
                 if (dot) { var d = UIKit.At(rt, "Dot", new Vector2(1, 1), new Vector2(-10, -10), new Vector2(14, 14)); d.pivot = new Vector2(1, 1); UIKit.Image(d, UIKit.Circle, Theme.Red); }
+                l.supportRichText = true;
+                return l;
             }
-            Row("MISSIONS", Icons.Target, -334, false);
+            _missionsLabel = Row("MISSIONS", Icons.Target, -334, false, () => ShowMissions(root));
             Row("DAILY REWARDS", Icons.Key, -408, true);
             EnterFx.Add(root, new Vector2(48, 0), 0.06f);
         }
@@ -457,6 +500,14 @@ namespace Veil.UI
             if (_chatT > 6f) { _chatT = 0; _chatIdx = (_chatIdx + 1) % ChatLines.Length; _chat.text = ChatLines[_chatIdx]; }
             var op = _app.OnlineProfile;
             _bpLevel.text = op != null ? op.level.ToString() : "1";
+            if (_missionsLabel != null)
+            {
+                int day = op != null && op.missionDay > 0 ? op.missionDay : Progression.Today;
+                var ms = Progression.DailyMissions(day);
+                var pr = Progression.ParseMissions(op?.missions, day);
+                int done = 0; for (int i = 0; i < ms.Length && ms[i] != null; i++) if (pr[i] >= ms[i].Target) done++;
+                _missionsLabel.text = $"MISSIONS  <color=#ffd84a>{done}/{ms.Length}</color>";
+            }
             _bpBar.Set(op != null && op.xpToNext > 0 ? (float)op.xp / op.xpToNext : 0f, dt);
             bool show = _app.State == GameApp.AppState.Menu && _app.Cam != null && !_squadPanel.gameObject.activeSelf;
             var slots = Veil.App.Stage.Slots;

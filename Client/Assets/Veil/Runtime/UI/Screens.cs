@@ -323,7 +323,9 @@ namespace Veil.UI
             var g = App.Gateway;
             _profileFace.texture = PortraitStudio.Get(App.Profile.Look);
             _profileName.text = App.Profile.Name;
-            _profileStatus.text = "";
+            // ranked tier from the rating (Progression.Tiers)
+            _profileStatus.text = op != null && op.matches > 0 ? $"<color={Progression.TierColor(op.rating)}>{Progression.TierName(op.rating)}</color>" : "";
+            UIKit.Fit(_profileStatus, 9);
             _profileLevel.text = op != null ? $"Lv. {op.level}" : "Lv. 1";
             _xpBar.Set(op != null && op.xpToNext > 0 ? (float)op.xp / op.xpToNext : 0f, 10f);
             _coins.text = App.Coins.ToString("N0");
@@ -383,6 +385,13 @@ namespace Veil.UI
             {
                 var it = StoreCatalog.Get(StoreCatalog.HeroId(i));
                 if (it != null && !App.Owns(it.Id)) outfitNames[i] = $"{outfitNames[i]} ●{it.Price}";
+                else
+                {
+                    // hero level from playing that hero (Progression.HeroLevel)
+                    var hx = Progression.ParseHeroXp(App.OnlineProfile?.heroXp);
+                    int lv = Progression.HeroLevel(hx.TryGetValue(i, out var x) ? x : 0);
+                    if (lv > 1) outfitNames[i] = $"{outfitNames[i]} Lv{lv}";
+                }
             }
             ChipRow r1 = null;
             r1 = new ChipRow(p, new Vector2(0, 1), new Vector2(30, -210), "HERO", outfitNames, prof.Look.Outfit, i =>
@@ -616,8 +625,8 @@ namespace Veil.UI
             ((RectTransform)face.transform.parent).anchorMin = ((RectTransform)face.transform.parent).anchorMax = new Vector2(0, 0.5f);
             var nm = UIKit.LabelAt(card, me != null ? me.name : App.Profile.Name, 26, Color.white, new Vector2(0, 1), new Vector2(124, -14), new Vector2(330, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
             nm.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(nm, 14);
-            var lv = UIKit.LabelAt(card, me != null ? $"LEVEL {me.level}  ·  {me.xp}/{me.xpToNext} XP" : "Play online to get ranked", 15, Theme.PurpleLight, new Vector2(0, 1), new Vector2(124, -48), new Vector2(330, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
-            lv.rectTransform.pivot = new Vector2(0, 1);
+            var lv = UIKit.LabelAt(card, me != null ? $"<color={Progression.TierColor(me.rating)}>{Progression.TierName(me.rating)}</color>  ·  LEVEL {me.level}  ·  {me.xp}/{me.xpToNext} XP" : "Play online to get ranked", 15, Theme.PurpleLight, new Vector2(0, 1), new Vector2(124, -48), new Vector2(330, 20), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            lv.rectTransform.pivot = new Vector2(0, 1); lv.supportRichText = true;
             var trophy = UIKit.At(card, "Trophy", new Vector2(1, 1), new Vector2(-24, -20), new Vector2(34, 34));
             trophy.pivot = new Vector2(1, 1);
             UIKit.Image(trophy, Icons.Trophy, Gold);
@@ -660,7 +669,7 @@ namespace Veil.UI
                 block.pivot = new Vector2(0.5f, 0);
                 UIKit.Image(block, UIKit.RoundedSmall, new Color(pc[k].r * 0.75f, pc[k].g * 0.75f, pc[k].b * 0.75f, 0.95f));
                 var bn = UIKit.LabelAt(block, pl.name, 18, new Color(0.1f, 0.08f, 0.16f), new Vector2(0.5f, 1), new Vector2(0, -16), new Vector2(184, 24), TextAnchor.MiddleCenter, UIKit.TitleFont); UIKit.Fit(bn, 11);
-                var br = UIKit.LabelAt(block, $"{pl.rating}", 15, new Color(0.15f, 0.1f, 0.2f), new Vector2(0.5f, 1), new Vector2(0, -38), new Vector2(184, 20), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                var br = UIKit.LabelAt(block, $"{Progression.TierName(pl.rating)} · {pl.rating}", 15, new Color(0.15f, 0.1f, 0.2f), new Vector2(0.5f, 1), new Vector2(0, -38), new Vector2(184, 20), TextAnchor.MiddleCenter, UIKit.BoldFont);
                 var ring = UIKit.At(col, "Ring", new Vector2(0.5f, 0), new Vector2(0, ph[k] + 8), new Vector2(84, 84));
                 ring.pivot = new Vector2(0.5f, 0);
                 UIKit.Image(ring, UIKit.Circle, pc[k]);
@@ -690,7 +699,7 @@ namespace Veil.UI
                 SocialUi.Portrait(row, SocialUi.ParseLook(pl.appearance), 36, new Vector2(70, 0));
                 var rn = UIKit.LabelAt(row, mine ? pl.name + "  (YOU)" : pl.name, 18, ink, new Vector2(0, 0.5f), new Vector2(116, 0), new Vector2(300, 30), TextAnchor.MiddleLeft, UIKit.BoldFont);
                 rn.rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(rn, 11);
-                var rl = UIKit.LabelAt(row, $"LV {pl.level}", 15, dim, new Vector2(1, 0.5f), new Vector2(-250, 0), new Vector2(90, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                var rl = UIKit.LabelAt(row, Progression.TierName(pl.rating), 15, mine ? dim : Palette.Hex(Progression.TierColor(pl.rating)), new Vector2(1, 0.5f), new Vector2(-250, 0), new Vector2(90, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
                 var rw = UIKit.LabelAt(row, $"{pl.wins} W", 15, dim, new Vector2(1, 0.5f), new Vector2(-160, 0), new Vector2(80, 30), TextAnchor.MiddleCenter, UIKit.BoldFont);
                 var rr = UIKit.LabelAt(row, pl.rating.ToString(), 20, ink, new Vector2(1, 0.5f), new Vector2(-56, 0), new Vector2(90, 30), TextAnchor.MiddleRight, UIKit.TitleFont);
                 var ti = UIKit.At(row, "Trophy", new Vector2(1, 0.5f), new Vector2(-24, 0), new Vector2(22, 22));
@@ -1019,8 +1028,10 @@ namespace Veil.UI
                 App.OnlineProfile = p;
                 int d = p.rating - oldRating;
                 int dc = p.coins - oldCoins;
-                _level.text = $"LEVEL <color=#ffd84a>{p.level}</color>  {p.xp}/{p.xpToNext} XP  ·  RATING {p.rating} <color={(d >= 0 ? "#7dff9a" : "#ff7a8a")}>({(d >= 0 ? "+" : "")}{d})</color>" +
+                bool promoted = oldRating > 0 && Progression.TierIndex(p.rating) > Progression.TierIndex(oldRating);
+                _level.text = $"LEVEL <color=#ffd84a>{p.level}</color>  {p.xp}/{p.xpToNext} XP  ·  <color={Progression.TierColor(p.rating)}>{Progression.TierName(p.rating)}</color> {p.rating} <color={(d >= 0 ? "#7dff9a" : "#ff7a8a")}>({(d >= 0 ? "+" : "")}{d})</color>" +
                               (dc > 0 ? $"  ·  <color=#ffd84a>+{dc} COINS</color>" : "");
+                if (promoted) App.Toast($"RANK UP! You reached {Progression.TierName(p.rating)}");
                 _xp.Root.gameObject.SetActive(true);
                 _xp.Set(p.xpToNext > 0 ? (float)p.xp / p.xpToNext : 0, 10f);
             }, e => { });

@@ -30,6 +30,9 @@ namespace Veil.Server
         public string handle { get; set; }   // Name#1234 — what friends type to add you
         public int coins { get; set; }
         public string owned { get; set; }    // StoreCatalog ids, comma separated (free items implied)
+        public string heroXp { get; set; }   // "outfit:xp,..." (Progression.HeroLevel)
+        public string missions { get; set; } // "day|p0,p1,p2" (Progression.DailyMissions)
+        public int missionDay { get; set; }  // today's index, so the client shows the same three missions
     }
 
     /// <summary>A friend (or request) as shown in the friends list.</summary>
@@ -91,6 +94,8 @@ CREATE TABLE IF NOT EXISTS friend_requests(
             AddColumn("players", "email", "TEXT NOT NULL DEFAULT ''");
             AddColumn("players", "coins", $"INTEGER NOT NULL DEFAULT {StoreCatalog.StarterCoins}");
             AddColumn("players", "owned", "TEXT NOT NULL DEFAULT ''");
+            AddColumn("players", "hero_xp", "TEXT NOT NULL DEFAULT ''");
+            AddColumn("players", "missions", "TEXT NOT NULL DEFAULT ''");
             Exec("CREATE UNIQUE INDEX IF NOT EXISTS players_google ON players(google_sub) WHERE google_sub <> ''");
             AddColumn("match_players", "squad_rank", "INTEGER NOT NULL DEFAULT 0");
             // older rows: give every player a discriminator so handles are unique
@@ -390,6 +395,9 @@ CREATE TABLE IF NOT EXISTS friend_requests(
                 appearance = r.GetString(r.GetOrdinal("appearance")),
                 coins = r.GetInt32(r.GetOrdinal("coins")),
                 owned = StoreCatalog.Join(StoreCatalog.Parse(r.GetString(r.GetOrdinal("owned")))),
+                heroXp = r.GetString(r.GetOrdinal("hero_xp")),
+                missions = r.GetString(r.GetOrdinal("missions")),
+                missionDay = Progression.Today,
             };
         }
 
@@ -427,13 +435,34 @@ CREATE TABLE IF NOT EXISTS friend_requests(
                     int delta = (int)MathF.Round(32 * (placement - 0.5f) * 2f + MathUtil.Clamp((share - 0.25f) * 24f, -6f, 6f));
                     int xpGain = 50 + res.Total / 10 + (res.SquadRank == 1 ? 100 : 0);
                     int objectives = (res.PrimaryDone ? 1 : 0) + (res.SecondaryDone ? 1 : 0);
+                    // hero level (coins per level-up) and today's missions (coins per completed mission)
+                    string heroXp = "", missions = "";
+                    using (var q = c.CreateCommand())
+                    {
+                        q.Transaction = tx;
+                        q.CommandText = "SELECT hero_xp, missions FROM players WHERE id=$id";
+                        q.Parameters.AddWithValue("$id", pid);
+                        using var hr = q.ExecuteReader();
+                        if (hr.Read()) { heroXp = hr.GetString(0); missions = hr.GetString(1); }
+                    }
+                    var hx = Progression.ParseHeroXp(heroXp);
+                    int hero = res.Look.Outfit;
+                    hx.TryGetValue(hero, out int hxBefore);
+                    int hxAfter = hxBefore + Progression.HeroMatchXp(res);
+                    int bonusCoins = (Progression.HeroLevel(hxAfter) - Progression.HeroLevel(hxBefore)) * Progression.HeroLevelCoins;
+                    hx[hero] = hxAfter;
+                    missions = Progression.ApplyMatch(missions, res, Progression.Today, out int missionCoins, out _);
+                    bonusCoins += missionCoins;
                     using var cmd = c.CreateCommand();
                     cmd.Transaction = tx;
                     cmd.CommandText = @"UPDATE players SET xp = xp + $xp, rating = MAX(0, rating + $dr), matches = matches + 1, coins = coins + $coins,
+                        hero_xp = $hx, missions = $ms,
                         wins = wins + $win, top3 = top3 + $top3, best_score = MAX(best_score, $s), total_score = total_score + $s,
                         eliminations = eliminations + $k, deaths = deaths + $dth, objectives = objectives + $o WHERE id = $id";
                     cmd.Parameters.AddWithValue("$xp", xpGain);
-                    cmd.Parameters.AddWithValue("$coins", StoreCatalog.MatchCoins(res.SquadRank, res.Elims, false));
+                    cmd.Parameters.AddWithValue("$coins", StoreCatalog.MatchCoins(res.SquadRank, res.Elims, res.SquadRank == 1 && GameConfig.ExtractionMode) + bonusCoins);
+                    cmd.Parameters.AddWithValue("$hx", Progression.JoinHeroXp(hx));
+                    cmd.Parameters.AddWithValue("$ms", missions);
                     cmd.Parameters.AddWithValue("$dr", delta);
                     cmd.Parameters.AddWithValue("$win", res.SquadRank == 1 ? 1 : 0);
                     cmd.Parameters.AddWithValue("$top3", res.SquadRank <= 2 ? 1 : 0);

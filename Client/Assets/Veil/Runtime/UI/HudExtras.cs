@@ -50,7 +50,7 @@ namespace Veil.UI
             UIKit.Outline(_weapon, new Color(0, 0, 0, 0.8f), 2);
             _tag = UIKit.LabelAt(root, "", 26, Theme.Green, new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(800, 36), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_tag, new Color(0, 0, 0, 0.85f), 2);
-            _finale = UIKit.LabelAt(root, "", 96, Theme.Red, new Vector2(0.5f, 0.5f), new Vector2(0, 230), new Vector2(400, 120), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _finale = UIKit.LabelAt(root, "", 84, Theme.Red, new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(400, 100), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_finale, new Color(0, 0, 0, 0.9f), 4);
         }
 
