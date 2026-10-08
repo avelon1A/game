@@ -1391,8 +1391,58 @@ namespace Veil.App
 
         public void UpdateLook(Appearance mine)
         {
+            bool newHero = _rigs[0].Look.Outfit != mine.Outfit;
             _rigs[0].Rebuild(mine);
             if (SquadMode || SoloMode) SetLayer(_rigs[0].transform, LobbyLayer);   // rebuilt parts must stay on the lobby layer
+            if (newHero) Summon();
+        }
+
+        // ---- hero switch: the new hero beams in — light column + ground ring + scale pop with a little overshoot
+        private Transform _beam, _ring;
+        private Material _beamMat, _ringMat;
+        private float _summonT = -1f;
+        private const float SummonTime = 0.7f;
+
+        private void Summon()
+        {
+            if (_beam == null)
+            {
+                _beamMat = MaterialLib.UnlitInstance(new Color(1f, 0.85f, 0.35f, 0.8f), MaterialLib.Blend.Additive);
+                _ringMat = MaterialLib.UnlitInstance(new Color(1f, 0.9f, 0.5f, 0.9f), MaterialLib.Blend.Additive);
+                _beam = Build.Part(_root, MeshGen.Cylinder(24), _beamMat, Vector3.zero, Vector3.one, null, "SummonBeam", false).transform;
+                _ring = Build.Part(_root, MeshGen.Ring(0.85f, 1f, 48), _ringMat, Vector3.zero, Vector3.one, null, "SummonRing", false).transform;
+            }
+            _summonT = 0f;
+            Audio.Sfx.Play(Audio.Sfx.Reveal, 0.7f, 1.2f);
+        }
+
+        private void UpdateSummon(float dt)
+        {
+            if (_beam == null) return;
+            bool on = _summonT >= 0f && _summonT < SummonTime;
+            _beam.gameObject.SetActive(on); _ring.gameObject.SetActive(on);
+            if (_summonT < 0f) return;
+            _summonT += dt;
+            float k = Mathf.Clamp01(_summonT / SummonTime);
+            var hero = _rigs[0].transform;
+            Vector3 at = hero.localPosition;
+            int layer = hero.gameObject.layer;
+            _beam.gameObject.layer = layer; _ring.gameObject.layer = layer;
+            // beam: shoots up thin and bright, widens, fades
+            float bw = Mathf.Lerp(0.15f, 1.3f, Mathf.Sqrt(k));
+            _beam.localPosition = at + Vector3.up * 2.5f;
+            _beam.localScale = new Vector3(bw, 5f, bw);
+            _beamMat.color = new Color(1f, 0.85f, 0.35f, 0.85f * (1 - k) * (1 - k));
+            // ring: expands across the floor
+            float rr = Mathf.Lerp(0.3f, 2.4f, k);
+            _ring.localPosition = at + Vector3.up * 0.03f;
+            _ring.localScale = new Vector3(rr, 1, rr);
+            _ringMat.color = new Color(1f, 0.9f, 0.5f, 0.9f * (1 - k));
+            // hero: grows in from small with an overshoot (easeOutBack)
+            const float c1 = 1.9f, c3 = c1 + 1f;
+            float e = 1f + c3 * Mathf.Pow(k - 1f, 3) + c1 * Mathf.Pow(k - 1f, 2);
+            hero.localScale = Vector3.one * Mathf.Lerp(0.05f, 1f, Mathf.Clamp(e, 0f, 1.12f));
+            if (k >= 1f) { hero.localScale = Vector3.one; _summonT = -1f; }
         }
 
         /// <summary>Results: the winning squad's players on glowing podiums — MVP (index 0) on the tall gold one in the
@@ -1428,6 +1478,7 @@ namespace Veil.App
         {
             if (!_root.gameObject.activeSelf) return;
             _t += dt;
+            UpdateSummon(dt);
             for (int i = 0; i < 5; i++)
             {
                 if (!_rigs[i].gameObject.activeSelf) continue;
