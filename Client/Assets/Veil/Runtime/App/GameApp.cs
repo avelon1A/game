@@ -72,8 +72,7 @@ namespace Veil.App
         private float _endTimer = -1;
         private bool _paused;
         public static bool Scoped { get; private set; }
-        public static readonly float[] ScopeFovs = { 28f, 15f, 7.5f };   // 2x, 4x, 8x
-        public static float ScopeFov => ScopeFovs[Mathf.Clamp(VirtualInput.ScopeZoom, 0, 2)];
+        public static float ScopeFov => 56f / VirtualInput.ScopeMag;   // 2x = 28°, 8x = 7°
         private string _shotDir;
         private bool _tutorialTest, _foundTest, _resultsTest, _ruinsTest;
         private float _fitT;
@@ -898,10 +897,9 @@ namespace Veil.App
                         if (Mouse.current != null && !Platform.IsMobile)
                         {
                             float wheel = Mouse.current.scroll.ReadValue().y;
-                            if (wheel > 0.5f) VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1);
-                            else if (wheel < -0.5f) VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1);
+                            if (Mathf.Abs(wheel) > 0.5f) VirtualInput.ScopeZoomT = Mathf.Clamp01(VirtualInput.ScopeZoomT + Mathf.Sign(wheel) * 0.1f);
                         }
-                        fov = ScopeFovs[Mathf.Clamp(VirtualInput.ScopeZoom, 0, 2)];
+                        fov = ScopeFov;
                     }
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;

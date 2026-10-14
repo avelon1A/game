@@ -155,8 +155,8 @@ namespace Veil.Sim
         public const float ScopeFov = 26f;
         public const float ProjectileHeight = 1.0f;
         public const float MuzzleHeight = 1.35f;          // shots start at chest height and fly where the crosshair points
-        public const float BodyHeight = 1.85f, DownedBodyHeight = 0.7f;
-        public const float HeadHeight = 1.5f;             // hits above this (from the feet) are headshots
+        public const float BodyHeight = 2.05f, DownedBodyHeight = 0.7f;   // heroes are ~2 m tall: the hit box covers the whole head
+        public const float HeadHeight = 1.6f;             // hits above this (from the feet, neck up) are headshots
         public const float HeadshotMultiplier = 1.8f;
         public const float SniperHeadshotMultiplier = 2.5f;   // 150: one headshot kills even through a full shield
         public const float RifleBloomPerShot = 0.55f, RifleBloomMax = 3.5f, BloomRecover = 7f;   // first shot exact, sprays spread

@@ -59,14 +59,27 @@ namespace Veil.UI
             _scope.OnTap = () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn;
             // gun <-> fists: a round icon button like the other controls
             _switch = Btn("FISTS", Icons.Fist, new Vector2(-520, 110), 104, Theme.Text, false, Buttons.Switch);
-            // scope zoom − 4x + (only while scoped)
-            _zoom = UIKit.At(Root, "ScopeZoom", new Vector2(1, 0.5f), new Vector2(-330, 150), new Vector2(240, 76));
+            // scope zoom: vertical slider (up = zoom in, 2x..8x), only while scoped
+            _zoom = UIKit.At(Root, "ScopeZoom", new Vector2(1, 0.5f), new Vector2(-300, 110), new Vector2(90, 380));
             _zoom.pivot = new Vector2(0.5f, 0.5f);
-            UIKit.Image(_zoom, UIKit.Pill, new Color(0.03f, 0.03f, 0.1f, 0.75f), true);
-            UIKit.Button(_zoom, "−", new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(68, 64), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1), 36);
-            UIKit.Button(_zoom, "+", new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(68, 64), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1), 36);
-            _zoomLabel = UIKit.Label(_zoom, "4x", 28, Theme.Yellow, TextAnchor.MiddleCenter, UIKit.TitleFont);
+            UIKit.Image(_zoom, UIKit.Pill, new Color(0.03f, 0.03f, 0.1f, 0.6f), true);
+            _zoomLabel = UIKit.LabelAt(_zoom, "4x", 26, Theme.Yellow, new Vector2(0.5f, 1), new Vector2(0, 26), new Vector2(120, 36), TextAnchor.MiddleCenter, UIKit.TitleFont);
             _zoomLabel.raycastTarget = false;
+            var track = UIKit.Rect(_zoom, "Track", new Vector2(0.5f, 0), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(14, -60));
+            UIKit.Image(track, UIKit.Pill, new Color(1, 1, 1, 0.2f), true);
+            var fillArea = UIKit.Rect(track, "FillArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            var fill = UIKit.Rect(fillArea, "Fill", Vector2.zero, new Vector2(1, 0), new Vector2(0.5f, 0), Vector2.zero, Vector2.zero);
+            UIKit.Image(fill, UIKit.Pill, Theme.Yellow);
+            var handleArea = UIKit.Rect(track, "HandleArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(0, -36));
+            var handle = UIKit.Rect(handleArea, "Handle", new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56, 36));
+            var hImg = UIKit.Image(handle, UIKit.Circle, Color.white, true);
+            _zoomSlider = track.gameObject.AddComponent<Slider>();
+            _zoomSlider.direction = Slider.Direction.BottomToTop;
+            _zoomSlider.fillRect = fill; _zoomSlider.handleRect = handle; _zoomSlider.targetGraphic = hImg;
+            _zoomSlider.minValue = 0f; _zoomSlider.maxValue = 1f; _zoomSlider.value = VirtualInput.ScopeZoomT;
+            _zoomSlider.onValueChanged.AddListener(v => VirtualInput.ScopeZoomT = v);
+            var tmin = UIKit.LabelAt(_zoom, "2x", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(60, 20), TextAnchor.MiddleCenter, UIKit.BoldFont);
+            tmin.raycastTarget = false;
             Reg(_zoom, "zoom");
             // grenade throw (only while carrying some)
             _grenade = UIKit.Button(Root, "GRENADE", new Vector2(1, 0), new Vector2(-520, 250), new Vector2(130, 64), UIKit.ButtonStyle.Primary, () => VirtualInput.Press(Buttons.Grenade), 18);
@@ -108,6 +121,7 @@ namespace Veil.UI
         private UnityEngine.UI.Button _grenade;
         private RectTransform _zoom;
         private Text _zoomLabel;
+        private Slider _zoomSlider;
         private ActionButton _scope;
 
         private void Reg(RectTransform rt, string key)
@@ -192,7 +206,7 @@ namespace Veil.UI
             if (!sniper) VirtualInput.ScopeOn = false;
             bool scoped = Veil.App.GameApp.Scoped;
             if (_zoom.gameObject.activeSelf != scoped) _zoom.gameObject.SetActive(scoped);
-            if (scoped) _zoomLabel.text = VirtualInput.ScopeZoom == 0 ? "2x" : VirtualInput.ScopeZoom == 1 ? "4x" : "8x";
+            if (scoped) { _zoomLabel.text = $"{VirtualInput.ScopeMag:0.0}x"; if (Mathf.Abs(_zoomSlider.value - VirtualInput.ScopeZoomT) > 0.001f) _zoomSlider.SetValueWithoutNotify(VirtualInput.ScopeZoomT); }
             _scope.SetFace(Icons.Target, VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE");
             bool market = me.Alive && me.ZoneId >= 0 && _m.Map.Zones[me.ZoneId].Type == ZoneType.Market;
             if (_market.gameObject.activeSelf != market) _market.gameObject.SetActive(market);

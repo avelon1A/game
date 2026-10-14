@@ -172,8 +172,6 @@ namespace Veil.UI
             // zoom levels while scoped: − 4x +
             var zoom = UIKit.At(_scope, "Zoom", new Vector2(1, 0.5f), new Vector2(-170, 120), new Vector2(240, 76));
             UIKit.Image(zoom, UIKit.Pill, new Color(0.03f, 0.03f, 0.1f, 0.7f), true);
-            UIKit.Button(zoom, "−", new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(64, 60), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1), 34);
-            UIKit.Button(zoom, "+", new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(64, 60), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1), 34);
             _zoomLabel = UIKit.Label(zoom, "4x", 28, Theme.Yellow, TextAnchor.MiddleCenter, UIKit.TitleFont);
             if (mobile) zoom.gameObject.SetActive(false);   // phones: the touch layer has its own zoom buttons
             _scope.gameObject.SetActive(false);
@@ -747,7 +745,7 @@ namespace Veil.UI
             _compass.Update(s, me, cameraYaw);
             _extras.Update(dt, cameraYaw);
             if (_scope.gameObject.activeSelf != GameApp.Scoped) _scope.gameObject.SetActive(GameApp.Scoped);
-            if (GameApp.Scoped) _zoomLabel.text = VirtualInput.ScopeZoom == 0 ? "2x" : VirtualInput.ScopeZoom == 1 ? "4x" : "8x";
+            if (GameApp.Scoped) _zoomLabel.text = $"{VirtualInput.ScopeMag:0.0}x";
 
             // phase
             if (s.Phase != _lastPhase)
