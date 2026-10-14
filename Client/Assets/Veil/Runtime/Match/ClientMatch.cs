@@ -49,6 +49,9 @@ namespace Veil.Match
 
         public event Action<SimEvent> Event;
         public event Action<List<PlayerResult>> MatchEnded;
+        /// <summary>False when the results came early because your squad was wiped (the match goes on without you).</summary>
+        public static bool ResultsFinal = true;
+        public static int FinalWinner = -1;   // set by the offline fast-forward (no snapshot carries it)
 
         public int LocalId => Driver.LocalPlayerId;
         public List<RosterEntry> Roster => Driver.Roster;

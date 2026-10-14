@@ -326,12 +326,39 @@ namespace Veil.Sim
                 if (!p.Alive) p.Score.Survival = Math.Max(0, p.Score.Survival - 30);
             }
 
+            var list = BuildResults();
+            Results = list;
+            Phase = MatchPhase.Ended;
+            // A = winning squad, Pos = the helicopter (clients play the escape cinematic there)
+            Events.Add(new SimEvent(EventType.MatchEnded, WinnerSquad, 0, 0, ExtractRevealed ? ExtractPos : Vec2.Zero));
+        }
+
+        /// <summary>Squads wiped out so far, first wiped first (no respawns: a wiped squad is out).</summary>
+        public readonly List<int> WipeOrder = new List<int>();
+
+        public bool SquadAlive(int squad)
+        {
+            foreach (var p in Players) if (p.Squad == squad && p.Alive) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Ranks squads (still alive first by progress, then wiped squads — wiped later places higher) and builds the
+        /// result rows from the current scores. Used at the end, and early for a squad that has just been wiped.
+        /// </summary>
+        public List<PlayerResult> BuildResults()
+        {
             UpdateSquadTotals();
             var order = new List<SquadState>(Squads);
-            if (GameConfig.ExtractionMode) order.Sort((a, b) => ChainRankKey(b).CompareTo(ChainRankKey(a)));
-            else order.Sort((a, b) => b.Total.CompareTo(a.Total));
+            order.Sort((a, b) =>
+            {
+                int wa = WipeOrder.IndexOf(a.Id), wb = WipeOrder.IndexOf(b.Id);
+                bool aliveA = wa < 0, aliveB = wb < 0;
+                if (aliveA != aliveB) return aliveA ? -1 : 1;
+                if (!aliveA) return wb.CompareTo(wa);
+                return GameConfig.ExtractionMode ? ChainRankKey(b).CompareTo(ChainRankKey(a)) : b.Total.CompareTo(a.Total);
+            });
             for (int i = 0; i < order.Count; i++) order[i].Rank = i + 1;
-
             var list = new List<PlayerResult>();
             foreach (var p in Players)
             {
@@ -347,14 +374,10 @@ namespace Veil.Sim
                     PrimaryType = p.Primary.Type, SecondaryType = p.Secondary.Type,
                 });
             }
-            // squads first (placement), then individual score inside the squad
             list.Sort((a, b) => a.SquadRank != b.SquadRank ? a.SquadRank.CompareTo(b.SquadRank)
                 : b.Total != a.Total ? b.Total.CompareTo(a.Total) : b.Elims.CompareTo(a.Elims));
             for (int i = 0; i < list.Count; i++) list[i].Rank = i + 1;
-            Results = list;
-            Phase = MatchPhase.Ended;
-            // A = winning squad, Pos = the helicopter (clients play the escape cinematic there)
-            Events.Add(new SimEvent(EventType.MatchEnded, WinnerSquad, 0, 0, ExtractRevealed ? ExtractPos : Vec2.Zero));
+            return list;
         }
 
         public void UpdateSquadTotals()

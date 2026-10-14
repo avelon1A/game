@@ -44,9 +44,18 @@ namespace Veil.Match
             Deliver();
         }
 
+        private bool _fastForward;
+
         public void SendInput(InputCmd cmd)
         {
             if (_ended) return;
+            if (_fastForward)
+            {
+                // your squad is out: play the rest of the bot match out quickly (a few hundred ticks per frame) for final results
+                for (int i = 0; i < 300 && !Sim.Ended; i++) Sim.Step();
+                if (Sim.Ended || Sim.Tick > 200000) { _ended = true; ClientMatch.ResultsFinal = true; ClientMatch.FinalWinner = Sim.WinnerSquad; OnEnd?.Invoke(Sim.Ended ? Sim.Results : Sim.BuildResults()); }
+                return;
+            }
             if (!_sentInitial) Poll();
             if (!Autopilot) Sim.SubmitInput(_local.Id, cmd);
             Sim.Step();
@@ -65,8 +74,10 @@ namespace Veil.Match
             SnapshotBuilder.Build(Sim, _local, snap);
             OnSnapshot?.Invoke(snap);
             if (_events.Count > 0) OnEvents?.Invoke(new List<SimEvent>(_events));
+            if (!Sim.Ended && !_ended && !Autopilot && Sim.WipeOrder.Contains(_local.Squad)) _fastForward = true;
             if (Sim.Ended && !_ended)
             {
+                ClientMatch.ResultsFinal = true;
                 _ended = true;
                 OnEnd?.Invoke(Sim.Results);
             }

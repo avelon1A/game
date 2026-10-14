@@ -51,6 +51,8 @@ namespace Veil.Server
 
         /// <summary>Raised on the host thread when a match finishes: (matchId, results, profile ids of humans).</summary>
         public event Action<int, List<PlayerResult>, Dictionary<int, string>> MatchEnded;
+        /// <summary>A squad was wiped (no respawns): match id + the profile ids of its human players, who are now free.</summary>
+        public event Action<int, List<string>> SquadOut;
 
         // ---- read by other threads ----
         public volatile int PublicMatches;
@@ -119,6 +121,7 @@ namespace Veil.Server
                 {
                     var inst = new MatchInstance(req, _map, _db, _log);
                     inst.Ended += (id, results, profiles) => { Interlocked.Increment(ref MatchesPlayed); MatchEnded?.Invoke(id, results, profiles); };
+                    inst.SquadOut += (id, ids) => SquadOut?.Invoke(id, ids);
                     _matches[req.MatchId] = inst;
                     _log.LogInformation("Match {Id} created: {Humans} humans, {Secs}s", req.MatchId, req.Seats.Count, req.Seconds);
                 }
@@ -219,6 +222,7 @@ namespace Veil.Server
         private bool _recorded;
 
         public event Action<int, List<PlayerResult>, Dictionary<int, string>> Ended;
+        public event Action<int, List<string>> SquadOut;
 
         public bool Finished => _sim.Ended;
 
@@ -315,6 +319,23 @@ namespace Veil.Server
                 return;
             }
             _sim.Step();
+            // a squad was wiped while the match goes on: its humans get their (in-progress) results now and are released
+            if (!_sim.Ended)
+                foreach (var e in _sim.Events)
+                {
+                    if (e.Type != EventType.SquadWiped) continue;
+                    var res = _sim.BuildResults();
+                    var ids = new List<string>();
+                    foreach (var h in _humans)
+                    {
+                        if (_sim.Players[h.PlayerId].Squad != e.B) continue;
+                        ids.Add(h.Seat.ProfileId);
+                        if (h.Peer == null) continue;
+                        _w.Reset(); Protocol.WriteMatchEnd(_w, res, false);
+                        Send(h.Peer, DeliveryMethod.ReliableOrdered);
+                    }
+                    if (ids.Count > 0) SquadOut?.Invoke(Id, ids);
+                }
             SendEvents();
             if (_sim.Tick % GameConfig.SnapshotEveryTicks == 0 || _sim.Ended)
             {

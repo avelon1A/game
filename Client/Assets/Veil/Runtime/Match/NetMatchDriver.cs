@@ -34,7 +34,7 @@ namespace Veil.Match
 
         private void HandleSnapshot(Snapshot s) => OnSnapshot?.Invoke(s);
         private void HandleEvents(List<SimEvent> e) => OnEvents?.Invoke(e);
-        private void HandleEnd(List<PlayerResult> r) => OnEnd?.Invoke(r);
+        private void HandleEnd(List<PlayerResult> r) { ClientMatch.ResultsFinal = Protocol.LastResultsFinal; OnEnd?.Invoke(r); }
 
         public void SendInput(InputCmd cmd)
         {

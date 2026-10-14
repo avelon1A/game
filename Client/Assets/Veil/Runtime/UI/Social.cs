@@ -257,6 +257,11 @@ namespace Veil.UI
             var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _app.PlayTour(true), 30);   // HOW TO PLAY: cinematic tutorial
             ((RectTransform)help.transform).pivot = new Vector2(0, 0);
             _help = (RectTransform)help.transform;
+            // final standings of a match you left after your squad was wiped
+            var last = UIKit.Button(tab, "LAST MATCH", new Vector2(0, 0), new Vector2(440, 110), new Vector2(210, 64), UIKit.ButtonStyle.Secondary, () => _app.ShowLastResults(), 20);
+            ((RectTransform)last.transform).pivot = new Vector2(0, 0);
+            _lastMatch = last.gameObject;
+            _lastMatch.SetActive(false);
             _howTo = BuildHowTo(tab);
             _howTo.gameObject.SetActive(false);
 
@@ -343,9 +348,11 @@ namespace Veil.UI
                 _mmState = state;
             }
             // match found: a full-screen page for a few seconds (never left on screen while you are back in the lobby)
-            bool page = state == 2 && _app.State == GameApp.AppState.Menu && _mmFoundT < 9f;
+            // one full-screen page: FINDING MATCH while searching, then MATCH FOUND (a few seconds; never stuck in the lobby)
+            bool page = _app.State == GameApp.AppState.Menu && (state == 1 || (state == 2 && _mmFoundT < 9f));
+            _foundSearching = state == 1;
             UpdateFoundPage(page, dt);
-            _mm.gameObject.SetActive(state == 1 && _app.State == GameApp.AppState.Menu);
+            _mm.gameObject.SetActive(false);
             if (state == 0) return;
             _mmSweep.localRotation = Quaternion.Euler(0, 0, -Time.unscaledTime * (state == 1 ? 220f : 600f));
             _mmFoundT += dt;
@@ -370,6 +377,7 @@ namespace Veil.UI
             }
         }
         private RectTransform _found, _foundBar;
+        private GameObject _lastMatch;
         private Text _foundTitle, _foundSub, _foundStatus, _foundSquad;
         private CanvasGroup _foundFade;
         private RawImage _foundArt;
@@ -377,6 +385,9 @@ namespace Veil.UI
         public static GameObject FoundPage;
 
         /// <summary>Full-screen MATCH FOUND: Meshy key art, title, your squad, drop progress / offline countdown.</summary>
+        private bool _foundSearching;
+        private Button _foundCancel;
+
         private void UpdateFoundPage(bool show, float dt)
         {
             if (_found == null)
@@ -420,6 +431,7 @@ namespace Veil.UI
                 UIKit.Shadow(_foundStatus, 2);
                 _foundFade = _found.gameObject.AddComponent<CanvasGroup>();
                 FoundPage = _found.gameObject;
+                _foundCancel = UIKit.Button(safe, "CANCEL", new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(260, 60), UIKit.ButtonStyle.Ghost, OnAction, 22);
                 _found.gameObject.SetActive(false);
             }
             if (_found.gameObject.activeSelf != show)
@@ -448,6 +460,21 @@ namespace Veil.UI
             var names = new List<string>();
             foreach (var m in _members) names.Add(m.Me ? $"<color=#ffd84a>{m.Name}</color>" : m.Name);
             _foundSquad.text = names.Count > 0 ? "<color=#aab0d8>YOUR SQUAD</color>   " + string.Join("   ·   ", names) : "";
+            var g = _app.Gateway;
+            _foundCancel.gameObject.SetActive(_foundSearching && g.IsLeader);
+            if (_foundSearching)
+            {
+                int sec = g.Party.queueSeconds;
+                _foundTitle.text = "FINDING MATCH";
+                _foundStatus.text = $"SEARCHING  {sec / 60}:{sec % 60:00}";
+                // indeterminate bar: a yellow segment sweeping across
+                float k = Mathf.Repeat(Time.unscaledTime * 0.6f, 1.3f) - 0.3f;
+                _foundBar.anchorMin = new Vector2(Mathf.Clamp01(k), 0);
+                _foundBar.anchorMax = new Vector2(Mathf.Clamp01(k + 0.3f), 1);
+                return;
+            }
+            _foundTitle.text = "MATCH FOUND";
+            _foundBar.anchorMin = Vector2.zero;
             if (!_online)
             {
                 int c = Mathf.Max(0, Mathf.CeilToInt(_countT));
@@ -1150,6 +1177,9 @@ namespace Veil.UI
             // voice pill (voice only exists online)
             _voicePill.gameObject.SetActive(_online);
             if (_help != null) _help.anchoredPosition = new Vector2(_online ? 366 : 28, 110);   // no voice pill offline: take its corner
+            bool hasLast = _app.Gateway.LastResults != null;
+            if (_lastMatch.activeSelf != hasLast) _lastMatch.SetActive(hasLast);
+            if (hasLast) ((RectTransform)_lastMatch.transform).anchoredPosition = new Vector2((_online ? 366 : 28) + 74, 110);
             _micPillIcon.sprite = v.MicMuted ? Icons.MicOff : Icons.Mic;
             _micPillIcon.color = v.MicMuted ? Theme.Red : v.LocalSpeaking ? Theme.Green : Theme.Text;
             _spkPillIcon.sprite = v.Deafened ? Icons.SpeakerOff : Icons.Speaker;

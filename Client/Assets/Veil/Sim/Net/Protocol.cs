@@ -308,9 +308,11 @@ namespace Veil.Sim
         }
 
         // ---------------- Match end ----------------
-        public static void WriteMatchEnd(ByteWriter w, List<PlayerResult> results)
+        /// <summary>final = false: early results for a squad that was wiped while the match goes on.</summary>
+        public static void WriteMatchEnd(ByteWriter w, List<PlayerResult> results, bool final = true)
         {
             w.U8((byte)Msg.MatchEnd);
+            w.Bool(final);
             w.U8((byte)results.Count);
             foreach (var x in results)
             {
@@ -321,8 +323,12 @@ namespace Veil.Sim
             }
         }
 
+        /// <summary>Whether the last MatchEnd read was final (false = your squad is out, the match continues).</summary>
+        public static bool LastResultsFinal = true;
+
         public static List<PlayerResult> ReadMatchEnd(ByteReader r)
         {
+            LastResultsFinal = r.Bool();
             var list = new List<PlayerResult>();
             int n = r.U8();
             for (int i = 0; i < n; i++)

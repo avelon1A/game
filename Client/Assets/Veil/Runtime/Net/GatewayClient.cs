@@ -41,6 +41,10 @@ namespace Veil.Net
         public event Action<IncomingInvite> InviteReceived;
         public event Action<MatchAssignedMsg> MatchAssigned;
         public event Action MatchFinished;
+        /// <summary>Final results of a match you left early (your squad was wiped); null until it ends.</summary>
+        public List<PlayerResult> LastResults { get; private set; }
+        public int LastResultsYou { get; private set; }
+        public event Action LastResultsArrived;
         public event Action<string> Notice;
         /// <summary>The server created a guest account for us (UDP mode has no REST registration): save id + token.</summary>
         public event Action<string, string> CredentialsIssued;
@@ -254,6 +258,21 @@ namespace Veil.Net
                     MatchAssigned?.Invoke(Assignment);
                     Changed?.Invoke();
                     break;
+                case Gw.MatchResults:
+                {
+                    var m = JsonUtility.FromJson<GwMatchResults>(env.d);
+                    try
+                    {
+                        var r = new ByteReader(Convert.FromBase64String(m.data));
+                        r.U8();   // Msg.MatchEnd
+                        LastResults = Protocol.ReadMatchEnd(r);
+                        LastResultsYou = m.you;
+                        LastResultsArrived?.Invoke();
+                        Changed?.Invoke();
+                    }
+                    catch (Exception e) { Debug.LogWarning("[VEIL] bad match results: " + e.Message); }
+                    break;
+                }
                 case Gw.MatchFinished:
                     Assignment = null;
                     MatchFinished?.Invoke();

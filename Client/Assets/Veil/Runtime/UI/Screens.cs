@@ -1125,6 +1125,7 @@ namespace Veil.UI
 
         /// <summary>Extraction mode: the squad that extracted (-1 = time ran out). Set before Fill.</summary>
         public static int Winner = -1;
+        public static bool InProgress;   // your squad was wiped: the match is still going for others
         /// <summary>Chain stage reached by each squad at the end (0..4, 4 = Vault opened). Set before Fill.</summary>
         public static byte[] SquadStages;
 
@@ -1204,6 +1205,8 @@ namespace Veil.UI
         {
             for (int i = _fullRows.childCount - 1; i >= 0; i--) Object.Destroy(_fullRows.GetChild(i).gameObject);
             float y = 0;
+            int myRank = 99;
+            foreach (var r in results) if (r.Squad == mySquad) { myRank = r.SquadRank; break; }
             Text Cell(RectTransform row, string t, int col, int size, Color c, Font f = null)
             {
                 bool left = col == 0;
@@ -1227,9 +1230,11 @@ namespace Veil.UI
                     band.pivot = new Vector2(0, 1);
                     bool mine = r.Squad == mySquad;
                     UIKit.Image(band, UIKit.RoundedSmall, mine ? new Color(0.2f, 0.55f, 0.3f, 0.55f) : new Color(0.45f, 0.3f, 0.85f, 0.35f));
-                    var bt = UIKit.LabelAt(band, $"#{r.SquadRank}   SQUAD {(char)('A' + r.Squad)}{(mine ? "  (YOU)" : "")}", 20, Color.white, new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(600, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                    bool playing = InProgress && r.SquadRank < myRank;   // still in the match
+                    var bt = UIKit.LabelAt(band, $"{(playing ? "—" : "#" + r.SquadRank)}   SQUAD {(char)('A' + r.Squad)}{(mine ? "  (YOU)" : "")}", 20, Color.white, new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(600, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
                     bt.rectTransform.pivot = new Vector2(0, 0.5f);
-                    var st = UIKit.LabelAt(band, (r.Squad == Winner ? "<color=#7dff9a>ESCAPED  ·  </color>" : "") + $"{r.SquadTotal:N0} PTS", 20, Theme.Gold, new Vector2(1, 0.5f), new Vector2(-18, 0), new Vector2(400, 32), TextAnchor.MiddleRight, UIKit.TitleFont);
+                    string right = playing ? "<color=#7dff9a>IN PROGRESS</color>  ·  " : InProgress ? "<color=#ff6a7a>OUT</color>  ·  " : r.Squad == Winner ? "<color=#7dff9a>WON  ·  </color>" : "";
+                    var st = UIKit.LabelAt(band, right + $"{r.SquadTotal:N0} PTS", 20, Theme.Gold, new Vector2(1, 0.5f), new Vector2(-18, 0), new Vector2(400, 32), TextAnchor.MiddleRight, UIKit.TitleFont);
                     st.rectTransform.pivot = new Vector2(1, 0.5f); st.supportRichText = true;
                     y -= 38;
                 }
@@ -1289,6 +1294,7 @@ namespace Veil.UI
             _rank.fontSize = UIKit.Fs(112);
             _rank.color = me.SquadRank == 1 ? Theme.Gold : Theme.PurpleLight;
             if (!GameConfig.ExtractionMode) { _title.text = me.SquadRank == 1 ? "VICTORY" : $"SQUAD {(char)('A' + me.Squad)}"; _sub.text = "MATCH COMPLETE"; }
+            else if (InProgress) { _title.text = "SQUAD ELIMINATED"; _sub.text = "MATCH STILL IN PROGRESS · FINAL RESULTS WHEN IT ENDS"; }
             else if (Winner < 0) { _title.text = "MATCH OVER"; _sub.text = "NO SQUAD ESCAPED"; }
             else if (won) { _title.text = "VICTORY"; _sub.text = "YOUR SQUAD WON THE MATCH"; }
             else { _title.text = $"SQUAD {(char)('A' + Winner)} WINS"; _sub.text = "MATCH COMPLETE"; }

@@ -22,6 +22,7 @@ namespace Veil.Server
         {
             public string Id = "", Name = "", Handle = "", Look = "";
             public int Level = 1;
+            public int LastMatchId = -1;   // left early (squad wiped): gets the final results when that match ends
             public GatewayConnection Conn;
             public DateTime LastSeen = DateTime.UtcNow;
             public DateTime ConnectedAt = DateTime.UtcNow;
@@ -67,6 +68,7 @@ namespace Veil.Server
         {
             _db = db; _host = host; _tickets = tickets; _opt = opt; _log = log;
             _host.MatchEnded += OnMatchEnded;
+            _host.SquadOut += OnSquadOut;
         }
 
         public int OnlineCount { get { lock (_gate) return _sessions.Values.Count(s => s.Online); } }
@@ -656,10 +658,41 @@ namespace Veil.Server
             _log.LogInformation("Matchmaker: match {Id} with {Parties} parties / {Humans} humans", req.MatchId, picked.Count, req.Seats.Count);
         }
 
+        /// <summary>Squad wiped: its players are out of the match — back to the lobby, free to queue again.</summary>
+        private void OnSquadOut(int matchId, List<string> profileIds)
+        {
+            lock (_gate)
+            {
+                foreach (var s in _sessions.Values.Where(x => x.MatchId == matchId && profileIds.Contains(x.Id)))
+                {
+                    s.LastMatchId = matchId;
+                    s.MatchId = -1;
+                    s.Assignment = null;
+                    if (s.Online) Push(s, Gw.MatchFinished, new GwId { id = matchId.ToString() });
+                }
+                foreach (var p in _parties.Values.Where(x => x.MatchId == matchId && x.Members.All(m => profileIds.Contains(m.Id))))
+                {
+                    p.Phase = PartyPhase.Idle;
+                    p.MatchId = -1;
+                    foreach (var m in p.Members) m.Ready = false;
+                    PushPartyAll(p);
+                }
+            }
+        }
+
         private void OnMatchEnded(int matchId, List<PlayerResult> results, Dictionary<int, string> profiles)
         {
             lock (_gate)
             {
+                // players who left early (squad wiped) get the final standings now
+                var w = new ByteWriter(); Protocol.WriteMatchEnd(w, results, true);
+                string data = Convert.ToBase64String(w.ToArray());
+                foreach (var s in _sessions.Values.Where(x => x.LastMatchId == matchId))
+                {
+                    s.LastMatchId = -1;
+                    int you = profiles.FirstOrDefault(kv => kv.Value == s.Id).Key;
+                    if (s.Online) Push(s, Gw.MatchResults, new GwMatchResults { data = data, you = you });
+                }
                 foreach (var s in _sessions.Values.Where(x => x.MatchId == matchId))
                 {
                     s.MatchId = -1;

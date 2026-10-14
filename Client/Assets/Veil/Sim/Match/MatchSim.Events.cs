@@ -273,6 +273,7 @@ namespace Veil.Sim
             foreach (var o in Players) if (o.Squad == v.Squad && o.Alive) return;
             Events.Add(new SimEvent(EventType.SquadWiped, killer, v.Squad, 0, v.Pos));
             if (GameConfig.AutoRespawn || Ended) return;
+            if (!WipeOrder.Contains(v.Squad)) WipeOrder.Add(v.Squad);
             // no respawns: a wiped squad is out — the last squad standing wins
             int alive = -1, count = 0;
             foreach (var sq in Squads)

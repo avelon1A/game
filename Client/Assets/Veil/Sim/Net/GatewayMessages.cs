@@ -29,7 +29,7 @@ namespace Veil.Sim
         public const string Welcome = "welcome", Pong = "pong", Reply = "reply";
         public const string FriendsState = "friends.state", Presence = "friend.presence", PartyState = "party.state",
             Invite = "party.invite.incoming", InviteGone = "party.invite.gone", MatchAssigned = "match.assigned",
-            MatchFinished = "match.finished", Notice = "notice", Kicked = "kicked";
+            MatchFinished = "match.finished", Notice = "notice", Kicked = "kicked", MatchResults = "match.results";
     }
 
     public enum PresenceStatus { Offline = 0, Online = 1, InParty = 2, InQueue = 3, InMatch = 4 }
@@ -61,6 +61,8 @@ namespace Veil.Sim
     [Serializable] public sealed class GwPing { public long clientMs; public int rttMs; }
 
     [Serializable] public sealed class GwText { public string text = ""; }
+    /// <summary>Final results of a match you left after your squad was wiped (base64 MatchEnd bytes + your player id).</summary>
+    [Serializable] public sealed class GwMatchResults { public string data = ""; public int you; }
     [Serializable] public sealed class GwId { public string id = ""; }
     [Serializable] public sealed class GwRequestId { public long requestId; }
     [Serializable] public sealed class GwFlag { public bool value; }

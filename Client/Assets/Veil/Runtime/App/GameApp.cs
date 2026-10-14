@@ -74,7 +74,7 @@ namespace Veil.App
         public static bool Scoped { get; private set; }
         public static float ScopeFov => 56f / VirtualInput.ScopeMag;   // 2x = 28°, 8x = 7°
         private string _shotDir;
-        private bool _tutorialTest, _foundTest, _resultsTest, _ruinsTest;
+        private bool _tutorialTest, _foundTest, _resultsTest, _ruinsTest, _wipeTest;
         private float _fitT;
         private bool _autotest, _scripted, _lineupShot, _lineupClose, _lineupBack;
         private string _onlineHost;
@@ -121,6 +121,13 @@ namespace Veil.App
             Net.Rejected += reason => _toasts?.Notice($"<color=#ff9a8a>{reason}</color>");
             Net.ServerFound += OnServerFound;
             Gateway = new GatewayClient();
+            Gateway.LastResultsArrived += () =>
+            {
+                var r = Gateway.LastResults;
+                int rank = 0;
+                foreach (var x in r) if (x.PlayerId == Gateway.LastResultsYou) { rank = x.SquadRank; break; }
+                if (State != AppState.Match) Toast(rank > 0 ? $"Your last match finished · your squad placed #{rank} — tap LAST MATCH" : "Your last match finished — tap LAST MATCH");
+            };
             Gateway.MatchAssigned += OnMatchAssigned;
             Gateway.CredentialsIssued += (id, token) => { Profile.BackendId = id; Profile.BackendToken = token; Profile.Save(); };
             Gateway.Changed += () =>
@@ -156,11 +163,13 @@ namespace Veil.App
                 if (args[i] == "-foundtest") _foundTest = true;
                 if (args[i] == "-resultstest") _resultsTest = true;
                 if (args[i] == "-ruinstest") _ruinsTest = true;
+                if (args[i] == "-wipetest") _wipeTest = true;
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
                 if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
                 if (args[i] == "-sniper") { var l = Profile.Look; l.Weapon = 1; Profile.Look = l; Stage.UpdateLook(l); }   // test: equip the sniper
             }
-            if (_ruinsTest) StartCoroutine(RuinsShots());
+            if (_wipeTest) StartCoroutine(WipeShots());
+            else if (_ruinsTest) StartCoroutine(RuinsShots());
             else if (_resultsTest) StartCoroutine(ResultsShots());
             else if (_foundTest) StartCoroutine(FoundShots());
             else if (_tutorialTest) StartCoroutine(TutorialShots());
@@ -664,6 +673,7 @@ namespace Veil.App
             HideAll();
             State = AppState.Match;
             Stage.SetVisible(false);
+            ClientMatch.ResultsFinal = true; ClientMatch.FinalWinner = -1;
             _match = new ClientMatch(driver, Map, _input);
             Sfx.SetMatchAudio(true);
             _matchView = new MatchView(_match, World, CamRig, null);
@@ -704,7 +714,9 @@ namespace Veil.App
         private void ShowResults(List<PlayerResult> results, int localId)
         {
             bool online = IsOnlineMatch;
-            ResultsScreen.Winner = _match?.Latest?.Winner ?? -1;
+            ResultsScreen.InProgress = !ClientMatch.ResultsFinal;
+            ResultsScreen.Winner = ClientMatch.FinalWinner >= 0 ? ClientMatch.FinalWinner : _match?.Latest?.Winner ?? -1;
+            if (online && ResultsScreen.InProgress) Net.Disconnect();   // squad out: leave the match, the server already freed your party
             ResultsScreen.SquadStages = _match?.Latest != null ? (byte[])_match.Latest.SquadStage.Clone() : null;
             EndMatchCleanup();
             HideAll();
@@ -717,6 +729,23 @@ namespace Veil.App
             _results.Fill(results, localId, online);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        /// <summary>Final standings of the match you left after your squad was wiped (arrives when it ends).</summary>
+        public void ShowLastResults()
+        {
+            var list = Gateway.LastResults;
+            if (list == null || list.Count == 0) return;
+            ResultsScreen.InProgress = false;
+            ResultsScreen.Winner = list[0].Squad;
+            ResultsScreen.SquadStages = null;
+            HideAll();
+            State = AppState.Results;
+            Stage.SetVisible(true);
+            Stage.Podium(ResultsScreen.PodiumSquad(list));
+            CamRig.Snap(Stage.Origin + new Vector3(-0.62f, 1.62f, -1.75f), Stage.Origin + new Vector3(-0.62f, 1.52f, 0));
+            _results.Show(true);
+            _results.Fill(list, Gateway.LastResultsYou, true);
         }
 
         public void LeaveMatch()
@@ -1162,6 +1191,25 @@ namespace Veil.App
         }
 
         private bool _noHud;   // -nohud: in-match screenshots without the HUD (store screenshots)
+
+        private IEnumerator WipeShots()
+        {
+            yield return new WaitForSeconds(2f);
+            Onboarding.MarkDone();
+            StartOfflineMatch(false);
+            yield return new WaitForSeconds(12f);
+            var sim = ((LocalMatchDriver)_match.Driver).Sim;
+            int sq = sim.Players[_match.LocalId].Squad;
+            for (int k = 0; k < 4; k++)
+                foreach (var p in sim.Players) if (p.Squad == sq && p.Alive) { p.SpawnProtT = 0; sim.Damage(p, -1, 999f, Vec2.Zero, true); }
+            float t0 = Time.time;
+            float w = 0; while (State != AppState.Results && w < 60) { w += Time.deltaTime; yield return null; }
+            Debug.Log($"[VEIL] wipe test: results after {Time.time - t0:0.0}s final={ClientMatch.ResultsFinal} winner={ResultsScreen.Winner}");
+            yield return new WaitForSeconds(2f); yield return Shot("w1_results");
+            _results.DebugToggleFull();
+            yield return new WaitForSeconds(1f); yield return Shot("w2_full");
+            Application.Quit();
+        }
 
         private IEnumerator RuinsShots()
         {
