@@ -272,6 +272,16 @@ namespace Veil.Sim
         {
             foreach (var o in Players) if (o.Squad == v.Squad && o.Alive) return;
             Events.Add(new SimEvent(EventType.SquadWiped, killer, v.Squad, 0, v.Pos));
+            if (GameConfig.AutoRespawn || Ended) return;
+            // no respawns: a wiped squad is out — the last squad standing wins
+            int alive = -1, count = 0;
+            foreach (var sq in Squads)
+            {
+                bool any = false;
+                foreach (var o in Players) if (o.Squad == sq.Id && o.Alive) { any = true; break; }
+                if (any) { alive = sq.Id; count++; }
+            }
+            if (count == 1) { WinnerSquad = alive; EndMatch(); }
         }
     }
 }

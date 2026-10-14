@@ -52,7 +52,8 @@ namespace Veil.Match
             }
             var b = _latched;
             // touch joystick (pushed all the way = sprint)
-            if (VirtualInput.Active && VirtualInput.Move.sqrMagnitude > 0.0025f && x == 0 && y == 0)
+            if (VirtualInput.Active && VirtualInput.SprintLock && x == 0 && y == 0) { y = 1f; b |= Buttons.Sprint; }   // sprint lock: keep running forward
+            else if (VirtualInput.Active && VirtualInput.Move.sqrMagnitude > 0.0025f && x == 0 && y == 0)
             {
                 x = VirtualInput.Move.x; y = VirtualInput.Move.y;
                 if (VirtualInput.Move.magnitude > 0.92f) b |= Buttons.Sprint;

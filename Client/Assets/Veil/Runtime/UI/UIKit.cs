@@ -441,3 +441,37 @@ namespace Veil.UI
         }
     }
 }
+
+namespace Veil.UI
+{
+    /// <summary>
+    /// Safety net for phones: any visible label whose text is wider than its box shrinks to fit (best fit)
+    /// instead of spilling out. Skips input fields and scrolling (masked) name cards.
+    /// </summary>
+    public static class TextFitter
+    {
+        private static readonly System.Collections.Generic.List<Text> Buf = new System.Collections.Generic.List<Text>();
+
+        public static void Sweep(Transform root)
+        {
+            if (root == null) return;
+            root.GetComponentsInChildren(false, Buf);
+            foreach (var t in Buf)
+            {
+                if (t.resizeTextForBestFit || !t.isActiveAndEnabled || string.IsNullOrEmpty(t.text)) continue;
+                if (t.GetComponentInParent<InputField>() != null || t.GetComponentInParent<RectMask2D>() != null) continue;
+                var r = t.rectTransform.rect;
+                if (r.width < 4f) continue;
+                if (t.preferredWidth > r.width + 2f && t.horizontalOverflow == HorizontalWrapMode.Overflow)
+                {
+                    t.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    t.verticalOverflow = VerticalWrapMode.Truncate;
+                    t.resizeTextForBestFit = true;
+                    t.resizeTextMaxSize = t.fontSize;
+                    t.resizeTextMinSize = Mathf.Max(8, Mathf.Min(10, t.fontSize));
+                }
+            }
+            Buf.Clear();
+        }
+    }
+}

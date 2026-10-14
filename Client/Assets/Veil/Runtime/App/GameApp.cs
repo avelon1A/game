@@ -73,7 +73,8 @@ namespace Veil.App
         private bool _paused;
         public static bool Scoped { get; private set; }
         private string _shotDir;
-        private bool _tutorialTest;
+        private bool _tutorialTest, _foundTest, _resultsTest, _ruinsTest;
+        private float _fitT;
         private bool _autotest, _scripted, _lineupShot, _lineupClose, _lineupBack;
         private string _onlineHost;
         private Light _sun;
@@ -150,11 +151,18 @@ namespace Veil.App
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
                 if (args[i] == "-nohud") _noHud = true;
                 if (args[i] == "-tutorialtest") _tutorialTest = true;
+                if (args[i] == "-keyart") { StartCoroutine(KeyArtShots()); return; }
+                if (args[i] == "-foundtest") _foundTest = true;
+                if (args[i] == "-resultstest") _resultsTest = true;
+                if (args[i] == "-ruinstest") _ruinsTest = true;
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
                 if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
                 if (args[i] == "-sniper") { var l = Profile.Look; l.Weapon = 1; Profile.Look = l; Stage.UpdateLook(l); }   // test: equip the sniper
             }
-            if (_tutorialTest) StartCoroutine(TutorialShots());
+            if (_ruinsTest) StartCoroutine(RuinsShots());
+            else if (_resultsTest) StartCoroutine(ResultsShots());
+            else if (_foundTest) StartCoroutine(FoundShots());
+            else if (_tutorialTest) StartCoroutine(TutorialShots());
             else if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
         }
 
@@ -193,7 +201,8 @@ namespace Veil.App
             _sun.color = new Color(1f, 0.95f, 0.86f);
             _sun.intensity = 1.35f;
             _sun.shadows = LightShadows.Soft;
-            _sun.shadowStrength = 0.75f;
+            _sun.shadowStrength = 0.65f;
+            _sun.shadowBias = 0.04f; _sun.shadowNormalBias = 0.3f;
 
             RenderSettings.skybox = MaterialLib.Sky();
             MaterialLib.Sky().SetVector("_SunDir", -_sun.transform.forward);
@@ -278,8 +287,9 @@ namespace Veil.App
             {
                 bool mob = Platform.IsMobile;
                 urp.renderScale = mob ? (Profile.Quality == 0 ? 0.7f : 0.85f) : (Profile.Quality == 0 ? 0.8f : 1f);
-                urp.shadowDistance = mob ? (Profile.Quality == 0 ? 20f : 35f) : (Profile.Quality == 0 ? 35f : 70f);
+                urp.shadowDistance = mob ? (Profile.Quality == 0 ? 18f : 28f) : (Profile.Quality == 0 ? 35f : 60f);
                 if (mob) urp.shadowCascadeCount = 1;
+                urp.mainLightShadowmapResolution = mob ? (Profile.Quality == 0 ? 1024 : 2048) : 4096;   // crisper player shadows
                 QualitySettings.lodBias = mob ? 0.6f : 1.5f;
             }
             // phones are always fullscreen (immersive: no navigation / status bar); the setting is for desktop only
@@ -291,6 +301,7 @@ namespace Veil.App
 
         private void HideAll()
         {
+            if (SquadPanel.FoundPage) SquadPanel.FoundPage.SetActive(false);
             _title.Show(false);
             _menu.Show(false);
             _results.Show(false);
@@ -800,6 +811,8 @@ namespace Veil.App
 
         private void LateUpdate()
         {
+            _fitT -= Time.unscaledDeltaTime;
+            if (_fitT <= 0f && Canvas != null) { _fitT = 0.5f; TextFitter.Sweep(Canvas); }
             UpdateBackdrop();
             if (!(State == AppState.Menu && (Stage.SquadMode || Stage.SoloMode))) _lobbyShot = 0;
             float dt = Time.deltaTime;
@@ -1048,7 +1061,9 @@ namespace Veil.App
                     const float D = 14f;
                     float h = 2f * D * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad), w = h * Cam.aspect;
                     float ar = _backdrop.sprite.rect.width / _backdrop.sprite.rect.height;
-                    Vector3 vp = Cam.WorldToViewportPoint(Stage.GroupFeet());
+                    // squad lobby: always the 4-hero (practice) framing, however many players are shown, so the
+                    // painted scene keeps one size when you switch PRACTICE / ONLINE or friends join / leave
+                    Vector3 vp = Cam.WorldToViewportPoint(Stage.SquadMode ? Stage.FullSquadFeet() : Stage.GroupFeet());
                     float px = (vp.x - 0.5f) * w, py = (vp.y - 0.5f) * h;
                     float ox = PlatformUV.x - 0.5f, oy = PlatformUV.y - 0.5f;     // platform offset from the image centre (fraction)
                     float H = Mathf.Max(h, w / ar) * 1.02f;
@@ -1136,6 +1151,83 @@ namespace Veil.App
         }
 
         private bool _noHud;   // -nohud: in-match screenshots without the HUD (store screenshots)
+
+        private IEnumerator RuinsShots()
+        {
+            yield return new WaitForSeconds(2f);
+            Onboarding.MarkDone();
+            StartOfflineMatch(false);
+            yield return new WaitForSeconds(1f);
+            var sim = ((LocalMatchDriver)_match.Driver).Sim;
+            sim.Settings.BotsHoldFire = true;
+            var me = sim.Players[_match.LocalId];
+            var dir = -Vec2.FromYaw(90);
+            me.Pos = Vec2.FromYaw(90) * 156f; me.H = 0; me.Vel = Vec2.Zero;
+            CamRig.Yaw = 270f; CamRig.Pitch = 22f;
+            _match.ScriptedInput = yaw => new InputCmd { MoveX = dir.X, MoveY = dir.Y, Yaw = 270f };
+            for (int i = 0; i < 10; i++)
+            {
+                yield return new WaitForSeconds(1f);
+                Debug.Log($"[VEIL] ruins test t={i + 1}s pos={me.Pos.Length:0.0}m H={me.H:0.00} grounded={me.Grounded}");
+                if (i == 3) yield return Shot("ruins_1");
+            }
+            yield return Shot("ruins_2_top");
+            Application.Quit();
+        }
+
+        private IEnumerator ResultsShots()
+        {
+            yield return new WaitForSeconds(2f);
+            Onboarding.MarkDone();
+            StartOfflineMatch(true);
+            yield return new WaitForSeconds(20f);
+            yield return Shot("r0_match_teams");
+            ((LocalMatchDriver)_match.Driver).Sim.DebugEndNow();
+            float w = 0; while (State != AppState.Results && w < 30) { w += Time.deltaTime; yield return null; }
+            yield return new WaitForSeconds(2.5f); yield return Shot("r1_results");
+            _results.DebugToggleFull();
+            yield return new WaitForSeconds(1f); yield return Shot("r2_full_results");
+            Application.Quit();
+        }
+
+        private IEnumerator FoundShots()
+        {
+            yield return new WaitForSeconds(2f);
+            Onboarding.MarkDone();
+            GoMenu(0);
+            yield return new WaitForSeconds(1.5f);
+            _menu.Squad.DebugStartOffline();
+            yield return new WaitForSeconds(1.2f); yield return Shot("found_1");
+            yield return new WaitForSeconds(5f); yield return Shot("found_2_match");
+            Application.Quit();
+        }
+
+        /// <summary>Renders key-art candidates (island + rescue helicopter, no UI) for the match-found screen.</summary>
+        private IEnumerator KeyArtShots()
+        {
+            yield return new WaitForSeconds(2f);
+            HideAll();
+            State = AppState.Tour;
+            Stage?.SetVisible(false);
+            if (Canvas != null) Canvas.gameObject.SetActive(false);
+            CamRig.SetFov(48f);
+            var heli = MatchView.HelicopterModel(null, out var rotor, out _, out _);
+            rotor.localRotation = Quaternion.Euler(0, 23, 0);
+            void Pose(Vector3 cam, Vector3 look, Vector3 h, float yaw, float bank)
+            {
+                CamRig.Snap(cam, look);
+                heli.SetPositionAndRotation(h, Quaternion.Euler(-6, yaw, bank));
+            }
+            Pose(new Vector3(34, 5, -78), new Vector3(0, 26, 0), new Vector3(-12, 38, -24), 70, -14);
+            yield return new WaitForSeconds(0.6f); yield return Shot("keyart_a");
+            Pose(new Vector3(-130, 70, -170), new Vector3(0, 12, 0), new Vector3(-70, 52, -100), 40, -18);
+            yield return new WaitForSeconds(0.6f); yield return Shot("keyart_b");
+            Pose(new Vector3(160, 18, -60), new Vector3(60, 14, 30), new Vector3(105, 30, -15), -60, 16);
+            yield return new WaitForSeconds(0.6f); yield return Shot("keyart_c");
+            Pose(new Vector3(-20, 9, -105), new Vector3(10, 30, 20), new Vector3(8, 34, -60), 110, -20);
+            yield return new WaitForSeconds(0.6f); yield return Shot("keyart_d");
+            Application.Quit();
+        }
 
         /// <summary>Test: intro tour → tutorial match → layout editor, with screenshots.</summary>
         private IEnumerator TutorialShots()
@@ -1430,6 +1522,14 @@ namespace Veil.App
             return n > 0 ? sum / n : _root.position;
         }
 
+        /// <summary>Centre of all four squad spots (the practice lineup), used to size the painted backdrop.</summary>
+        public Vector3 FullSquadFeet()
+        {
+            Vector3 sum = Vector3.zero;
+            foreach (var s in SquadSlots) sum += s;
+            return _rigs[0].transform.parent.TransformPoint(sum / SquadSlots.Length);
+        }
+
         /// <summary>World point above a stage character's head (for UI labels).</summary>
         public Vector3 HeadPoint(int i) => _rigs[i].transform.position + Vector3.up * 2.6f;
 
@@ -1670,17 +1770,13 @@ namespace Veil.App
             var m = Mouse.current;
             bool mouseDown = fingers == 0 && m != null && (m.leftButton.isPressed || m.rightButton.isPressed);
             if (mouseDown) { p0 = m.position.ReadValue(); d0 = m.delta.ReadValue(); fingers = 1; }
-            float minZoom = SquadMode ? 1f : 0.55f;   // squad lobby never zooms in past the 4-hero framing
-            if (m != null && Mathf.Abs(m.scroll.ReadValue().y) > 0.01f && !OverControl(m.position.ReadValue()))
-                Zoom = Mathf.Clamp(Zoom - m.scroll.ReadValue().y / 120f * 0.08f, minZoom, 1.3f);
+            Zoom = 1f;   // fixed framing: no zoom in / out in the lobby (the painted background keeps one size)
 
             if (fingers == 0) { _dragging = false; _pinchDist = 0; return; }
             if (!_dragging) { if (OverControl(p0)) return; _dragging = true; }
             if (fingers >= 2)
             {
-                float d = Vector2.Distance(p0, p1);
-                if (_pinchDist > 0) Zoom = Mathf.Clamp(Zoom * _pinchDist / Mathf.Max(d, 1f), minZoom, 1.3f);
-                _pinchDist = d;
+                _pinchDist = 0;
                 return;
             }
             _pinchDist = 0;

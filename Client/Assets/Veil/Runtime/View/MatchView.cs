@@ -20,6 +20,7 @@ namespace Veil.View
         public byte FireSeq, CastSeq, HitSeq, JumpSeq;
         public Vector3 Pos, Vel;
         public float Yaw, VisualYaw, Pitch;
+        public bool TeamTinted;
         public bool Grounded = true, Dashing, Sprinting, Downed, Reviving;
         public float ReviveProg;
         public float VH;
@@ -644,6 +645,24 @@ namespace Veil.View
             else _aimMarker.gameObject.SetActive(false);
         }
 
+        private static readonly int RimId = Shader.PropertyToID("_RimColor");
+
+        /// <summary>Team colour on the character itself: green rim glow for squadmates, faint red for enemies.</summary>
+        private void TintTeam(AvatarView av)
+        {
+            if (av.TeamTinted) return;
+            av.TeamTinted = true;
+            bool ally = Match.IsAlly(av.OwnerId);
+            var mpb = new MaterialPropertyBlock();
+            foreach (var r in av.Rig.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is ParticleSystemRenderer || r is LineRenderer || r is TrailRenderer) continue;
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor(RimId, ally ? new Color(0.35f, 1f, 0.5f, 0.9f) : new Color(1f, 0.3f, 0.3f, 0.45f));
+                r.SetPropertyBlock(mpb);
+            }
+        }
+
         private void UpdateRemotes(float dt, Snapshot snap)
         {
             float rt = Match.RenderTime;
@@ -686,6 +705,7 @@ namespace Veil.View
                     av.Vel = new Vector3(src.Vel.X, 0, src.Vel.Y);
                     av.Yaw = yaw;
                     av.Pitch = src.Pitch;
+                    if (!av.IsMyDecoy) TintTeam(av);
                     av.Health01 = src.Health01;
                     av.Grounded = (src.Flags & AvatarFlags.Grounded) != 0;
                     av.Dashing = (src.Flags & AvatarFlags.Dashing) != 0;

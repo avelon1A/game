@@ -136,7 +136,7 @@ namespace Veil.UI
                     if (_m.IsAlly(e.B) && e.B != _m.LocalId) _feed($"<color=#7dff9a>{_m.NameOf(e.B)}'s tag dropped</color> · stand on it", Theme.Text);
                     break;
                 case EventType.SquadWiped:
-                    if (e.B == _m.LocalSquad) _banner("SQUAD WIPED", "Redeploying at your spawn", 3f);
+                    if (e.B == _m.LocalSquad) _banner("SQUAD ELIMINATED", "Your squad is out · spectating until the match ends", 4f);
                     else
                     {
                         bool ours = e.A >= 0 && _m.IsAlly(e.A);
@@ -212,8 +212,12 @@ namespace Veil.UI
             foreach (var a in s.Avatars)
             {
                 if (a.OwnerId != attacker || a.AvatarId >= 1000) continue;
-                var rt = UIKit.At(_root, "DmgDir", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(60, 26));
-                var img = UIKit.Image(rt, UIKit.Pill, new Color(1f, 0.25f, 0.3f, 0.9f));
+                // one arrow per attacker: a new hit refreshes it instead of stacking
+                foreach (var old in _arrows) if (Vec2.DistSq(old.From, a.Pos) < 9f) { old.From = a.Pos; old.T = 1.2f; return; }
+                var rt = UIKit.At(_root, "DmgDir", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(54, 54));
+                var img = UIKit.Image(rt, Icons.Arrow, new Color(1f, 0.25f, 0.3f, 0.9f));
+                img.raycastTarget = false;
+                UIKit.Shadow(img, 2, 0.5f);
                 _arrows.Add(new Arrow { Img = img, From = a.Pos, T = 1.2f });
                 return;
             }
@@ -269,9 +273,11 @@ namespace Veil.UI
                 if (a.T <= 0) { UnityEngine.Object.Destroy(a.Img.gameObject); _arrows.RemoveAt(i); continue; }
                 float yaw = (a.From - me.Pos).Yaw - cameraYaw;
                 var dir = new Vector2(Mathf.Sin(yaw * Mathf.Deg2Rad), Mathf.Cos(yaw * Mathf.Deg2Rad));
-                a.Img.rectTransform.anchoredPosition = dir * 150f;
-                a.Img.rectTransform.localRotation = Quaternion.Euler(0, 0, -yaw + 90f);
-                a.Img.color = new Color(1f, 0.25f, 0.3f, Mathf.Clamp01(a.T) * 0.9f);
+                a.Img.rectTransform.anchoredPosition = dir * 210f;
+                a.Img.rectTransform.localRotation = Quaternion.Euler(0, 0, -yaw);   // the arrow points out toward the shooter
+                float k = Mathf.Clamp01(a.T / 1.2f);
+                a.Img.rectTransform.localScale = Vector3.one * (0.8f + 0.35f * Mathf.Clamp01((a.T - 0.9f) * 4f));
+                a.Img.color = new Color(1f, 0.25f, 0.3f, k * 0.9f);
             }
 
             // pings / event markers (world label clamped to the screen edge + minimap blip)
@@ -309,7 +315,7 @@ namespace Veil.UI
             // tag redeploy progress (helper and the fallen player)
             if (self.TagProg > 0 && self.Reviving >= 0) _tag.text = $"REDEPLOYING {_m.NameOf(self.Reviving).ToUpper()} · {Mathf.RoundToInt(self.TagProg * 100)}%";
             else if (!self.Alive && self.ReviveProg > 0) _tag.text = $"A SQUADMATE IS BRINGING YOU BACK · {Mathf.RoundToInt(self.ReviveProg * 100)}%";
-            else if (!self.Alive) _tag.text = "Squadmates can redeploy you from your tag";
+            else if (!self.Alive) _tag.text = "";
             else _tag.text = "";
 
             // status pills

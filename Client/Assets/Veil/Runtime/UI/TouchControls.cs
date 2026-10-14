@@ -29,6 +29,8 @@ namespace Veil.UI
             _edit = editMode;
             Root = UIKit.Fill(canvas, "TouchControls");
             Root.gameObject.AddComponent<SafeArea>();
+            _introFade = Root.gameObject.AddComponent<CanvasGroup>();
+            if (!editMode) _introFade.alpha = 0f;   // fades in once the match has updated once (no flash of every button)
             if (!editMode)
             {
                 VirtualInput.Reset();
@@ -143,9 +145,23 @@ namespace Veil.UI
             return btn;
         }
 
+        private CanvasGroup _introFade;
+        private int _introFrames;
+        private bool _shownAlive = true;
+
         public void Update()
         {
             if (_edit) return;
+            if (_m.Latest != null && ++_introFrames > 2) _introFade.alpha = Mathf.MoveTowards(_introFade.alpha, 1f, Time.unscaledDeltaTime * 3f);
+            // eliminated: hide the move stick and action buttons (mic, map, list and pause stay)
+            bool aliveNow = _m.Predicted.Alive;
+            if (aliveNow != _shownAlive)
+            {
+                _shownAlive = aliveNow;
+                _stick.gameObject.SetActive(aliveNow);
+                foreach (var c in Controls) if (c.rt && c.key != "talk") c.rt.gameObject.SetActive(aliveNow);
+                if (!aliveNow) { VirtualInput.Move = Vector2.zero; VirtualInput.FireHeld = false; VirtualInput.SprintLock = false; }
+            }
             var me = _m.Predicted;
             _dash.SetCooldown(me.DashCd / GameConfig.DashCooldown, me.Energy >= GameConfig.DashCost);
             _pulse.SetCooldown(me.PulseCd / GameConfig.PulseCooldown, me.Energy >= GameConfig.PulseCost);
@@ -273,7 +289,10 @@ namespace Veil.UI
     /// <summary>Floating joystick: appears where the thumb lands inside its zone.</summary>
     public sealed class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
-        private RectTransform _base, _knob, _rt;
+        private RectTransform _base, _knob, _rt, _lock;
+        private Image _lockImg;
+        private Text _lockLabel;
+        private bool _overLock;
         private Vector2 _origin;
         private int _pointer = int.MinValue;
         private const float Radius = 120f;
@@ -288,7 +307,28 @@ namespace Veil.UI
             UIKit.Image(ring, UIKit.Ring, new Color(1, 1, 1, 0.35f));
             _knob = UIKit.At(_base, "Knob", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(110, 110));
             UIKit.Image(_knob, UIKit.Circle, new Color(1, 1, 1, 0.75f));
+            // sprint lock (PUBG-style): drag up onto the lock, let go = keep sprinting
+            _lock = UIKit.At(_rt, "SprintLock", new Vector2(0, 0), Vector2.zero, new Vector2(86, 86));
+            _lock.pivot = new Vector2(0.5f, 0.5f);
+            _lockImg = UIKit.Image(_lock, UIKit.Circle, new Color(0.08f, 0.08f, 0.2f, 0.6f));
+            var la = UIKit.At(_lock, "Arrow", new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(34, 34));
+            UIKit.Image(la, Icons.Arrow, Color.white);
+            _lockLabel = UIKit.LabelAt(_lock, "SPRINT", 13, Theme.Text, new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(86, 18), TextAnchor.MiddleCenter, UIKit.BoldFont);
+            _lock.gameObject.SetActive(false);
             SetAlpha(0.45f);
+        }
+
+        private void Update()
+        {
+            if (VirtualInput.SprintLock && _pointer == int.MinValue)
+            {
+                _lock.gameObject.SetActive(true);
+                _lock.anchoredPosition = new Vector2(260, 260 + Radius * 1.75f);
+                _lockImg.color = new Color(1f, 0.82f, 0.25f, 0.9f);
+                _lockLabel.text = "LOCKED";
+                _knob.anchoredPosition = new Vector2(0, Radius);
+                SetAlpha(0.8f);
+            }
         }
 
         private void SetAlpha(float a)
@@ -309,6 +349,7 @@ namespace Veil.UI
         {
             if (_pointer != int.MinValue) return;
             _pointer = e.pointerId;
+            VirtualInput.SprintLock = false;   // touching the stick again ends the sprint lock
             _origin = Local(e);
             _base.anchoredPosition = _origin;
             _knob.anchoredPosition = Vector2.zero;
@@ -319,6 +360,11 @@ namespace Veil.UI
         {
             if (e.pointerId != _pointer) return;
             Vector2 d = Local(e) - _origin;
+            _lock.gameObject.SetActive(d.y > Radius * 0.6f);
+            _lock.anchoredPosition = _origin + new Vector2(0, Radius * 1.75f);
+            _overLock = d.y > Radius * 1.45f && Mathf.Abs(d.x) < Radius * 0.8f;
+            _lockImg.color = _overLock ? new Color(1f, 0.82f, 0.25f, 0.9f) : new Color(0.08f, 0.08f, 0.2f, 0.6f);
+            _lockLabel.text = "SPRINT";
             if (d.magnitude > Radius) d = d.normalized * Radius;
             _knob.anchoredPosition = d;
             VirtualInput.Move = d / Radius;
@@ -329,6 +375,8 @@ namespace Veil.UI
             if (e.pointerId != _pointer) return;
             _pointer = int.MinValue;
             VirtualInput.Move = Vector2.zero;
+            if (_overLock) { VirtualInput.SprintLock = true; _overLock = false; return; }
+            _lock.gameObject.SetActive(false);
             _knob.anchoredPosition = Vector2.zero;
             _base.anchoredPosition = new Vector2(260, 260);
             SetAlpha(0.45f);

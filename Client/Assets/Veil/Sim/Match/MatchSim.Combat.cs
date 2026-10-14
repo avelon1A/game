@@ -401,6 +401,7 @@ namespace Veil.Sim
 
         private void UpdateRespawn(PlayerState p, float dt)
         {
+            if (!GameConfig.AutoRespawn) return;   // only a squadmate on your tag brings you back
             p.RespawnT -= dt;
             if (p.RespawnT > 0) return;
             Respawn(p, PickRespawnPoint(p));

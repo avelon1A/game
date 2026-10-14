@@ -46,6 +46,7 @@ namespace Veil.View
             if (Cache.TryGetValue(k, out var m)) return m;
             m = new Material(_toon) { name = k };
             m.SetColor("_BaseColor", c);
+            m.SetColor("_ShadeColor", new Color(0.68f, 0.66f, 0.74f));   // neutral, slightly warm shadows (blue tint made shadows look purple)
             m.SetColor("_RimColor", new Color(1, 1, 1, rim));
             m.SetFloat("_Gloss", gloss);
             m.enableInstancing = true;

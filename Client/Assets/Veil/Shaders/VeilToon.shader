@@ -5,7 +5,7 @@ Shader "Veil/Toon"
     {
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         _BaseMap ("Base Map", 2D) = "white" {}
-        _ShadeColor ("Shade Tint", Color) = (0.55, 0.6, 0.85, 1)
+        _ShadeColor ("Shade Tint", Color) = (0.68, 0.66, 0.74, 1)
         _EmissionColor ("Emission", Color) = (0, 0, 0, 0)
         _RimColor ("Rim (rgb) Strength (a)", Color) = (1, 1, 1, 0.35)
         _Ramp ("Ramp Softness", Range(0.001, 0.5)) = 0.06
@@ -103,7 +103,9 @@ Shader "Veil/Toon"
                 half3 ambient = SampleSH(n);
                 half3 viewDir = normalize(GetWorldSpaceViewDir(i.positionWS));
 
-                half3 shadeCol = albedo * (_ShadeColor.rgb * 0.45 + ambient * 0.75);
+                // shadows: mostly neutral ambient (the raw sky-blue ambient made shadows look purple / blue)
+                half3 ambN = lerp(dot(ambient, half3(0.333, 0.333, 0.333)).xxx, ambient, 0.35);
+                half3 shadeCol = albedo * (_ShadeColor.rgb * 0.5 + ambN * 0.7);
                 half3 litCol = albedo * (l.color * 0.95 + ambient * 0.35);
                 half3 col = lerp(shadeCol, litCol, lit);
                 // textures that already contain painted lighting (generated characters): keep the art,

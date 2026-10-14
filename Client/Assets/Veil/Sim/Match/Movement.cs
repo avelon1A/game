@@ -105,9 +105,10 @@ namespace Veil.Sim
                 else if (!held) g *= GameConfig.ShortHopGravityMult;
                 p.VH -= g * dt;
                 p.H += p.VH * dt;
-                if (p.H <= 0)
+                float floorAir = map.FloorAt(p.Pos, p.H + 0.25f);
+                if (p.H <= floorAir)
                 {
-                    p.H = 0;
+                    p.H = floorAir;
                     p.VH = 0;
                     p.Grounded = true;
                     p.LaunchT = 0;
@@ -117,7 +118,8 @@ namespace Veil.Sim
 
             // ---- Integrate + collide ----
             Vec2 np = p.Pos + (p.Vel + p.Knock) * dt;
-            if (map.ResolveCircle(ref np, GameConfig.PlayerRadius, p.H))
+            // grounded: low steps (≤ StepUp) don't block, you walk up them
+            if (map.ResolveCircle(ref np, GameConfig.PlayerRadius, p.H + (p.Grounded ? GameConfig.StepUp : 0f)))
             {
                 // keep sliding velocity only (removes the component pushing into the wall)
                 Vec2 actual = (np - p.Pos) / dt - p.Knock;
@@ -125,6 +127,12 @@ namespace Veil.Sim
             }
             p.Pos = np;
             p.Knock = Vec2.MoveTowards(p.Knock, Vec2.Zero, GameConfig.KnockbackDecay * dt);
+            if (p.Grounded)
+            {
+                float floor = map.FloorAt(p.Pos, p.H + GameConfig.StepUp);
+                if (floor > p.H) p.H = floor;                                       // step up
+                else if (floor < p.H - 0.05f) { p.Grounded = false; p.VH = 0f; }    // walked off an edge: fall
+            }
         }
     }
 }

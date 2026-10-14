@@ -142,6 +142,8 @@ namespace Veil.UI
                 return true;
             };
             Root = UIKit.Fill(canvas, "HUD");
+            _introFade = Root.gameObject.AddComponent<CanvasGroup>();
+            _introFade.alpha = 0f;   // hidden until the first real update has set every widget (no flash of HACK / panels at match start)
             _labels = UIKit.Fill(Root, "WorldLabels");
             BuildOverlays();
             BuildTopLeft();
@@ -154,6 +156,7 @@ namespace Veil.UI
                 // which swallowed taps on HACK and on the puzzle wires
                 _hackBtn = UIKit.Button(canvas, "HACK", new Vector2(0.5f, 0), new Vector2(0, 300), new Vector2(240, 80), UIKit.ButtonStyle.Primary, () => { _puzzle.Show(); _puzzle.Root.SetAsLastSibling(); }, 34);
                 _puzzle = new CircuitPuzzle(canvas);
+                _hackBtn.gameObject.SetActive(false);   // shown only when you can hack (no flash at match start)
                 _extractPanel = new ExtractPanel(Root, _m.LocalSquad, mobile);
             }
             _compass = new CompassBar(Root);
@@ -466,9 +469,12 @@ namespace Veil.UI
             _popup = UIKit.Label(popupRt, "", 30, Theme.Gold, TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_popup, new Color(0.2f, 0.1f, 0, 0.8f), 2);
 
-            var respRt = UIKit.At(Root, "Respawn", new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(900, 120));
-            _respawn = UIKit.Label(respRt, "", 48, Theme.Red, TextAnchor.MiddleCenter, UIKit.TitleFont);
-            UIKit.Outline(_respawn, new Color(0, 0, 0, 0.8f), 3);
+            // eliminated / downed status: a compact strip at the bottom centre (never over the middle of the view)
+            var respRt = UIKit.At(Root, "Respawn", new Vector2(0.5f, 0), new Vector2(0, 26), new Vector2(980, 88));
+            respRt.pivot = new Vector2(0.5f, 0);
+            _respawnBg = UIKit.Image(respRt, UIKit.Rounded, new Color(0.03f, 0.03f, 0.1f, 0.72f));
+            _respawn = UIKit.Label(respRt, "", 30, Theme.Red, TextAnchor.MiddleCenter, UIKit.TitleFont);
+            UIKit.Outline(_respawn, new Color(0, 0, 0, 0.6f), 1.5f);
         }
 
         private void BuildOverlays()
@@ -708,12 +714,18 @@ namespace Veil.UI
 
         // ------------------------------------------------------------------ update
 
+        private CanvasGroup _introFade;
+        private Image _respawnBg;
+        private int _introFrames;
+
         public void Update(float dt, float cameraYaw)
         {
             UpdateCinematic();
             if (_view.EscapeT >= 0) return;
             var s = _m.Latest;
             if (s == null) return;
+            _introFrames++;
+            if (_introFrames > 2) _introFade.alpha = Mathf.MoveTowards(_introFade.alpha, 1f, Time.unscaledDeltaTime * 3f);
             var me = _m.Predicted;
             if (_mapScreen == null && _m.Map.Island)
             {
@@ -851,8 +863,9 @@ namespace Veil.UI
             if (s.ExtractFinal && s.Winner < 0) _vignette.color = new Color(1, 0.1f, 0.15f, Mathf.Max(_vignette.color.a, 0.18f + 0.22f * (0.5f + 0.5f * Mathf.Sin(Time.time * 6.3f))));
             _crosshair.enabled = me.Alive && !_m.Driver.Autopilot;
 
-            if (!me.Alive) _respawn.text = $"ELIMINATED\n<size=28><color=#ffffff>Respawning in {Mathf.Max(0, me.RespawnT):0.0}</color></size>" +
-                                           (_view.SpectateName != null ? $"\n<size=24><color=#7dff9a>Spectating {_view.SpectateName}</color>  <color=#aab0d8>· {SpectateHint}</color></size>" : "");
+            if (!me.Alive) _respawn.text = (GameConfig.AutoRespawn ? $"ELIMINATED  <size=22><color=#ffffff>· respawning in {Mathf.Max(0, me.RespawnT):0.0}</color></size>"
+                                                                   : "ELIMINATED  <size=22><color=#ffffff>· a squadmate can bring you back from your tag</color></size>") +
+                                           (_view.SpectateName != null ? $"\n<size=20><color=#7dff9a>Spectating {_view.SpectateName}</color>  <color=#aab0d8>· {SpectateHint}</color></size>" : "");
             else if (s.Self.Downed)
                 _respawn.text = s.Self.ReviveProg > 0.01f
                     ? $"<color=#7dff9a>BEING REVIVED</color>\n<size=30><color=#ffffff>{Mathf.RoundToInt(s.Self.ReviveProg * 100)}%</color></size>"
@@ -864,6 +877,7 @@ namespace Veil.UI
                 _respawn.text = $"<color=#7dff9a>REVIVING {_m.NameOf(s.Self.Reviving).ToUpper()}</color>\n<size=30><color=#ffffff>{Mathf.RoundToInt(rp * 100)}%</color></size>";
             }
             else _respawn.text = "";
+            _respawnBg.enabled = _respawn.text.Length > 0;
             _respawn.supportRichText = true;
 
             // feed fade
@@ -1155,8 +1169,10 @@ namespace Veil.UI
                 var av = kv.Value;
                 if (av.IsLocal || av.Fade < 0.3f || !av.Alive) continue;
                 Vector3 world = av.Pos + Vector3.up * 2.65f;
+                float dist2 = Vector3.Distance(av.Pos, _cam.transform.position);
                 Vector3 sp = _cam.WorldToScreenPoint(world);
-                if (sp.z < 0 || Vector3.Distance(av.Pos, _cam.transform.position) > 42) continue;
+                bool allyNear = _m.IsAlly(av.OwnerId);
+                if (sp.z < 0 || Vector3.Distance(av.Pos, _cam.transform.position) > (allyNear ? 400f : 42f)) continue;
                 if (!_plates.TryGetValue(av.AvatarId, out var np)) { np = MakePlate(); _plates[av.AvatarId] = np; }
                 _scratch.Remove(av.AvatarId);
                 np.Root.gameObject.SetActive(true);
@@ -1168,14 +1184,20 @@ namespace Veil.UI
                 np.Name.text = av.IsMyDecoy ? "Your Decoy" : ally && decoy ? $"{name}'s decoy" : name;
                 np.Name.supportRichText = true;
                 if (av.Downed) np.Name.text += ally ? (av.ReviveProg > 0.01f ? $"  <color=#7dff9a>REVIVING {Mathf.RoundToInt(av.ReviveProg * 100)}%</color>" : "  <color=#ff5a6a>DOWNED · go revive</color>") : "  <color=#ff5a6a>DOWNED</color>";
-                np.Name.color = av.IsMyDecoy || (ally && decoy) ? Theme.PurpleLight : ally ? Theme.Green : Theme.Text;
+                // teammates: green name + arrow at any distance; enemies: red name / health (only up close)
+                var enemyCol = new Color(1f, 0.36f, 0.38f);
+                np.Name.color = av.IsMyDecoy || (ally && decoy) ? Theme.PurpleLight : ally ? Theme.Green : enemyCol;
                 np.Hp.Set(av.Health01, Time.deltaTime);
-                np.Hp.SetColor(av.Health01 < 0.3f ? Theme.Red : Palette.Health);
+                np.Hp.SetColor(ally ? (av.Health01 < 0.3f ? Theme.Gold : new Color(0.35f, 0.95f, 0.55f)) : enemyCol);
                 bool nemesis = (me.Primary.Type == ObjectiveType.Nemesis && !me.Primary.Done && me.Primary.TargetPlayer == av.OwnerId) ||
                                (me.Secondary.Type == ObjectiveType.Nemesis && !me.Secondary.Done && me.Secondary.TargetPlayer == av.OwnerId);
                 bool revealed = av.Vis == Visibility.Full && Vector3.Distance(av.Pos, new Vector3(me.Pos.X, 0, me.Pos.Y)) > GameConfig.VisionRadius;
-                np.Marker.gameObject.SetActive(nemesis || revealed);
-                np.Marker.color = nemesis ? Theme.Red : Theme.Purple;
+                bool mate = ally && !decoy;
+                np.Marker.gameObject.SetActive(mate || nemesis || revealed);
+                np.Marker.sprite = mate ? Icons.Arrow : UIKit.Diamond;
+                np.Marker.rectTransform.localRotation = mate ? Quaternion.Euler(0, 0, 180) : Quaternion.identity;   // ▼ over squadmates
+                np.Marker.color = mate ? Theme.Green : nemesis ? Theme.Red : Theme.Purple;
+                np.Hp.Root.gameObject.SetActive(!mate || dist2 < 45f);
                 float dist = Vector3.Distance(av.Pos, _cam.transform.position);
                 np.Root.localScale = Vector3.one * Mathf.Clamp(1.4f - dist / 45f, 0.6f, 1.1f);
             }

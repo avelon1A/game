@@ -227,6 +227,23 @@ namespace Veil.Sim
             return hit;
         }
 
+        /// <summary>
+        /// Height of the surface under p (0 = ground): the highest box top under the feet that is not above maxTop.
+        /// Lets players stand on crates, steps and the ruins stairs.
+        /// </summary>
+        public float FloorAt(Vec2 p, float maxTop)
+        {
+            float best = 0f;
+            foreach (int oi in Query(p))
+            {
+                var o = Obstacles[oi];
+                if (!o.BlocksMove || o.Shape != ShapeKind.Box || o.Kind == ObstacleKind.Water || o.Height > maxTop || o.Height <= best) continue;
+                var q = p;
+                if (o.PushOut(ref q, 0.15f)) best = o.Height;
+            }
+            return best;
+        }
+
         /// <summary>The jump pad under p, or -1.</summary>
         public int PadAt(Vec2 p)
         {

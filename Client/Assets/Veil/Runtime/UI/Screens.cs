@@ -75,7 +75,7 @@ namespace Veil.UI
             var sub2 = UIKit.LabelAt(Root, "INFINITE DECISIONS.", 40, Theme.PurpleLight, new Vector2(0, 0.5f), new Vector2(170, -118), new Vector2(900, 50), TextAnchor.MiddleLeft, UIKit.BoldFont);
             sub2.rectTransform.pivot = new Vector2(0, 0.5f);
             UIKit.Outline(sub2, new Color(0.12f, 0.05f, 0.3f, 0.9f), 2.5f);
-            _press = UIKit.LabelAt(Root, "CLICK OR PRESS ANY KEY", 30, Theme.Yellow, new Vector2(0.5f, 0), new Vector2(0, 90), new Vector2(900, 40), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _press = UIKit.LabelAt(Root, Veil.Match.Platform.IsMobile ? "TAP TO START" : "CLICK OR PRESS ANY KEY", 30, Theme.Yellow, new Vector2(0.5f, 0), new Vector2(0, 90), new Vector2(900, 40), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Shadow(_press, 3);
             var foot = UIKit.LabelAt(Root, "Observe → Predict → Decide → Execute → Adapt", 20, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(900, 30), TextAnchor.MiddleCenter, UIKit.BodyFont);
             UIKit.Shadow(foot);
@@ -363,8 +363,160 @@ namespace Veil.UI
 
         // ------------------------------------------------------------------ CHARACTERS tab
 
+        private int _previewHero = -1;
+
+        /// <summary>
+        /// Characters (model heroes): big hero cards, weapon cards with readable stats, gun skins for the chosen
+        /// weapon only, glow colour. Rebuilt in place after every change so the highlights always match.
+        /// </summary>
+        private void BuildHeroPanel(RectTransform tab, bool animate = true)
+        {
+            var panel = UIKit.Panel(tab, "Customize", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
+            if (animate) EnterFx.Add(panel, new Vector2(56, 0));
+            var p = (RectTransform)panel.transform;
+            var prof = App.Profile;
+            void Rebuild() { Object.Destroy(panel.gameObject); BuildHeroPanel(tab, false); }
+            void Changed() { prof.Save(); App.Stage.UpdateLook(prof.Look); }
+            Text Head(string t, float y)
+            {
+                var l = UIKit.LabelAt(p, t, 20, Theme.TextDim, new Vector2(0, 1), new Vector2(32, y), new Vector2(400, 28), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                l.rectTransform.pivot = new Vector2(0, 1);
+                return l;
+            }
+            RectTransform Card(string name, float x, float y, float w, float h, bool selected, bool previewing, Color accent, System.Action click)
+            {
+                var c = UIKit.At(p, name, new Vector2(0, 1), new Vector2(x, y), new Vector2(w, h));
+                c.pivot = new Vector2(0, 1);
+                if (selected || previewing)
+                {
+                    var frame = UIKit.At(c, "Frame", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(w + 6, h + 6));
+                    UIKit.Image(frame, UIKit.RoundedSmall, selected ? Theme.Yellow : Theme.Cyan);
+                }
+                var inner = UIKit.At(c, "Fill", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(w, h));
+                var bg = UIKit.Image(inner, UIKit.RoundedSmall, selected ? new Color(0.36f, 0.24f, 0.72f, 1f) : previewing ? new Color(0.12f, 0.3f, 0.42f, 1f) : new Color(0.16f, 0.17f, 0.32f, 1f), true);
+                var bar = UIKit.At(c, "Accent", new Vector2(0.5f, 1), new Vector2(0, -4), new Vector2(w - 16, 6));
+                bar.pivot = new Vector2(0.5f, 1);
+                UIKit.Image(bar, UIKit.Pill, accent);
+                var b = c.gameObject.AddComponent<Button>(); b.targetGraphic = bg;
+                b.onClick.AddListener(() => { Sfx.Play(Sfx.Click, 0.5f); click(); });
+                c.gameObject.AddComponent<ButtonFx>();
+                return c;
+            }
+
+            var title = UIKit.LabelAt(p, "CHARACTER", 34, Theme.Text, new Vector2(0, 1), new Vector2(32, -24), new Vector2(500, 40), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            title.rectTransform.pivot = new Vector2(0, 1);
+            var note = UIKit.LabelAt(p, "Cosmetic only · drag the hero to turn", 17, Theme.TextDim, new Vector2(0, 1), new Vector2(32, -66), new Vector2(690, 24), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            note.rectTransform.pivot = new Vector2(0, 1); UIKit.Fit(note, 12);
+
+            _nameField = Widgets.InputRow(p, new Vector2(0, 1), new Vector2(32, -126), "NAME", prof.Name, v =>
+            {
+                var clean = v.Trim();
+                if (clean.Length > 0) { prof.Name = clean.Length > 16 ? clean.Substring(0, 16) : clean; prof.Save(); }
+            });
+            ((RectTransform)_nameField.transform.parent).pivot = new Vector2(0, 0.5f);
+
+            // ---- heroes
+            Head("HERO", -168);
+            int n = Palette.Outfits.Length;
+            float cw = (696f - (n - 1) * 10f) / n;
+            var hx = Progression.ParseHeroXp(App.OnlineProfile?.heroXp);
+            for (int i = 0; i < n; i++)
+            {
+                int idx = i;
+                var it = StoreCatalog.Get(StoreCatalog.HeroId(i));
+                bool owned = it == null || App.Owns(it.Id);
+                bool sel = prof.Look.Outfit == i && _previewHero < 0;
+                var c = Card("Hero" + i, 32 + i * (cw + 10), -200, cw, 118, sel, _previewHero == i, Palette.Outfits[i].Jacket, () =>
+                {
+                    if (!owned)
+                    {
+                        _previewHero = idx;
+                        var pl = prof.Look; pl.Outfit = (byte)idx;
+                        PreviewLocked(it, pl);
+                        Rebuild();
+                        return;
+                    }
+                    _previewHero = -1;
+                    HideLockBar();
+                    var l = prof.Look; l.Outfit = (byte)idx; prof.Look = l; Changed();
+                    Rebuild();
+                });
+                var nm = UIKit.LabelAt(c, Palette.Outfits[i].Name.ToUpper(), 22, Color.white, new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(cw - 12, 34), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                nm.rectTransform.pivot = new Vector2(0.5f, 1); UIKit.Fit(nm, 12);
+                int lv = Progression.HeroLevel(hx.TryGetValue(i, out var x) ? x : 0);
+                string status = owned ? (sel ? "<color=#ffd84a>EQUIPPED</color>" : lv > 1 ? $"<color=#7dff9a>LV {lv}</color>" : "<color=#7dff9a>OWNED</color>") : $"<color=#ffd84a>● {it.Price:N0}</color>";
+                var st = UIKit.LabelAt(c, status, 17, Color.white, new Vector2(0.5f, 0), new Vector2(0, 16), new Vector2(cw - 12, 26), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                st.rectTransform.pivot = new Vector2(0.5f, 0); st.supportRichText = true; UIKit.Fit(st, 11);
+                if (!owned)
+                {
+                    var lk = UIKit.At(c, "Lock", new Vector2(1, 1), new Vector2(-8, -14), new Vector2(22, 22)); lk.pivot = new Vector2(1, 1);
+                    UIKit.Image(lk, Icons.Key, new Color(1, 1, 1, 0.6f));
+                }
+            }
+
+            // ---- weapon
+            Head("WEAPON", -338);
+            int weapon = Mathf.Min(prof.Look.Weapon, 1);
+            string[] wName = { "RIFLE", "SNIPER" };
+            string[] wStat = { "Fast fire · 30 m range", "48 dmg · 75 m · scope" };
+            for (int i = 0; i < 2; i++)
+            {
+                int w = i;
+                var c = Card("Weapon" + i, 32 + i * 353, -370, 343, 96, weapon == i, false, i == 0 ? Theme.Yellow : new Color(1f, 0.5f, 0.3f), () =>
+                {
+                    var l = prof.Look; l.Weapon = (byte)w;
+                    var skin = StoreCatalog.Get(StoreCatalog.SkinId(l.Accessory));
+                    if (skin != null && skin.WeaponType != w) l.Accessory = 0;
+                    prof.Look = l; Changed();
+                    HideLockBar();
+                    Rebuild();
+                });
+                var t = UIKit.LabelAt(c, wName[i], 28, Color.white, new Vector2(0, 0.5f), new Vector2(22, 12), new Vector2(300, 36), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                t.rectTransform.pivot = new Vector2(0, 0.5f);
+                var d = UIKit.LabelAt(c, wStat[i], 17, Theme.TextDim, new Vector2(0, 0.5f), new Vector2(22, -22), new Vector2(305, 26), TextAnchor.MiddleLeft, UIKit.BodyFont);
+                d.rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(d, 11);
+            }
+
+            // ---- gun skins for that weapon only
+            Head(weapon == 0 ? "RIFLE SKIN" : "SNIPER SKIN", -484);
+            var skins = new List<(int skin, string name, StoreCatalog.Item item)> { (0, "STANDARD", null) };
+            for (int k = 1; k < 8; k++)
+            {
+                var si = StoreCatalog.Get(StoreCatalog.SkinId(k));
+                if (si != null && si.WeaponType == weapon) skins.Add((k, si.Name, si));
+            }
+            for (int i = 0; i < skins.Count; i++)
+            {
+                var (skin, name, item) = skins[i];
+                bool owned = item == null || App.Owns(item.Id);
+                bool sel = prof.Look.Accessory == skin || (skin == 0 && StoreCatalog.Get(StoreCatalog.SkinId(prof.Look.Accessory))?.WeaponType != weapon);
+                var c = Card("Skin" + i, 32 + i * 237, -516, 227, 74, sel, false, skin == 0 ? new Color(0.6f, 0.62f, 0.75f) : new Color(1f, 0.82f, 0.3f), () =>
+                {
+                    if (!owned)
+                    {
+                        var pl = prof.Look; pl.Accessory = (byte)skin; pl.Weapon = (byte)weapon;
+                        PreviewLocked(item, pl);
+                        return;
+                    }
+                    HideLockBar();
+                    var l = prof.Look; l.Accessory = (byte)skin; l.Weapon = (byte)weapon; prof.Look = l; Changed();
+                    Rebuild();
+                });
+                var t = UIKit.LabelAt(c, name, 19, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(210, 28), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                UIKit.Fit(t, 11);
+                var st = UIKit.LabelAt(c, owned ? (sel ? "<color=#ffd84a>EQUIPPED</color>" : "<color=#7dff9a>OWNED</color>") : $"<color=#ffd84a>● {item.Price:N0}</color>", 15, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0, -18), new Vector2(210, 22), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                st.supportRichText = true;
+            }
+
+            // ---- glow colour
+            var glow = new SwatchRow(p, new Vector2(0, 1), new Vector2(32, -628), "GLOW COLOR", Palette.AccentColors, prof.Look.Color, i => { var l = prof.Look; l.Color = (byte)i; prof.Look = l; Changed(); });
+
+            UIKit.Button(p, "PLAY", new Vector2(0.5f, 0), new Vector2(0, 36), new Vector2(696, 84), UIKit.ButtonStyle.Primary, () => { _previewHero = -1; HideLockBar(); App.Stage.UpdateLook(prof.Look); SelectTab(0); }, 44);
+        }
+
         private void BuildCharacters(RectTransform tab)
         {
+            if (CharacterRig.HasModel(0)) { BuildHeroPanel(tab); return; }
             var panel = UIKit.Panel(tab, "Customize", new Vector2(1, 0.5f), new Vector2(-40, -40), new Vector2(760, 820));
             EnterFx.Add(panel, new Vector2(56, 0));
             var p = panel.transform;
@@ -570,6 +722,7 @@ namespace Veil.UI
                         if (item.Hero >= 0) l.Outfit = (byte)item.Hero; else { l.Accessory = (byte)item.Skin; l.Weapon = (byte)item.WeaponType; }
                         App.Profile.Look = l; App.Profile.Save(); App.Stage.UpdateLook(l);
                         HideLockBar();
+                        _previewHero = -1;
                         var tab = _tabs[1];
                         Object.Destroy(tab.GetChild(0).gameObject);
                         BuildCharacters(tab);
@@ -1025,16 +1178,80 @@ namespace Veil.UI
             var fullBtn = UIKit.Button(Root, "FULL RESULTS", new Vector2(1, 1), new Vector2(-40, -40), new Vector2(240, 50), UIKit.ButtonStyle.Ghost, ToggleFull, 18);
             ((RectTransform)fullBtn.transform).pivot = new Vector2(1, 1);
 
-            _fullPanel = UIKit.At(Root, "Full", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100, 800));
-            UIKit.Image(_fullPanel, UIKit.Rounded, new Color(0.05f, 0.06f, 0.14f, 0.97f), true);
-            _full = UIKit.LabelAt(_fullPanel, "", 20, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1040, 720), TextAnchor.UpperLeft, UIKit.BodyFont);
-            _full.rectTransform.pivot = new Vector2(0.5f, 1);
-            _full.supportRichText = true;
-            UIKit.Button(_fullPanel, "CLOSE", new Vector2(0.5f, 0), new Vector2(0, 24), new Vector2(200, 50), UIKit.ButtonStyle.Secondary, ToggleFull, 20);
+            var fullDim = UIKit.Fill(Root, "FullDim");
+            _fullPanel = fullDim;
+            var fdi = UIKit.Image(fullDim, UIKit.Square, new Color(0.01f, 0.01f, 0.05f, 0.75f), true);
+            var fdb = fullDim.gameObject.AddComponent<Button>(); fdb.targetGraphic = fdi; fdb.transition = Selectable.Transition.None; fdb.onClick.AddListener(ToggleFull);
+            var fcard = UIKit.At(fullDim, "Card", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180, 960));
+            UIKit.Image(fcard, UIKit.Rounded, new Color(0.07f, 0.08f, 0.18f, 0.98f), true);
+            fcard.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;   // taps on the fcard don't close it
+            var ft = UIKit.LabelAt(fcard, "FULL RESULTS", 36, Color.white, new Vector2(0, 1), new Vector2(40, -28), new Vector2(600, 46), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            ft.rectTransform.pivot = new Vector2(0, 1); ft.fontStyle = FontStyle.Italic;
+            var fc = UIKit.Button(fcard, "CLOSE", new Vector2(1, 1), new Vector2(-30, -26), new Vector2(150, 50), UIKit.ButtonStyle.Secondary, ToggleFull, 20);
+            ((RectTransform)fc.transform).pivot = new Vector2(1, 1);
+            _fullRows = UIKit.At(fcard, "Rows", new Vector2(0.5f, 1), new Vector2(0, -96), new Vector2(1120, 780));
+            _fullRows.pivot = new Vector2(0.5f, 1);
+            _full = UIKit.LabelAt(fcard, "", 1, Color.clear, Vector2.zero, Vector2.zero, Vector2.one, TextAnchor.UpperLeft, UIKit.BodyFont);
             _fullPanel.gameObject.SetActive(false);
         }
 
-        private void ToggleFull() => _fullPanel.gameObject.SetActive(!_fullPanel.gameObject.activeSelf);
+        private RectTransform _fullRows;
+        private static readonly float[] ColX = { 70, 470, 600, 700, 800, 910, 1020 };
+        private static readonly string[] ColName = { "PLAYER", "TOTAL", "RES", "ELIM", "SURV", "BONUS", "K / A / D" };
+
+        /// <summary>Full results as a real table: squad header bars, aligned columns, your row highlighted, MVP badge.</summary>
+        private void BuildFullTable(List<PlayerResult> results, int localId, PlayerResult mvp, int mySquad)
+        {
+            for (int i = _fullRows.childCount - 1; i >= 0; i--) Object.Destroy(_fullRows.GetChild(i).gameObject);
+            float y = 0;
+            Text Cell(RectTransform row, string t, int col, int size, Color c, Font f = null)
+            {
+                bool left = col == 0;
+                var l = UIKit.LabelAt(row, t, size, c, new Vector2(0, 0.5f), new Vector2(left ? ColX[0] : ColX[col] - 60, 0), new Vector2(left ? 360 : 120, 30), left ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter, f ?? UIKit.BoldFont);
+                l.rectTransform.pivot = new Vector2(0, 0.5f); l.supportRichText = true;
+                if (left) UIKit.Fit(l, 12);
+                return l;
+            }
+            var head = UIKit.At(_fullRows, "Head", new Vector2(0, 1), new Vector2(0, y), new Vector2(1120, 30));
+            head.pivot = new Vector2(0, 1);
+            for (int c = 0; c < ColName.Length; c++) Cell(head, ColName[c], c, 15, Theme.TextDim);
+            y -= 34;
+            int lastSquad = -1;
+            foreach (var r in results)
+            {
+                if (r.Squad != lastSquad)
+                {
+                    lastSquad = r.Squad;
+                    y -= 6;
+                    var band = UIKit.At(_fullRows, "Squad", new Vector2(0, 1), new Vector2(0, y), new Vector2(1120, 34));
+                    band.pivot = new Vector2(0, 1);
+                    bool mine = r.Squad == mySquad;
+                    UIKit.Image(band, UIKit.RoundedSmall, mine ? new Color(0.2f, 0.55f, 0.3f, 0.55f) : new Color(0.45f, 0.3f, 0.85f, 0.35f));
+                    var bt = UIKit.LabelAt(band, $"#{r.SquadRank}   SQUAD {(char)('A' + r.Squad)}{(mine ? "  (YOU)" : "")}", 20, Color.white, new Vector2(0, 0.5f), new Vector2(18, 0), new Vector2(600, 32), TextAnchor.MiddleLeft, UIKit.TitleFont);
+                    bt.rectTransform.pivot = new Vector2(0, 0.5f);
+                    var st = UIKit.LabelAt(band, (r.Squad == Winner ? "<color=#7dff9a>ESCAPED  ·  </color>" : "") + $"{r.SquadTotal:N0} PTS", 20, Theme.Gold, new Vector2(1, 0.5f), new Vector2(-18, 0), new Vector2(400, 32), TextAnchor.MiddleRight, UIKit.TitleFont);
+                    st.rectTransform.pivot = new Vector2(1, 0.5f); st.supportRichText = true;
+                    y -= 38;
+                }
+                var row = UIKit.At(_fullRows, "Row", new Vector2(0, 1), new Vector2(0, y), new Vector2(1120, 30));
+                row.pivot = new Vector2(0, 1);
+                bool me = r.PlayerId == localId;
+                UIKit.Image(row, UIKit.RoundedSmall, me ? new Color(1f, 0.82f, 0.25f, 0.18f) : new Color(1, 1, 1, 0.035f));
+                Color tc = me ? Theme.Gold : Theme.Text;
+                Cell(row, r.Name + (r == mvp ? "  <color=#ffd84a>★ MVP</color>" : ""), 0, 19, tc);
+                Cell(row, r.Total.ToString("N0"), 1, 19, me ? Theme.Gold : Color.white, UIKit.TitleFont);
+                Cell(row, r.Resources.ToString(), 2, 18, tc);
+                Cell(row, r.Eliminations.ToString(), 3, 18, tc);
+                Cell(row, r.Survival.ToString(), 4, 18, tc);
+                Cell(row, (r.Bonus + r.SquadPoints).ToString(), 5, 18, tc);
+                Cell(row, $"{r.Elims} / {r.Assists} / {r.Deaths}", 6, 18, tc);
+                y -= 32;
+            }
+        }
+
+        public void DebugToggleFull() => ToggleFull();
+
+        private void ToggleFull() { bool on = !_fullPanel.gameObject.activeSelf; _fullPanel.gameObject.SetActive(on); if (on) _fullPanel.SetAsLastSibling(); }
 
         private void PlayAgain()
         {
@@ -1072,9 +1289,9 @@ namespace Veil.UI
             _rank.fontSize = UIKit.Fs(112);
             _rank.color = me.SquadRank == 1 ? Theme.Gold : Theme.PurpleLight;
             if (!GameConfig.ExtractionMode) { _title.text = me.SquadRank == 1 ? "VICTORY" : $"SQUAD {(char)('A' + me.Squad)}"; _sub.text = "MATCH COMPLETE"; }
-            else if (Winner < 0) { _title.text = "TIME UP"; _sub.text = "NO SQUAD EXTRACTED"; }
-            else if (won) { _title.text = "VICTORY"; _sub.text = "YOUR SQUAD EXTRACTED"; }
-            else { _title.text = $"SQUAD {(char)('A' + Winner)} WINS"; _sub.text = "EXTRACTION COMPLETE"; }
+            else if (Winner < 0) { _title.text = "MATCH OVER"; _sub.text = "NO SQUAD ESCAPED"; }
+            else if (won) { _title.text = "VICTORY"; _sub.text = "YOUR SQUAD WON THE MATCH"; }
+            else { _title.text = $"SQUAD {(char)('A' + Winner)} WINS"; _sub.text = "MATCH COMPLETE"; }
 
             // score + level
             _targetScore = me.Total;
@@ -1174,20 +1391,7 @@ namespace Veil.UI
                 UIKit.Outline(s2, new Color(0, 0, 0, 0.8f), 2);
             }
 
-            // full table
-            var sb = new System.Text.StringBuilder("<color=#aab0d8>    NAME            TOTAL    RES  ELIM  SURV  BONUS   K/A/D</color>\n");
-            int lastSquad = -1;
-            foreach (var r in results)
-            {
-                if (r.Squad != lastSquad)
-                {
-                    lastSquad = r.Squad;
-                    sb.Append($"\n<color={(r.Squad == me.Squad ? "#7dff9a" : "#c7a6ff")}>#{r.SquadRank}  SQUAD {(char)('A' + r.Squad)}  ·  {r.SquadTotal:N0}{(r.Squad == Winner ? "  · EXTRACTED" : "")}</color>\n");
-                }
-                string line = $"    {r.Name,-15} {r.Total,5}   {r.Resources,4}  {r.Eliminations,4}  {r.Survival,4}  {r.Bonus + r.SquadPoints,5}   {r.Elims}/{r.Assists}/{r.Deaths}{(r == mvp ? "  MVP" : "")}";
-                sb.Append(r.PlayerId == localId ? $"<color=#ffd84a>{line}</color>\n" : line + "\n");
-            }
-            _full.text = sb.ToString();
+            BuildFullTable(results, localId, mvp, me.Squad);
             Sfx.Play(won || me.SquadRank == 1 ? Sfx.Objective : Sfx.Capture, 0.9f);
         }
 
@@ -1232,23 +1436,84 @@ namespace Veil.UI
 
     public sealed class PauseScreen : ScreenBase
     {
+        private const float W = 760, RowH = 74;
+
         public PauseScreen(RectTransform canvas, GameApp app) : base(canvas, app, "Pause")
         {
             var dim = UIKit.Fill(Root, "Dim");
-            UIKit.Image(dim, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.6f), true);
-            var panel = UIKit.Panel(Root, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 820));
-            var p = panel.transform;
-            var t = UIKit.LabelAt(p, "PAUSED", 48, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(500, 60), TextAnchor.MiddleCenter, UIKit.TitleFont);
-            UIKit.Button(p, "RESUME", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(420, 76), UIKit.ButtonStyle.Primary, () => App.SetPaused(false), 36);
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(60, -250), "SENSITIVITY", 0.03f, 0.4f, app.Profile.Sensitivity, v => { app.Profile.Sensitivity = v; app.Profile.Save(); app.ApplySettings(); }, v => (v * 10).ToString("0.0"));
-            Widgets.SliderRow(p, new Vector2(0.5f, 1), new Vector2(60, -480), "CAMERA", 2.6f, 10f, app.Profile.CamDistance, v => { app.Profile.CamDistance = v; app.Profile.Save(); app.CamRig.Distance = v; }, v => v.ToString("0.0") + " m");
-            new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -410), "MUSIC", new[] { "ON", "OFF" }, app.Profile.MusicOn ? 0 : 1,
-                i => { app.Profile.MusicOn = i == 0; app.Profile.Save(); app.ApplySettings(); }, 120);
-            new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -330), "GYRO", new[] { "OFF", "FIRING", "ALWAYS" }, app.Profile.GyroMode,
-                i => { app.Profile.GyroMode = i; app.Profile.Save(); }, 120);
-            UIKit.Button(p, "CUSTOMIZE CONTROLS", new Vector2(0.5f, 0), new Vector2(0, 200), new Vector2(420, 60), UIKit.ButtonStyle.Ghost, () => LayoutEditor.Open(Root.GetComponentInParent<Canvas>().transform), 22);
-            UIKit.Button(p, "LEAVE MATCH", new Vector2(0.5f, 0), new Vector2(0, 50), new Vector2(420, 64), UIKit.ButtonStyle.Secondary, () => { App.SetPaused(false); App.LeaveMatch(); }, 26);
-            var note = UIKit.LabelAt(p, "Offline matches pause. Online matches keep running.", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 130), new Vector2(500, 26), TextAnchor.MiddleCenter, UIKit.BodyFont);
+            UIKit.Image(dim, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.72f), true);
+            var card = UIKit.At(Root, "Card", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(W, 860));
+            UIKit.Image(card, UIKit.Rounded, new Color(0.11f, 0.12f, 0.27f, 0.97f), true);
+            var accent = UIKit.Rect(card, "Accent", new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(-48, 4));
+            accent.anchoredPosition = new Vector2(0, -2);
+            UIKit.Image(accent, UIKit.Pill, Theme.Purple);
+
+            var t = UIKit.LabelAt(card, "PAUSED", 44, Color.white, new Vector2(0.5f, 1), new Vector2(0, -52), new Vector2(500, 56), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            var resume = UIKit.Button(card, "RESUME", new Vector2(0.5f, 1), new Vector2(0, -132), new Vector2(W - 96, 80), UIKit.ButtonStyle.Primary, () => App.SetPaused(false), 34);
+
+            var prof = app.Profile;
+            float y = -200;
+            RectTransform Row(string label)
+            {
+                var r = UIKit.At(card, "Row_" + label, new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(W - 96, RowH - 10));
+                r.pivot = new Vector2(0.5f, 1);
+                UIKit.Image(r, UIKit.RoundedSmall, new Color(1, 1, 1, 0.05f));
+                var l = UIKit.LabelAt(r, label, 22, Theme.Text, new Vector2(0, 0.5f), new Vector2(22, 0), new Vector2(200, 36), TextAnchor.MiddleLeft, UIKit.BoldFont);
+                l.rectTransform.pivot = new Vector2(0, 0.5f);
+                UIKit.Fit(l, 12);
+                var c = UIKit.Rect(r, "Control", new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+                c.offsetMin = new Vector2(230, 10); c.offsetMax = new Vector2(-18, -10);
+                y -= RowH;
+                return c;
+            }
+            void SliderRow(string label, float min, float max, float value, System.Action<float> set, System.Func<float, string> fmt)
+            {
+                var c = Row(label);
+                var val = UIKit.LabelAt(c, fmt(value), 22, Theme.Yellow, new Vector2(1, 0.5f), Vector2.zero, new Vector2(90, 36), TextAnchor.MiddleRight, UIKit.BoldFont);
+                val.rectTransform.pivot = new Vector2(1, 0.5f);
+                var sRt = UIKit.Rect(c, "Slider", new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(0, 26));
+                sRt.offsetMin = new Vector2(0, -13); sRt.offsetMax = new Vector2(-104, 13);
+                UIKit.Image(sRt, UIKit.Pill, new Color(1, 1, 1, 0.12f), true);
+                var fillArea = UIKit.Rect(sRt, "FillArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-12, -8));
+                var fill = UIKit.Rect(fillArea, "Fill", Vector2.zero, new Vector2(0, 1), new Vector2(0, 0.5f), Vector2.zero, Vector2.zero);
+                UIKit.Image(fill, UIKit.Pill, Theme.Purple);
+                var handleArea = UIKit.Rect(sRt, "HandleArea", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-30, 0));
+                var handle = UIKit.Rect(handleArea, "Handle", Vector2.zero, new Vector2(0, 1), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(36, 14));
+                var hImg = UIKit.Image(handle, UIKit.Circle, Color.white, true);
+                var sl = sRt.gameObject.AddComponent<UnityEngine.UI.Slider>();
+                sl.fillRect = fill; sl.handleRect = handle; sl.targetGraphic = hImg;
+                sl.minValue = min; sl.maxValue = max; sl.value = value;
+                sl.onValueChanged.AddListener(v => { val.text = fmt(v); set(v); });
+            }
+            void ChipRow(string label, string[] options, int selected, System.Action<int> pick)
+            {
+                var c = Row(label);
+                var imgs = new List<Image>(); var lbls = new List<Text>();
+                void Select(int k) { for (int n = 0; n < imgs.Count; n++) { imgs[n].color = n == k ? new Color(0.62f, 0.38f, 1f, 0.95f) : new Color(1, 1, 1, 0.08f); lbls[n].color = n == k ? Color.white : Theme.TextDim; } }
+                for (int i = 0; i < options.Length; i++)
+                {
+                    int idx = i;
+                    var b = UIKit.Button(c, options[i], new Vector2(0, 0.5f), Vector2.zero, new Vector2(10, 44), UIKit.ButtonStyle.Ghost, () => { Select(idx); pick(idx); }, 18);
+                    var br = (RectTransform)b.transform;
+                    br.anchorMin = new Vector2((float)i / options.Length, 0); br.anchorMax = new Vector2((float)(i + 1) / options.Length, 1);
+                    br.offsetMin = new Vector2(i == 0 ? 0 : 5, 0); br.offsetMax = new Vector2(i == options.Length - 1 ? 0 : -5, 0);
+                    imgs.Add((Image)b.targetGraphic);
+                    var l = UIKit.ButtonLabel(b); UIKit.Fit(l, 11); lbls.Add(l);
+                }
+                Select(selected);
+            }
+
+            SliderRow("SENSITIVITY", 0.03f, 0.4f, prof.Sensitivity, v => { prof.Sensitivity = v; prof.Save(); app.ApplySettings(); }, v => (v * 10).ToString("0.0"));
+            SliderRow("CAMERA", 2.6f, 10f, prof.CamDistance, v => { prof.CamDistance = v; prof.Save(); app.CamRig.Distance = v; }, v => v.ToString("0.0") + " m");
+            ChipRow("GYRO", new[] { "OFF", "FIRING", "ALWAYS" }, prof.GyroMode, i => { prof.GyroMode = i; prof.Save(); });
+            ChipRow("MIC", new[] { "ON", "OFF" }, app.Voice.MicMuted ? 1 : 0, i => { app.Voice.MicMuted = i == 1; PlayerPrefs.SetInt("micMuted", i); });
+            ChipRow("MUSIC", new[] { "ON", "OFF" }, prof.MusicOn ? 0 : 1, i => { prof.MusicOn = i == 0; prof.Save(); app.ApplySettings(); });
+
+            float half = (W - 96 - 16) / 2f;
+            var cust = UIKit.Button(card, "CUSTOMIZE CONTROLS", new Vector2(0.5f, 0), new Vector2(-(half + 16) / 2f, 92), new Vector2(half, 68), UIKit.ButtonStyle.Secondary, () => LayoutEditor.Open(Root.GetComponentInParent<Canvas>().transform), 20);
+            UIKit.Fit(UIKit.ButtonLabel(cust), 12);
+            var leave = UIKit.Button(card, "LEAVE MATCH", new Vector2(0.5f, 0), new Vector2((half + 16) / 2f, 92), new Vector2(half, 68), UIKit.ButtonStyle.Ghost, () => { App.SetPaused(false); App.LeaveMatch(); }, 22);
+            UIKit.LabelAt(card, "Offline matches pause · online matches keep running", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 34), new Vector2(W - 96, 24), TextAnchor.MiddleCenter, UIKit.BodyFont);
         }
     }
 }

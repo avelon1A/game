@@ -430,7 +430,24 @@ namespace Veil.Sim
             const int k = 2;
             var c = m.Zone(ZoneType.Ruins).Center;
             // temple ruins landmark: the raised temple + colonnade block, the lower stairs stay walkable
-            LandmarkSolids(m, LandmarkShapes.Ruins, LandmarkShapes.RuinsWidth, RuinsLandmark, 90f);
+            // the coarse stair slices (1.5 m deep, up to 1.8 m apart) could not be climbed: replace the central
+            // flight with a fine staircase (0.45 m treads, ≤ 0.35 m risers) up to the temple platform
+            var shape = new List<(float x0, float x1, float y0, float y1, float h)>();
+            foreach (var r in LandmarkShapes.Ruins)
+                if (!(r.x0 <= -0.45f && r.x1 >= 0.45f && r.y0 >= -0.30f && r.y1 <= 0.0f) && !(r.x0 >= -0.25f && r.x1 <= 0.2f && r.y0 >= -0.30f && r.y1 <= -0.25f)) shape.Add(r);
+            const int steps = 20;
+            for (int i = 0; i < steps; i++)
+            {
+                float y0 = -0.30f + 0.30f * i / steps, y1 = -0.30f + 0.30f * (i + 1) / steps;
+                shape.Add((-0.29f, 0.29f, y0, y1, 0.3f + 5.8f * (i + 1) / steps));
+            }
+            foreach (var r in LandmarkShapes.Ruins)
+                if (r.x0 <= -0.45f && r.x1 >= 0.45f && r.y0 >= -0.30f && r.y1 <= 0.0f)
+                {
+                    shape.Add((-0.5f, -0.29f, r.y0, r.y1, r.h));
+                    shape.Add((0.29f, 0.5f, r.y0, r.y1, r.h));
+                }
+            LandmarkSolids(m, shape.ToArray(), LandmarkShapes.RuinsWidth, RuinsLandmark, 90f);
             Scatter(m, rng, reserved, k, 30, 80f, 182f, p => Tree(m, p));
             Scatter(m, rng, reserved, k, 14, 80f, 180f, p => Circle(m, ObstacleKind.Rock, p, rng.Range(1f, 2.2f), rng.Range(1.4f, 3f)));
             Scatter(m, rng, reserved, k, 8, 90f, 175f, p => Circle(m, ObstacleKind.Pillar, p, 0.7f, rng.Range(1f, 3.6f)));

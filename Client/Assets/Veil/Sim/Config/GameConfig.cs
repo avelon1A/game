@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 20;
+        public const int ProtocolVersion = 21;
         public const float ExtractSeeRange = 70f;      // squads without the Vault only see the helicopter with their own eyes, this close;
 
         // ---- Simulation ----
@@ -32,6 +32,8 @@ namespace Veil.Sim
         public const float ShortHopGravityMult = 2.3f;     // release jump early = short hop
         public const float AirAccel = 22f;
         public const float JumpVelocity = 7.4f;
+        public const float StepUp = 0.6f;
+        public const bool AutoRespawn = false;             // fallen players only come back from their tag; a wiped squad is out                  // walk up steps this high without jumping
         public const float Gravity = 21f;                  // jump apex ≈ 1.3m → low walls (1.0m) are jumpable
         public const float DashSpeed = 25f;
         public const float DashDuration = 0.18f;

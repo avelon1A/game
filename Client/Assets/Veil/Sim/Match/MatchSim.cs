@@ -305,6 +305,8 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ end
 
+        public void DebugEndNow() { if (!Ended) EndMatch(); }
+
         private void EndMatch()
         {
             if (Ended) return;

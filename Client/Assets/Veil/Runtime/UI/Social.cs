@@ -146,7 +146,16 @@ namespace Veil.UI
 
             // ---------------- name tags over the squad on the stage
             _plates = UIKit.Fill(tab, "Plates");
-            for (int i = 0; i < _plate.Length; i++) _plate[i] = MakePlate(_plates, i);
+            for (int i = 0; i < _plate.Length; i++)
+            {
+                _plate[i] = MakePlate(_plates, i);
+                // tap a squadmate's card: mute, and for the leader MAKE LEADER / REMOVE FROM SQUAD
+                int idx = i;
+                var hit = UIKit.Fill(_plate[i].Root, "Tap");
+                var hitImg = UIKit.Image(hit, UIKit.Square, new Color(0, 0, 0, 0), true);
+                var hb = hit.gameObject.AddComponent<Button>(); hb.targetGraphic = hitImg; hb.transition = Selectable.Transition.None;
+                hb.onClick.AddListener(() => PlateClicked(idx));
+            }
 
             // ---------------- squad panel
             _squadPanel = (RectTransform)UIKit.Panel(tab, "Squad", new Vector2(1, 0), new Vector2(-24, 128), new Vector2(440, 512)).transform;
@@ -321,7 +330,7 @@ namespace Veil.UI
             var party = g.Party;
             bool searching = _online && g.Online && !party.Empty && party.phase == (int)PartyPhase.Queued;
             bool found = (_online && g.Online && !party.Empty && party.phase == (int)PartyPhase.InMatch) || (!_online && _offlineCountdown);
-            int state = found ? 2 : searching ? 1 : 0;
+            int state = found || _debugFound ? 2 : searching ? 1 : 0;
             if (state != _mmState)
             {
                 if (state > 0 && _mmState == 0) PunchFx.On(_mm).Kick(-0.3f);
@@ -333,7 +342,10 @@ namespace Veil.UI
                 }
                 _mmState = state;
             }
-            _mm.gameObject.SetActive(state > 0 && _app.State == GameApp.AppState.Menu);
+            // match found: a full-screen page for a few seconds (never left on screen while you are back in the lobby)
+            bool page = state == 2 && _app.State == GameApp.AppState.Menu && _mmFoundT < 9f;
+            UpdateFoundPage(page, dt);
+            _mm.gameObject.SetActive(state == 1 && _app.State == GameApp.AppState.Menu);
             if (state == 0) return;
             _mmSweep.localRotation = Quaternion.Euler(0, 0, -Time.unscaledTime * (state == 1 ? 220f : 600f));
             _mmFoundT += dt;
@@ -357,6 +369,98 @@ namespace Veil.UI
                 for (int i = 0; i < 4; i++) _mmDots[i].color = Theme.Green;
             }
         }
+        private RectTransform _found, _foundBar;
+        private Text _foundTitle, _foundSub, _foundStatus, _foundSquad;
+        private CanvasGroup _foundFade;
+        private RawImage _foundArt;
+        private float _foundAspect = 1.78f;
+        public static GameObject FoundPage;
+
+        /// <summary>Full-screen MATCH FOUND: Meshy key art, title, your squad, drop progress / offline countdown.</summary>
+        private void UpdateFoundPage(bool show, float dt)
+        {
+            if (_found == null)
+            {
+                if (!show) return;
+                var canvas = _tab.GetComponentInParent<Canvas>().transform;
+                _found = UIKit.Fill(canvas, "MatchFound");
+                UIKit.Image(_found, UIKit.Square, Color.black, true);
+                var tex = Resources.Load<Texture2D>("UI/matchfound_bg");
+                if (tex != null)
+                {
+                    // cover the screen by cropping the image (uvRect), never by stretching it
+                    _foundArt = UIKit.Fill(_found, "Art").gameObject.AddComponent<RawImage>();
+                    _foundArt.texture = tex; _foundArt.raycastTarget = false;
+                    _foundAspect = tex.width / (float)tex.height;
+                }
+                var shade = UIKit.Fill(_found, "Shade");
+                var sh = UIKit.Image(shade, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.35f)); sh.raycastTarget = false;
+                var shadeB = UIKit.Rect(_found, "ShadeB", new Vector2(0, 0), new Vector2(1, 0.55f), new Vector2(0.5f, 0), Vector2.zero, Vector2.zero);
+                var sb = UIKit.Image(shadeB, UIKit.Gradient, new Color(0.02f, 0.02f, 0.08f, 0.9f)); sb.raycastTarget = false;
+                shadeB.localScale = new Vector3(1, -1, 1); shadeB.pivot = new Vector2(0.5f, 0.5f);
+
+                var safe = UIKit.Fill(_found, "Safe");
+                safe.gameObject.AddComponent<SafeArea>();
+                var kick = UIKit.LabelAt(safe, "SQUADS · RILO ISLAND", 30, Theme.Yellow, new Vector2(0.5f, 0.5f), new Vector2(0, 250), new Vector2(1000, 40), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                UIKit.Shadow(kick, 2);
+                _foundTitle = UIKit.LabelAt(safe, "MATCH FOUND", 140, Color.white, new Vector2(0.5f, 0.5f), new Vector2(0, 160), new Vector2(1400, 160), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                _foundTitle.fontStyle = FontStyle.Italic;
+                UIKit.Shadow(_foundTitle, 5);
+                _foundSub = UIKit.LabelAt(safe, "4 squads of 4 · first squad to escape by helicopter wins", 32, new Color(0.92f, 0.94f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0, 66), new Vector2(1400, 42), TextAnchor.MiddleCenter, UIKit.BodyFont);
+                UIKit.Shadow(_foundSub, 2);
+                _foundSquad = UIKit.LabelAt(safe, "", 30, Color.white, new Vector2(0.5f, 0), new Vector2(0, 230), new Vector2(1600, 44), TextAnchor.MiddleCenter, UIKit.BoldFont);
+                _foundSquad.supportRichText = true;
+                UIKit.Shadow(_foundSquad, 2);
+
+                var barBg = UIKit.At(safe, "Bar", new Vector2(0.5f, 0), new Vector2(0, 110), new Vector2(900, 14));
+                UIKit.Image(barBg, UIKit.Pill, new Color(1, 1, 1, 0.2f));
+                _foundBar = UIKit.Rect(barBg, "Fill", new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), Vector2.zero, Vector2.zero);
+                UIKit.Image(_foundBar, UIKit.Pill, Theme.Yellow);
+                _foundStatus = UIKit.LabelAt(safe, "", 36, Theme.Yellow, new Vector2(0.5f, 0), new Vector2(0, 158), new Vector2(900, 46), TextAnchor.MiddleCenter, UIKit.TitleFont);
+                UIKit.Shadow(_foundStatus, 2);
+                _foundFade = _found.gameObject.AddComponent<CanvasGroup>();
+                FoundPage = _found.gameObject;
+                _found.gameObject.SetActive(false);
+            }
+            if (_found.gameObject.activeSelf != show)
+            {
+                _found.gameObject.SetActive(show);
+                if (show) { _found.SetAsLastSibling(); _foundFade.alpha = 0; }
+            }
+            if (!show) return;
+            _foundFade.alpha = Mathf.MoveTowards(_foundFade.alpha, 1f, dt * 3f);
+            float t = _mmFoundT;
+            float e = Mathf.SmoothStep(0, 1, Mathf.Clamp01(t * 2.5f));
+            _foundTitle.rectTransform.localScale = Vector3.one * (1.15f - 0.15f * e);
+            if (_foundArt != null)
+            {
+                // cover crop + a slow push-in
+                var r = _found.rect;
+                float screenAspect = r.width / Mathf.Max(1f, r.height);
+                float zoom = 1f + 0.04f * Mathf.Clamp01(t / 8f);
+                Rect uv = screenAspect > _foundAspect
+                    ? new Rect(0, 0, 1, _foundAspect / screenAspect)
+                    : new Rect(0, 0, screenAspect / _foundAspect, 1);
+                uv.width /= zoom; uv.height /= zoom;
+                uv.x = (1 - uv.width) * 0.5f; uv.y = (1 - uv.height) * 0.5f;
+                _foundArt.uvRect = uv;
+            }
+            var names = new List<string>();
+            foreach (var m in _members) names.Add(m.Me ? $"<color=#ffd84a>{m.Name}</color>" : m.Name);
+            _foundSquad.text = names.Count > 0 ? "<color=#aab0d8>YOUR SQUAD</color>   " + string.Join("   ·   ", names) : "";
+            if (!_online)
+            {
+                int c = Mathf.Max(0, Mathf.CeilToInt(_countT));
+                _foundStatus.text = c > 0 ? $"STARTING IN {c}" : "GO!";
+                _foundBar.anchorMax = new Vector2(Mathf.Clamp01(1f - _countT / 3f), 1);
+            }
+            else
+            {
+                _foundStatus.text = "DROPPING IN…";
+                _foundBar.anchorMax = new Vector2(Mathf.Clamp01(t / 6f), 1);
+            }
+        }
+
         private RectTransform _cards;
         private readonly RectTransform[] _plus = new RectTransform[3];
         private Text _chat;
@@ -641,6 +745,7 @@ namespace Veil.UI
             // same height for all cards (a tidy row), just above the tallest head
             float y = float.MinValue;
             foreach (var p in _shownPlates) y = Mathf.Max(y, p.Root.anchoredPosition.y);
+            y = Mathf.Min(y, _plates.rect.height * 0.5f - 150f);   // never under the top bar (profile card, coins)
             for (int k = 0; k < n; k++)
             {
                 var rt = _shownPlates[k].Root;
@@ -764,6 +869,9 @@ namespace Veil.UI
 
         private void Result(bool ok, string err) { if (!ok && !string.IsNullOrEmpty(err)) Flash($"<color=#ff9a8a>{err}</color>"); }
 
+        private bool _debugFound;
+        public void DebugStartOffline() => _debugFound = true;
+
         private void OnAction()
         {
             if (!_online)
@@ -795,6 +903,15 @@ namespace Veil.UI
             if (m == null || m.Me || m.Bot || !_online) return;
             bool leaderActions = g.IsLeader && g.Party.phase == (int)PartyPhase.Idle;
             ShowMemberPopup(m, leaderActions);
+        }
+
+        private void PlateClicked(int i)
+        {
+            if (i >= _members.Count) return;
+            var m = _members[i];
+            var g = _app.Gateway;
+            if (m == null || m.Me || m.Bot || !_online) return;
+            ShowMemberPopup(m, g.IsLeader && g.Party.phase == (int)PartyPhase.Idle);
         }
 
         private void ClosePopup() { SocialUi.Clear(_popup); _popup.gameObject.SetActive(false); }
@@ -829,7 +946,7 @@ namespace Veil.UI
             if (leaderActions)
             {
                 Btn("MAKE LEADER", UIKit.ButtonStyle.Secondary, () => g.Promote(id, Result));
-                Btn("REMOVE FROM SQUAD", UIKit.ButtonStyle.Ghost, () => g.Kick(id, Result));
+                Btn("KICK FROM SQUAD", UIKit.ButtonStyle.Ghost, () => { g.Kick(id, Result); ClosePopup(); });
             }
         }
 
