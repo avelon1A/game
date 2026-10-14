@@ -126,6 +126,7 @@ namespace Veil.Sim
                 w.U8((byte)(sbyte)MathF.Round(MathUtil.Clamp(c.MoveX, -1, 1) * 127f));
                 w.U8((byte)(sbyte)MathF.Round(MathUtil.Clamp(c.MoveY, -1, 1) * 127f));
                 w.Angle(c.Yaw);
+                w.I16((short)MathF.Round(MathUtil.Clamp(c.Pitch, -90f, 90f) * 100f));
                 w.U16((ushort)c.Buttons);
                 if (c.Has(Buttons.Mark)) { w.I16((short)MathF.Round(c.MarkX * 10f)); w.I16((short)MathF.Round(c.MarkY * 10f)); }
             }
@@ -141,6 +142,7 @@ namespace Veil.Sim
                 c.MoveX = (sbyte)r.U8() / 127f;
                 c.MoveY = (sbyte)r.U8() / 127f;
                 c.Yaw = r.Angle();
+                c.Pitch = r.I16() / 100f;
                 c.Buttons = (Buttons)r.U16();
                 if (c.Has(Buttons.Mark)) { c.MarkX = r.I16() / 10f; c.MarkY = r.I16() / 10f; }
                 output.Add(c);
@@ -153,6 +155,7 @@ namespace Veil.Sim
             c.MoveX = (sbyte)MathF.Round(MathUtil.Clamp(c.MoveX, -1, 1) * 127f) / 127f;
             c.MoveY = (sbyte)MathF.Round(MathUtil.Clamp(c.MoveY, -1, 1) * 127f) / 127f;
             c.Yaw = (ushort)(((c.Yaw % 360f) + 360f) % 360f / 360f * 65535f) / 65535f * 360f;
+            c.Pitch = (short)MathF.Round(MathUtil.Clamp(c.Pitch, -90f, 90f) * 100f) / 100f;
             return c;
         }
 
@@ -185,7 +188,7 @@ namespace Veil.Sim
             foreach (var a in s.Avatars)
             {
                 w.I16((short)a.AvatarId); w.U8((byte)a.OwnerId); w.U8(a.Vis);
-                w.Vec(a.Pos); w.VelQ(a.Vel); w.Pos(a.H); w.Angle(a.Yaw); w.Unit(a.Health01, 1f); w.U8((byte)a.Flags);
+                w.Vec(a.Pos); w.VelQ(a.Vel); w.Pos(a.H); w.Angle(a.Yaw); w.U8((byte)(sbyte)MathF.Round(MathUtil.Clamp(a.Pitch, -90f, 90f))); w.Unit(a.Health01, 1f); w.U8((byte)a.Flags);
                 w.U8(a.FireSeq); w.U8(a.CastSeq); w.U8(a.HitSeq); w.U8(a.JumpSeq);
                 w.U8(a.State); w.Unit(a.ReviveProg, 1f);
             }
@@ -194,7 +197,7 @@ namespace Veil.Sim
             for (int i = 0; i < Math.Min(s.Projectiles.Count, 255); i++)
             {
                 var pr = s.Projectiles[i];
-                w.I32(pr.Id); w.U8((byte)pr.Owner); w.Vec(pr.Pos); w.VelQ(pr.Vel); w.U8(pr.Kind);
+                w.I32(pr.Id); w.U8((byte)pr.Owner); w.Vec(pr.Pos); w.VelQ(pr.Vel); w.Pos(pr.Z); w.Pos(pr.Vz); w.U8(pr.Kind);
             }
 
             w.U8((byte)s.Zones.Length);
@@ -254,14 +257,14 @@ namespace Veil.Sim
             for (int i = 0; i < na; i++)
             {
                 var a = new AvatarSnap { AvatarId = r.I16(), OwnerId = r.U8(), Vis = r.U8() };
-                a.Pos = r.Vec(); a.Vel = r.VelQ(); a.H = r.Pos(); a.Yaw = r.Angle(); a.Health01 = r.Unit(1f); a.Flags = (AvatarFlags)r.U8();
+                a.Pos = r.Vec(); a.Vel = r.VelQ(); a.H = r.Pos(); a.Yaw = r.Angle(); a.Pitch = (sbyte)r.U8(); a.Health01 = r.Unit(1f); a.Flags = (AvatarFlags)r.U8();
                 a.FireSeq = r.U8(); a.CastSeq = r.U8(); a.HitSeq = r.U8(); a.JumpSeq = r.U8();
                 a.State = r.U8(); a.ReviveProg = r.Unit(1f);
                 s.Avatars.Add(a);
             }
             int np = r.U8();
             for (int i = 0; i < np; i++)
-                s.Projectiles.Add(new ProjectileSnap { Id = r.I32(), Owner = r.U8(), Pos = r.Vec(), Vel = r.VelQ(), Kind = r.U8() });
+                s.Projectiles.Add(new ProjectileSnap { Id = r.I32(), Owner = r.U8(), Pos = r.Vec(), Vel = r.VelQ(), Z = r.Pos(), Vz = r.Pos(), Kind = r.U8() });
             int nz = r.U8();
             s.Zones = new ZoneSnap[nz];
             for (int i = 0; i < nz; i++)

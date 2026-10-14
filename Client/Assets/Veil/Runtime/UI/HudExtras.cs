@@ -53,6 +53,39 @@ namespace Veil.UI
             UIKit.Outline(_tag, new Color(0, 0, 0, 0.85f), 2);
             _finale = UIKit.LabelAt(root, "", 84, Theme.Red, new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(400, 100), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(_finale, new Color(0, 0, 0, 0.9f), 4);
+
+            // eliminations + network ping, under the minimap
+            var info = UIKit.At(root, "KillsPing", new Vector2(1, 1), new Vector2(-24, -298), new Vector2(266, 34));
+            info.pivot = new Vector2(1, 1);
+            UIKit.Image(info, UIKit.Pill, new Color(0.03f, 0.04f, 0.1f, 0.6f));
+            var sk = UIKit.At(info, "Skull", new Vector2(0, 0.5f), new Vector2(12, 0), new Vector2(22, 22));
+            sk.pivot = new Vector2(0, 0.5f);
+            UIKit.Image(sk, Icons.Skull, Theme.Red);
+            _kills = UIKit.LabelAt(info, "0", 22, Color.white, new Vector2(0, 0.5f), new Vector2(42, 0), new Vector2(90, 30), TextAnchor.MiddleLeft, UIKit.TitleFont);
+            _kills.rectTransform.pivot = new Vector2(0, 0.5f);
+            _ping = UIKit.LabelAt(info, "", 18, Theme.TextDim, new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(150, 30), TextAnchor.MiddleRight, UIKit.BoldFont);
+            _ping.rectTransform.pivot = new Vector2(1, 0.5f);
+            _ping.supportRichText = true;
+        }
+
+        private readonly Text _kills, _ping;
+        private int _lastKills = -1, _headshotOn = -1;
+        private float _pingRefresh;
+
+        private void UpdateKillsPing(float dt)
+        {
+            int k = _m.Latest?.Self?.Elims ?? 0;
+            if (k != _lastKills) { if (_lastKills >= 0) PunchFx.On(_kills).Kick(0.4f); _lastKills = k; _kills.text = k.ToString(); }
+            _pingRefresh -= dt;
+            if (_pingRefresh > 0) return;
+            _pingRefresh = 0.5f;
+            if (_m.Driver is NetMatchDriver nd)
+            {
+                int ms = nd.PingMs;
+                string col = ms < 80 ? "#7dff9a" : ms < 150 ? "#ffd84a" : "#ff6a7a";
+                _ping.text = ms > 0 ? $"<color={col}>●</color> {ms} ms" : "<color=#8a90b8>●</color> -- ms";
+            }
+            else _ping.text = "<color=#7dff9a>●</color> LOCAL";
         }
 
         private string Sq(int q) => q == _m.LocalSquad ? "YOUR SQUAD" : "SQUAD " + (char)('A' + q);
@@ -63,11 +96,17 @@ namespace Veil.UI
         {
             switch (e.Type)
             {
+                case EventType.Headshot:
+                    if (e.A == _m.LocalId) _headshotOn = e.B;
+                    break;
                 case EventType.Hit:
                     if (e.A == _m.LocalId && e.B >= 0 && e.B != _m.LocalId)
                     {
-                        Number(e.Pos, e.Value, e.Value >= 30 ? Theme.Gold : Color.white);
-                        Sfx.Play(Sfx.HitTick, 0.55f, 1f + Mathf.Clamp01(e.Value / 60f) * 0.3f);
+                        bool head = _headshotOn == e.B;
+                        _headshotOn = -1;
+                        Number(e.Pos, e.Value, head ? new Color(1f, 0.35f, 0.25f) : e.Value >= 30 ? Theme.Gold : Color.white, head);
+                        Sfx.Play(Sfx.HitTick, head ? 0.8f : 0.55f, head ? 1.6f : 1f + Mathf.Clamp01(e.Value / 60f) * 0.3f);
+                        if (head) { Sfx.Play(Sfx.Headshot, 0.7f); HeadshotFlash?.Invoke(); }
                     }
                     if (e.B == _m.LocalId && e.A >= 0 && e.A != _m.LocalId) DamageFrom(e.A);
                     break;
@@ -156,9 +195,11 @@ namespace Veil.UI
 
         private static string LootName(PickupType t) => t == PickupType.Shotgun ? "SHOTGUN" : t == PickupType.Smg ? "SMG" : t == PickupType.Grenades ? "GRENADES" : "LOOT";
 
-        private void Number(Vec2 at, int value, Color c)
+        public Action HeadshotFlash;
+
+        private void Number(Vec2 at, int value, Color c, bool head = false)
         {
-            var t = UIKit.LabelAt(_root, value.ToString(), 26, c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(120, 34), TextAnchor.MiddleCenter, UIKit.TitleFont);
+            var t = UIKit.LabelAt(_root, head ? "HEADSHOT " + value : value.ToString(), head ? 30 : 26, c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(head ? 280 : 120, 34), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Outline(t, new Color(0, 0, 0, 0.85f), 2);
             _numbers.Add(new Floater { Text = t, World = new Vector3(at.X + UnityEngine.Random.Range(-0.3f, 0.3f), 2.1f, at.Y), Life = 0.85f });
             if (_numbers.Count > 24) { UnityEngine.Object.Destroy(_numbers[0].Text.gameObject); _numbers.RemoveAt(0); }
@@ -197,6 +238,7 @@ namespace Veil.UI
         public void Update(float dt, float cameraYaw)
         {
             if (_slowT > 0) { _slowT -= Time.unscaledDeltaTime; if (_slowT <= 0) Time.timeScale = 1f; }
+            UpdateKillsPing(dt);
             var s = _m.Latest;
             if (s == null) return;
             var me = _m.Predicted;

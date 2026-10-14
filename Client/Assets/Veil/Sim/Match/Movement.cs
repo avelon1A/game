@@ -12,6 +12,7 @@ namespace Veil.Sim
         {
             if (!p.Alive) return;
             p.Yaw = cmd.Yaw;
+            p.AimPitch = cmd.Pitch;
             if (p.Downed)
             {
                 // crawl: no dash, sprint or jump

@@ -336,6 +336,12 @@ namespace Veil.Voice
             // resample to 16 kHz (linear). Sample index -1 = the last sample of the previous chunk, so the
             // interpolation is continuous across chunk boundaries (no clicks / dropped samples)
             float step = _micRate / (float)VoiceWire.SampleRate;
+            // anti-alias: two one-pole low-passes at ~6.5 kHz before dropping to 16 kHz (stops hiss folding into the voice band)
+            if (step > 1.01f)
+            {
+                float a = 1f - Mathf.Exp(-2f * Mathf.PI * 6500f / _micRate);
+                for (int k = 0; k < avail; k++) { _lp1 += (_micBuf[k] - _lp1) * a; _lp2 += (_lp1 - _lp2) * a; _micBuf[k] = _lp2; }
+            }
             float peak = 0;
             while (_resamplePhase < avail - 1)
             {
@@ -345,6 +351,8 @@ namespace Veil.Voice
                 float a = i < 0 ? _prevSample : _micBuf[i];
                 float b = _micBuf[i + 1];
                 float v = a * (1 - f) + b * f;
+                // high-pass ~120 Hz: removes rumble, handling noise and DC
+                float hp = 0.954f * (_hpY + v - _hpX); _hpX = v; _hpY = hp; v = hp;
                 _pcm16k.Add(v);
                 peak = Mathf.Max(peak, Mathf.Abs(v));
                 _resamplePhase += step;
@@ -364,7 +372,21 @@ namespace Veil.Voice
                 }
                 _pcm16k.RemoveRange(0, VoiceWire.FrameSamples);
                 rms = Mathf.Sqrt(rms / VoiceWire.FrameSamples);
-                bool voice = Mode == VoiceMode.PushToTalk ? PushToTalkHeld : rms > Mathf.Lerp(0.004f, 0.08f, Sensitivity);
+                // adaptive noise floor: drops fast to quiet frames, creeps up slowly (speech does not drag it up)
+                _noiseFloor = rms < _noiseFloor ? Mathf.Lerp(_noiseFloor, rms, 0.25f) : Mathf.Lerp(_noiseFloor, rms, 0.004f);
+                _noiseFloor = Mathf.Clamp(_noiseFloor, 0.0005f, 0.05f);
+                // noise gate / expander: frames near the floor fade out smoothly, speech passes untouched
+                float target = Mathf.Clamp01((rms - _noiseFloor * 2.2f) / (_noiseFloor * 2.5f + 1e-5f));
+                for (int i = 0; i < VoiceWire.FrameSamples; i++)
+                {
+                    _gateGain += (target - _gateGain) * (target > _gateGain ? 0.02f : 0.0025f);
+                    _frame[i] = (short)(_frame[i] * _gateGain);
+                }
+                // someone else is talking through our speaker: open mic needs a much louder signal (echo guard)
+                float threshold = Mathf.Lerp(0.004f, 0.08f, Sensitivity);
+                threshold = Mathf.Max(threshold, _noiseFloor * 3f);
+                if (RemoteTalking()) threshold *= 2.5f;
+                bool voice = Mode == VoiceMode.PushToTalk ? PushToTalkHeld : rms > threshold;
                 if (voice) _hangover = 0.35f; else _hangover -= VoiceWire.FrameMs / 1000f;
                 bool send = wantTalk && (voice || (Mode == VoiceMode.OpenMic && _hangover > 0));
                 LocalSpeaking = send;
@@ -375,6 +397,14 @@ namespace Veil.Voice
                 _w.Reset(); _w.U8(VoiceWire.Frame); _w.U16(++_seq); _w.Bytes(_opus, 0, len);
                 SendW();
             }
+        }
+
+        private float _lp1, _lp2, _hpX, _hpY, _noiseFloor = 0.004f, _gateGain;
+
+        private bool RemoteTalking()
+        {
+            foreach (var sp in _speakers.Values) if (sp.Playing && sp.Count > VoiceWire.FrameSamples) return true;
+            return false;
         }
 
         private void StartMic()
@@ -396,7 +426,8 @@ namespace Veil.Voice
                 _encoder.Bitrate = 24000;
                 _encoder.UseInbandFEC = true;        // each packet carries a low-rate copy of the previous one
                 _encoder.PacketLossPercent = 10;
-                _encoder.Complexity = Application.isMobilePlatform ? 3 : 6;
+                _encoder.Complexity = Application.isMobilePlatform ? 5 : 8;
+                _encoder.SignalType = OpusSignal.OPUS_SIGNAL_VOICE;
                 _encoder.UseVBR = true;
             }
         }

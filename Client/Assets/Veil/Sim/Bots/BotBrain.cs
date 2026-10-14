@@ -16,6 +16,7 @@ namespace Veil.Sim
         {
             public int AvatarId, Owner;
             public Vec2 Pos, Vel;
+            public float H;
             public float Time, Health;
             public bool Full;
         }
@@ -90,7 +91,7 @@ namespace Veil.Sim
                 if (o == _p || MatchSim.Allies(o, _p)) continue;   // squadmates are never targets
                 byte vis = Visibility.OfPlayer(_sim, _p, o);
                 if (vis == Visibility.None) continue;
-                _seen[o.Id] = new Seen { AvatarId = o.Id, Owner = o.Id, Pos = o.Pos, Vel = o.Vel, Time = now, Health = o.HealthFrac, Full = vis == Visibility.Full };
+                _seen[o.Id] = new Seen { AvatarId = o.Id, Owner = o.Id, Pos = o.Pos, Vel = o.Vel, H = o.H, Time = now, Health = o.HealthFrac, Full = vis == Visibility.Full };
             }
             foreach (var d in _sim.Decoys)
             {
@@ -504,7 +505,7 @@ namespace Veil.Sim
                 float d = Vec2.Dist(t.Pos, _p.Pos);
                 var ws = GameConfig.Current(_p.Look.Weapon, _p.Fists, _p.Special);
                 // grenade: lob one at a target at mid range now and then
-                if (_p.Grenades > 0 && d > 8f && d < GameConfig.GrenadeRange - 2f && _p.FireCd <= 0 && _rng.Chance(0.02f))
+                if (_p.Grenades > 0 && !_sim.Settings.BotsHoldFire && d > 8f && d < GameConfig.GrenadeRange - 2f && _p.FireCd <= 0 && _rng.Chance(0.02f))
                 {
                     cmd.Yaw = (t.Pos - _p.Pos).Yaw;
                     cmd.Buttons |= Buttons.Grenade;
@@ -518,7 +519,8 @@ namespace Veil.Sim
                     float desired = (aimAt - _p.Pos).Yaw + _rng.Range(-err, err);
                     float turn = 540f * dt * (0.6f + _skill);
                     cmd.Yaw = _p.Yaw + MathUtil.Clamp(MathUtil.DeltaAngle(_p.Yaw, desired), -turn, turn);
-                    if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 9f && _sim.Phase != MatchPhase.Ended) cmd.Buttons |= Buttons.Fire;
+                    cmd.Pitch = MathF.Atan2(t.H + 1.1f - (_p.H + GameConfig.MuzzleHeight), MathF.Max(1f, d)) * 180f / MathF.PI;
+                    if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 9f && _sim.Phase != MatchPhase.Ended && !_sim.Settings.BotsHoldFire) cmd.Buttons |= Buttons.Fire;
 
                     // busy with an objective: keep walking to it while shooting
                     if (selfDefense && Vec2.Dist(dest, _p.Pos) > 1.2f)
@@ -562,7 +564,7 @@ namespace Veil.Sim
                 float turn = 540f * dt * (0.6f + _skill);
                 cmd.Yaw = _p.Yaw + MathUtil.Clamp(MathUtil.DeltaAngle(_p.Yaw, desired), -turn, turn);
                 cmd.Buttons &= ~Buttons.Sprint;
-                if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 6f) cmd.Buttons |= Buttons.Fire;
+                if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 6f && !_sim.Settings.BotsHoldFire) cmd.Buttons |= Buttons.Fire;
             }
 
             if (_wantDash) { cmd.Buttons |= Buttons.Dash; _wantDash = false; }

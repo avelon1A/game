@@ -33,15 +33,15 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ArtKeep: 0.35
+    - _ArtKeep: 0.7
     - _Cull: 0
     - _Gloss: 0
-    - _Ramp: 0.35
-    - _ShadowStrength: 0.6
+    - _Ramp: 0.5
+    - _ShadowStrength: 0.4
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _RimColor: {r: 1, g: 1, b: 1, a: 0.12}
-    - _ShadeColor: {r: 0.78, g: 0.78, b: 0.95, a: 1}
+    - _ShadeColor: {r: 0.9, g: 0.9, b: 0.96, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

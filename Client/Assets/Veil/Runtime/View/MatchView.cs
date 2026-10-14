@@ -19,7 +19,7 @@ namespace Veil.View
         public float Fade = 0;
         public byte FireSeq, CastSeq, HitSeq, JumpSeq;
         public Vector3 Pos, Vel;
-        public float Yaw, VisualYaw;
+        public float Yaw, VisualYaw, Pitch;
         public bool Grounded = true, Dashing, Sprinting, Downed, Reviving;
         public float ReviveProg;
         public float VH;
@@ -47,6 +47,8 @@ namespace Veil.View
         public Vector3 ShotImpact { get; private set; }
         public bool HasShotImpact { get; private set; }
         public bool ShotHitsAvatar { get; private set; }
+        public bool ShotHeadshot { get; private set; }
+        private bool _fpv;
 
         /// <summary>Raised for HUD: world events already filtered to what we may know.</summary>
         public event System.Action<SimEvent> OnEvent;
@@ -155,12 +157,10 @@ namespace Veil.View
         private Quaternion _rotorBase = Quaternion.identity;
         private Transform _heliBeacon;   // an eligible squad reached the zone: the helicopter has come down and stays down
 
-        /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
-        private void BuildHelicopter()
+        /// <summary>The RILO rescue helicopter model (also flown in the cinematic tutorial).</summary>
+        public static Transform HelicopterModel(Transform parent, out Transform rotor, out Transform tail, out Transform beacon)
         {
-            // RILO rescue helicopter, built from primitives (nose = +Z): rounded navy cabin with a yellow belly band,
-            // glass bubble, tapered tail boom with fin + stabiliser, open side door, curved skids, 4-blade rotor, nav lights
-            _heli = Build.Node(Root, "Helicopter", Vector3.zero);
+            var h = Build.Node(parent, "Helicopter", Vector3.zero);
             var navy = MaterialLib.Toon(Palette.Hex("#22305e"), 0.45f, 0.7f);
             var navyD = MaterialLib.Toon(Palette.Hex("#172042"), 0.35f, 0.6f);
             var yellow = MaterialLib.Toon(Palette.Hex("#ffc93a"), 0.35f, 0.6f);
@@ -171,62 +171,71 @@ namespace Veil.View
             Quaternion along = Quaternion.Euler(90, 0, 0);   // cylinders/cones point along Y → lay them along Z
 
             // cabin: three overlapping rounded volumes give a fat, toy-like body
-            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 1.75f, 0.2f), new Vector3(2.5f, 2.2f, 4.2f), null, "Cabin");
-            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 1.6f, 1.55f), new Vector3(2.1f, 1.8f, 2.4f), null, "Nose");
-            Build.Part(_heli, MeshGen.Sphere, navy, new Vector3(0, 2.35f, -0.3f), new Vector3(1.9f, 1.4f, 2.6f), null, "Engine");
-            Build.Part(_heli, MeshGen.Sphere, yellow, new Vector3(0, 1.25f, 0.25f), new Vector3(2.56f, 1.0f, 4.0f), null, "Belly");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.9f, 0.1f), new Vector3(2.52f, 0.28f, 2.6f), null, "Stripe");
+            Build.Part(h, MeshGen.Sphere, navy, new Vector3(0, 1.75f, 0.2f), new Vector3(2.5f, 2.2f, 4.2f), null, "Cabin");
+            Build.Part(h, MeshGen.Sphere, navy, new Vector3(0, 1.6f, 1.55f), new Vector3(2.1f, 1.8f, 2.4f), null, "Nose");
+            Build.Part(h, MeshGen.Sphere, navy, new Vector3(0, 2.35f, -0.3f), new Vector3(1.9f, 1.4f, 2.6f), null, "Engine");
+            Build.Part(h, MeshGen.Sphere, yellow, new Vector3(0, 1.25f, 0.25f), new Vector3(2.56f, 1.0f, 4.0f), null, "Belly");
+            Build.Part(h, MeshGen.Box, yellow, new Vector3(0, 1.9f, 0.1f), new Vector3(2.52f, 0.28f, 2.6f), null, "Stripe");
             // glass: front bubble + side windows
-            Build.Part(_heli, MeshGen.Sphere, glass, new Vector3(0, 2.0f, 1.85f), new Vector3(1.75f, 1.25f, 1.8f), null, "Bubble");
+            Build.Part(h, MeshGen.Sphere, glass, new Vector3(0, 2.0f, 1.85f), new Vector3(1.75f, 1.25f, 1.8f), null, "Bubble");
             foreach (float x in new[] { -1f, 1f })
             {
-                Build.Part(_heli, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.2f, 2.15f, 0.5f), new Vector3(0.06f, 0.55f, 0.75f), null, "Window");
-                Build.Part(_heli, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.15f, 2.2f, -0.6f), new Vector3(0.06f, 0.45f, 0.55f), null, "Window");
+                Build.Part(h, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.2f, 2.15f, 0.5f), new Vector3(0.06f, 0.55f, 0.75f), null, "Window");
+                Build.Part(h, MeshGen.RoundBox(0.4f), glass, new Vector3(x * 1.15f, 2.2f, -0.6f), new Vector3(0.06f, 0.45f, 0.55f), null, "Window");
             }
             // open side door (right side, where the squad boards)
-            Build.Part(_heli, MeshGen.Box, inside, new Vector3(1.12f, 1.65f, -0.1f), new Vector3(0.12f, 1.25f, 1.25f), null, "Door");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, -0.82f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, 0.62f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
+            Build.Part(h, MeshGen.Box, inside, new Vector3(1.12f, 1.65f, -0.1f), new Vector3(0.12f, 1.25f, 1.25f), null, "Door");
+            Build.Part(h, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, -0.82f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
+            Build.Part(h, MeshGen.Box, yellow, new Vector3(1.2f, 1.65f, 0.62f), new Vector3(0.1f, 1.3f, 0.12f), null, "DoorFrame");
             // RILO plate on the nose
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 1.55f, 2.75f), new Vector3(0.9f, 0.32f, 0.06f), null, "Plate");
+            Build.Part(h, MeshGen.Box, yellow, new Vector3(0, 1.55f, 2.75f), new Vector3(0.9f, 0.32f, 0.06f), null, "Plate");
 
             // tail: tapered boom, fin, stabiliser, tail rotor guard
-            Build.Part(_heli, MeshGen.Cone(16, 0.45f), navy, new Vector3(0, 2.15f, -3.6f), new Vector3(1.0f, 4.6f, 0.9f), along * Quaternion.Euler(180, 0, 0), "Boom");
-            Build.Part(_heli, MeshGen.Box, yellow, new Vector3(0, 2.2f, -3.3f), new Vector3(0.62f, 0.14f, 2.4f), null, "BoomStripe");
-            Build.Part(_heli, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 3.0f, -5.7f), new Vector3(0.18f, 1.6f, 0.9f), Quaternion.Euler(-18, 0, 0), "Fin");
-            Build.Part(_heli, MeshGen.RoundBox(0.3f), yellow, new Vector3(0, 3.55f, -5.95f), new Vector3(0.2f, 0.4f, 0.7f), Quaternion.Euler(-18, 0, 0), "FinTip");
-            Build.Part(_heli, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 2.15f, -5.0f), new Vector3(1.9f, 0.12f, 0.55f), null, "Stabiliser");
-            _heliTail = Build.Node(_heli, "TailRotor", new Vector3(0.22f, 2.75f, -5.75f));
+            Build.Part(h, MeshGen.Cone(16, 0.45f), navy, new Vector3(0, 2.15f, -3.6f), new Vector3(1.0f, 4.6f, 0.9f), along * Quaternion.Euler(180, 0, 0), "Boom");
+            Build.Part(h, MeshGen.Box, yellow, new Vector3(0, 2.2f, -3.3f), new Vector3(0.62f, 0.14f, 2.4f), null, "BoomStripe");
+            Build.Part(h, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 3.0f, -5.7f), new Vector3(0.18f, 1.6f, 0.9f), Quaternion.Euler(-18, 0, 0), "Fin");
+            Build.Part(h, MeshGen.RoundBox(0.3f), yellow, new Vector3(0, 3.55f, -5.95f), new Vector3(0.2f, 0.4f, 0.7f), Quaternion.Euler(-18, 0, 0), "FinTip");
+            Build.Part(h, MeshGen.RoundBox(0.3f), navyD, new Vector3(0, 2.15f, -5.0f), new Vector3(1.9f, 0.12f, 0.55f), null, "Stabiliser");
+            tail = Build.Node(h, "TailRotor", new Vector3(0.22f, 2.75f, -5.75f));
             for (int b = 0; b < 2; b++)
-                Build.Part(_heliTail, MeshGen.RoundBox(0.4f), dark, Vector3.zero, new Vector3(0.05f, 1.5f, 0.14f), Quaternion.Euler(b * 90f, 0, 0), "Blade", false);
-            Build.Part(_heliTail, MeshGen.Cylinder(10), metal, Vector3.zero, new Vector3(0.18f, 0.08f, 0.18f), Quaternion.Euler(0, 0, 90), "Hub", false);
+                Build.Part(tail, MeshGen.RoundBox(0.4f), dark, Vector3.zero, new Vector3(0.05f, 1.5f, 0.14f), Quaternion.Euler(b * 90f, 0, 0), "Blade", false);
+            Build.Part(tail, MeshGen.Cylinder(10), metal, Vector3.zero, new Vector3(0.18f, 0.08f, 0.18f), Quaternion.Euler(0, 0, 90), "Hub", false);
 
             // skids: two rails with curled-up fronts on four struts
             foreach (float x in new[] { -1.05f, 1.05f })
             {
-                Build.Part(_heli, MeshGen.Cylinder(10), metal, new Vector3(x, 0.1f, 0.2f), new Vector3(0.14f, 3.2f, 0.14f), along, "Skid");
-                Build.Part(_heli, MeshGen.Cylinder(10), metal, new Vector3(x, 0.25f, 1.92f), new Vector3(0.14f, 0.38f, 0.14f), Quaternion.Euler(55, 0, 0), "SkidTip");
+                Build.Part(h, MeshGen.Cylinder(10), metal, new Vector3(x, 0.1f, 0.2f), new Vector3(0.14f, 3.2f, 0.14f), along, "Skid");
+                Build.Part(h, MeshGen.Cylinder(10), metal, new Vector3(x, 0.25f, 1.92f), new Vector3(0.14f, 0.38f, 0.14f), Quaternion.Euler(55, 0, 0), "SkidTip");
                 foreach (float z in new[] { -0.8f, 1.0f })
-                    Build.Part(_heli, MeshGen.Cylinder(8), metal, new Vector3(x * 0.85f, 0.55f, z), new Vector3(0.1f, 0.5f, 0.1f), Quaternion.Euler(0, 0, x > 0 ? -18 : 18), "Strut");
+                    Build.Part(h, MeshGen.Cylinder(8), metal, new Vector3(x * 0.85f, 0.55f, z), new Vector3(0.1f, 0.5f, 0.1f), Quaternion.Euler(0, 0, x > 0 ? -18 : 18), "Strut");
             }
 
             // main rotor: mast, hub, four tapered blades with yellow tips
-            Build.Part(_heli, MeshGen.Cylinder(12), metal, new Vector3(0, 3.05f, -0.2f), new Vector3(0.32f, 0.35f, 0.32f), null, "Mast");
-            _heliRotor = Build.Node(_heli, "Rotor", new Vector3(0, 3.3f, -0.2f));
-            Build.Part(_heliRotor, MeshGen.Cylinder(12), metal, Vector3.zero, new Vector3(0.55f, 0.16f, 0.55f), null, "Hub", false);
+            Build.Part(h, MeshGen.Cylinder(12), metal, new Vector3(0, 3.05f, -0.2f), new Vector3(0.32f, 0.35f, 0.32f), null, "Mast");
+            rotor = Build.Node(h, "Rotor", new Vector3(0, 3.3f, -0.2f));
+            Build.Part(rotor, MeshGen.Cylinder(12), metal, Vector3.zero, new Vector3(0.55f, 0.16f, 0.55f), null, "Hub", false);
             for (int b = 0; b < 4; b++)
             {
                 var q = Quaternion.Euler(0, b * 90f, 0);
-                Build.Part(_heliRotor, MeshGen.RoundBox(0.25f), dark, q * new Vector3(0, 0.02f, 2.6f), new Vector3(0.38f, 0.05f, 4.9f), q, "Blade", false);
-                Build.Part(_heliRotor, MeshGen.RoundBox(0.25f), yellow, q * new Vector3(0, 0.03f, 4.85f), new Vector3(0.4f, 0.06f, 0.4f), q, "Tip", false);
+                Build.Part(rotor, MeshGen.RoundBox(0.25f), dark, q * new Vector3(0, 0.02f, 2.6f), new Vector3(0.38f, 0.05f, 4.9f), q, "Blade", false);
+                Build.Part(rotor, MeshGen.RoundBox(0.25f), yellow, q * new Vector3(0, 0.03f, 4.85f), new Vector3(0.4f, 0.06f, 0.4f), q, "Tip", false);
             }
-            _rotorBase = Quaternion.identity;
 
             // lights: red beacon under the belly, green / red nav lights on the sides, white on the tail
-            _heliBeacon = Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.62f, -0.2f), Vector3.one * 0.26f, null, "Beacon", false).transform;
-            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(0.3f, 1f, 0.45f), 3f), new Vector3(1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavR", false);
-            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.3f, 0.3f), 3f), new Vector3(-1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavL", false);
-            Build.Part(_heli, MeshGen.Sphere, MaterialLib.Glow(Color.white, 3f), new Vector3(0, 3.9f, -6.1f), Vector3.one * 0.14f, null, "TailLight", false);
+            beacon = Build.Part(h, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.25f, 0.25f), 4f), new Vector3(0, 0.62f, -0.2f), Vector3.one * 0.26f, null, "Beacon", false).transform;
+            Build.Part(h, MeshGen.Sphere, MaterialLib.Glow(new Color(0.3f, 1f, 0.45f), 3f), new Vector3(1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavR", false);
+            Build.Part(h, MeshGen.Sphere, MaterialLib.Glow(new Color(1f, 0.3f, 0.3f), 3f), new Vector3(-1.28f, 1.75f, 1.2f), Vector3.one * 0.16f, null, "NavL", false);
+            Build.Part(h, MeshGen.Sphere, MaterialLib.Glow(Color.white, 3f), new Vector3(0, 3.9f, -6.1f), Vector3.one * 0.14f, null, "TailLight", false);
+            return h;
+        }
+
+        /// <summary>The escape helicopter: circles high over the zone, comes down when an eligible squad holds it, lifts off with the winners.</summary>
+        private void BuildHelicopter()
+        {
+            // RILO rescue helicopter, built from primitives (nose = +Z): rounded navy cabin with a yellow belly band,
+            // glass bubble, tapered tail boom with fin + stabiliser, open side door, curved skids, 4-blade rotor, nav lights
+            _heli = HelicopterModel(Root, out _heliRotor, out _heliTail, out _heliBeacon);
+            _rotorBase = Quaternion.identity;
             _heli.gameObject.SetActive(false);
         }
 
@@ -597,34 +606,40 @@ namespace Veil.View
             av.Stealthed = p.ZoneId == Match.Map.Zone(ZoneType.Ruins).Id;
             TriggerSeqs(av, p.FireSeq, p.CastSeq, p.HitSeq, p.JumpSeq, true);
             DriveRig(av, dt, true);
+            bool fpv = Veil.App.GameApp.Scoped;
+            if (fpv != _fpv)
+            {
+                _fpv = fpv;
+                var gun = av.Rig.Gun;
+                foreach (var r in av.Rig.GetComponentsInChildren<Renderer>(true)) r.enabled = !fpv || (gun && r.transform.IsChildOf(gun));
+            }
 
             // where the next shot will actually land (mirrors MatchSim projectile stepping); the HUD crosshair sits here
             HasShotImpact = p.Alive && !p.Downed && !Match.Driver.Autopilot;
             if (HasShotImpact)
             {
-                var dir = Vec2.FromYaw(Match.AimYaw);
-                var start = new Vec2(pos.x, pos.z) + dir * 0.6f;
+                float yawR = Match.AimYaw * Mathf.Deg2Rad, pitchR = Match.AimPitch * Mathf.Deg2Rad;
+                var dir3 = new Vector3(Mathf.Sin(yawR) * Mathf.Cos(pitchR), Mathf.Sin(pitchR), Mathf.Cos(yawR) * Mathf.Cos(pitchR));
+                var flat = new Vector3(Mathf.Sin(yawR), 0, Mathf.Cos(yawR));
+                var start = pos + flat * 0.6f + Vector3.up * GameConfig.MuzzleHeight;
                 float hitR = GameConfig.HitRadius + GameConfig.ProjectileRadius, d = 0;
-                ShotHitsAvatar = false;
+                ShotHitsAvatar = false; ShotHeadshot = false;
                 float range = GameConfig.Current(p.Look.Weapon, Local != null && Local.Rig.FistsMode).Range;
                 for (; d < range && !ShotHitsAvatar; d += 0.4f)
                 {
-                    var sp = start + dir * d;
-                    if (Match.Map.BlocksShotAt(sp, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
+                    var sp = start + dir3 * d;
+                    if (sp.y <= 0f || Match.Map.BlocksShotAt(new Vec2(sp.x, sp.z), sp.y, GameConfig.ProjectileRadius)) break;
                     foreach (var kv in Avatars)
                     {
                         var o = kv.Value;
                         if (o.IsLocal || o.IsMyDecoy || !o.Alive || o.Fade < 0.3f) continue;
-                        float dx = o.Pos.x - sp.X, dz = o.Pos.z - sp.Y;
-                        if (dx * dx + dz * dz <= hitR * hitR) { ShotHitsAvatar = true; break; }
+                        float dx = o.Pos.x - sp.x, dz = o.Pos.z - sp.z, rel = sp.y - o.Pos.y;
+                        if (dx * dx + dz * dz <= hitR * hitR && rel > -0.1f && rel < GameConfig.BodyHeight) { ShotHitsAvatar = true; ShotHeadshot = rel >= GameConfig.HeadHeight; break; }
                     }
                     if (ShotHitsAvatar) break;
                 }
-                d = Mathf.Min(d, range);
-                var end = start + dir * d;
-                ShotImpact = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
-                _aimMarker.gameObject.SetActive(true);
-                _aimMarker.position = new Vector3(end.X, 0.08f, end.Y);
+                ShotImpact = start + dir3 * Mathf.Min(d, range);
+                _aimMarker.gameObject.SetActive(false);
             }
             else _aimMarker.gameObject.SetActive(false);
         }
@@ -670,6 +685,7 @@ namespace Veil.View
                     else av.Pos = Vector3.Lerp(av.Pos, target, 1 - Mathf.Exp(-25f * dt));
                     av.Vel = new Vector3(src.Vel.X, 0, src.Vel.Y);
                     av.Yaw = yaw;
+                    av.Pitch = src.Pitch;
                     av.Health01 = src.Health01;
                     av.Grounded = (src.Flags & AvatarFlags.Grounded) != 0;
                     av.Dashing = (src.Flags & AvatarFlags.Dashing) != 0;
@@ -723,25 +739,25 @@ namespace Veil.View
                 {
                     // sniper: big muzzle flash, heavy lingering beam, deep crack, camera kick
                     var c = Palette.AccentColors[av.Rig.Look.Color % 8];
-                    if (av.Rig.BlasterTip) { Fx.I.Flash(av.Rig.BlasterTip.position, Color.white, 1.1f, 0.1f); Fx.I.Flash(av.Rig.BlasterTip.position, c, 1.6f, 0.14f); }
+                    if (av.Rig.BlasterTip) { Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.9f, 0.7f), 0.45f, 0.06f); }
                     if (seen) Tracer(av, local);
-                    if (seen) { Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.95f : 0.75f, 0.55f); Sfx.PlayAt(Sfx.Hit, av.Pos + Vector3.up, local ? 0.4f : 0.3f, 0.5f); }
-                    if (local) _cam.Shake(0.45f);
+                    Sfx.PlayAt(Sfx.Sniper, av.Pos + Vector3.up, local ? 0.9f : 0.75f, 1f);
+                    if (local) _cam.Shake(0.25f);
                 }
                 else if (av.Rig.Special == 1)
                 {
                     // shotgun: wide flash, a fan of short streaks, a heavy boom
-                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.75f, 0.35f), 1.0f, 0.1f);
+                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.75f, 0.35f), 0.45f, 0.06f);
                     if (seen) for (int i = 0; i < 5; i++) Tracer(av, false, (i / 4f - 0.5f) * GameConfig.ShotgunSpread);
-                    if (seen) { Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? 0.9f : 0.7f, 0.6f); Sfx.PlayAt(Sfx.Hit, av.Pos + Vector3.up, local ? 0.5f : 0.35f, 0.7f); }
-                    if (local) _cam.Shake(0.35f);
+                    Sfx.PlayAt(Sfx.Shotgun, av.Pos + Vector3.up, local ? 0.9f : 0.75f, 1f);
+                    if (local) _cam.Shake(0.2f);
                 }
                 else
                 {
                     bool smg = av.Rig.Special == 2;
-                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, Palette.AccentColors[av.Rig.Look.Color % 8], smg ? 0.3f : 0.4f);
+                    if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.85f, 0.6f), smg ? 0.14f : 0.18f, 0.04f);
                     if (seen) Tracer(av, local);
-                    if (seen) Sfx.PlayAt(Sfx.Shoot, av.Pos + Vector3.up, local ? (smg ? 0.4f : 0.55f) : 0.4f, smg ? 1.35f : 1f);
+                    Sfx.PlayAt(smg ? Sfx.Smg : Sfx.Shoot, av.Pos + Vector3.up, local ? (smg ? 0.55f : 0.7f) : 0.6f, 1f);
                 }
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }
@@ -766,14 +782,17 @@ namespace Veil.View
             if (local && HasShotImpact) to = ShotImpact;
             else
             {
-                var dir = Vec2.FromYaw(av.Yaw + yawOffset);
-                var start = new Vec2(av.Pos.x, av.Pos.z) + dir * 0.6f;
+                float yr = (av.Yaw + yawOffset) * Mathf.Deg2Rad, pr = Mathf.Clamp(av.Pitch, -GameConfig.MaxAimPitch, GameConfig.MaxAimPitch) * Mathf.Deg2Rad;
+                var dir3 = new Vector3(Mathf.Sin(yr) * Mathf.Cos(pr), Mathf.Sin(pr), Mathf.Cos(yr) * Mathf.Cos(pr));
+                var start = av.Pos + new Vector3(Mathf.Sin(yr), 0, Mathf.Cos(yr)) * 0.6f + Vector3.up * GameConfig.MuzzleHeight;
                 float d = 0;
                 float range = GameConfig.Current(av.Rig.Look.Weapon, av.Rig.FistsMode, av.Rig.Special > 0 ? av.Rig.Special + GameConfig.Shotgun - 1 : 0).Range;
                 for (; d < range; d += 0.4f)
-                    if (Match.Map.BlocksShotAt(start + dir * d, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius)) break;
-                var end = start + dir * Mathf.Min(d, range);
-                to = new Vector3(end.X, GameConfig.ProjectileHeight + 0.1f, end.Y);
+                {
+                    var sp = start + dir3 * d;
+                    if (sp.y <= 0f || Match.Map.BlocksShotAt(new Vec2(sp.x, sp.z), sp.y, GameConfig.ProjectileRadius)) break;
+                }
+                to = start + dir3 * Mathf.Min(d, range);
             }
             var c = Palette.AccentColors[av.Rig.Look.Color % 8];
             if (av.Rig.Look.Weapon == 1 && !av.Rig.FistsMode) { SniperBeam(from, to, c); return; }
@@ -782,12 +801,12 @@ namespace Veil.View
             var lr = go.AddComponent<LineRenderer>();
             lr.useWorldSpace = true; lr.positionCount = 2;
             lr.SetPosition(0, from); lr.SetPosition(1, to);
-            lr.widthMultiplier = 0.07f;
+            lr.widthMultiplier = 0.025f;
             lr.sharedMaterial = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive);
-            lr.startColor = new Color(c.r, c.g, c.b, 0.25f); lr.endColor = c;
+            lr.startColor = new Color(1f, 0.95f, 0.8f, 0.05f); lr.endColor = new Color(1f, 0.9f, 0.7f, 0.45f);
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            Fx.I.Flash(to, c, 0.25f);
-            Object.Destroy(go, 0.06f);
+            Fx.I.Flash(to, new Color(1f, 0.85f, 0.6f), 0.1f, 0.04f);
+            Object.Destroy(go, 0.04f);
         }
 
         /// <summary>Sniper shot: white-hot core + coloured glow that linger and thin out, sparks and a burst where it lands.</summary>
@@ -808,12 +827,12 @@ namespace Veil.View
                 lr.numCapVertices = 4;
                 return lr;
             }
-            var glow = Line(0.32f, new Color(c.r, c.g, c.b, 0.35f), new Color(c.r, c.g, c.b, 0.9f));
-            var core = Line(0.09f, new Color(1, 1, 1, 0.6f), Color.white);
+            var glow = Line(0.1f, new Color(c.r, c.g, c.b, 0.1f), new Color(c.r, c.g, c.b, 0.35f));
+            var core = Line(0.03f, new Color(1, 1, 1, 0.2f), new Color(1, 1, 1, 0.7f));
             go.AddComponent<BeamFade>().Init(new[] { glow, core }, 0.45f);
-            Fx.I.Flash(to, Color.white, 0.8f, 0.1f);
-            Fx.I.Flash(to, c, 1.4f, 0.18f);
-            Fx.I.Sparks(to, c, 14, 9f);
+            Fx.I.Flash(to, Color.white, 0.25f, 0.05f);
+            Fx.I.Flash(to, c, 0.35f, 0.08f);
+            Fx.I.Sparks(to, c, 5, 6f);
         }
 
         private void DriveRig(AvatarView av, float dt, bool local)
@@ -871,9 +890,9 @@ namespace Veil.View
                 {
                     var owner = Match.Entry(p.Owner);
                     var c = Palette.AccentColors[(owner != null ? owner.Look.Color : 0) % 8];
-                    go = Build.Part(Root, MeshGen.Sphere, MaterialLib.Glow(c, 4f), Vector3.zero, new Vector3(0.22f, 0.22f, 0.8f), null, "Bolt", false);
+                    go = Build.Part(Root, MeshGen.Sphere, MaterialLib.Glow(Color.Lerp(c, new Color(1f, 0.9f, 0.7f), 0.6f), 1.4f), Vector3.zero, new Vector3(0.07f, 0.07f, 0.5f), null, "Bolt", false);
                     var tr = go.AddComponent<TrailRenderer>();
-                    tr.time = 0.07f; tr.widthMultiplier = 0.16f;   // fast bolts: short streak
+                    tr.time = 0.05f; tr.widthMultiplier = 0.05f;   // fast bolts: short streak
                     tr.sharedMaterial = MaterialLib.Unlit(Color.white, MaterialLib.Blend.Additive);
                     tr.startColor = c; tr.endColor = new Color(c.r, c.g, c.b, 0);
                     tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -881,8 +900,9 @@ namespace Veil.View
                 }
                 _scratch.Remove(p.Id);
                 var pos = p.Pos + p.Vel * ahead;
-                go.transform.position = new Vector3(pos.X, GameConfig.ProjectileHeight + 0.1f, pos.Y);
-                if (p.Vel.LengthSq > 0.1f) go.transform.rotation = Quaternion.LookRotation(new Vector3(p.Vel.X, 0, p.Vel.Y));
+                go.transform.position = new Vector3(pos.X, p.Z + p.Vz * ahead, pos.Y);
+                var v3 = new Vector3(p.Vel.X, p.Vz, p.Vel.Y);
+                if (v3.sqrMagnitude > 0.1f) go.transform.rotation = Quaternion.LookRotation(v3);
             }
             foreach (int id in _scratch)
             {

@@ -1,5 +1,34 @@
 # RILO changelog
 
+## 2026-10-14 (protocol 20)
+
+### Combat & feel
+- PUBG-style aim: fixed centre crosshair, over-the-shoulder camera, shots fly in 3D (yaw + pitch) to where it points;
+  slide on FIRE to aim while shooting. Others see your shots at the right angle (aim pitch in snapshots).
+- **Headshots** (hits above 1.5 m) deal 1.8x with a HEADSHOT number, ping sound and bigger hit marker.
+- Muzzle flashes, tracers, bullets and camera shake toned down. Gun slung higher on the back while running.
+- Sniper scope: round button, closes when you move, first-person view while scoped (gun stays visible).
+- Every weapon has its own layered gunshot (rifle, SMG, shotgun, sniper), new hit sounds, island wind ambience.
+
+### HUD & controls
+- Kill counter + network ping under the minimap; PING button removed; fists is a round icon button.
+- **Customize controls** (Settings → Controls, pause menu): drag / resize every touch button, save or reset.
+- No match clock / OVERTIME banner / phase time bar (matches run until a squad escapes).
+- Softer text shadows and outlines.
+
+### Lobby, onboarding
+- Match-found cheer emote, both battle pass buttons and all "BOT" labels removed (bots show a level).
+- First launch: short cinematic island intro → 5-step training (move, look, shoot, jump, dash; bots hold fire) →
+  "how to win" cinematic (objectives, Vault, helicopter take-off) → lobby. HOW TO PLAY plays the full 7-chapter tour.
+
+### Heroes
+- Names / store texts match the new models: Vanguard, Hazard, Kunoichi, Valkyrie, Sentinel; gentler toon shading
+  (more of the Meshy texture, softer shade, less glow).
+
+### Voice
+- Noise reduction: anti-alias filter before resampling, 120 Hz high-pass, adaptive noise gate, echo guard
+  (open mic needs a louder signal while someone else is talking), Opus voice mode at higher complexity.
+
 ## 2026-10-08 → 2026-10-09
 
 ### Match rules
@@ -48,6 +77,4 @@
 - **Results:** camera cuts straight to the MVP (no glide that looked like shaking).
 
 ### Not done yet
-- Hero names / store descriptions still describe the old designs.
-- New heroes' colours look harsher in the toon shader than in Blender (shader tuning per hero).
 - Roaming robot boss (world event) and a separate ranked queue.

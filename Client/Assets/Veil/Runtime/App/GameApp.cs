@@ -25,7 +25,7 @@ namespace Veil.App
     /// </summary>
     public sealed class GameApp : MonoBehaviour
     {
-        public enum AppState { Title, Menu, Match, Results }
+        public enum AppState { Title, Menu, Match, Results, Tour }
 
         public static GameApp I { get; private set; }
 
@@ -73,6 +73,7 @@ namespace Veil.App
         private bool _paused;
         public static bool Scoped { get; private set; }
         private string _shotDir;
+        private bool _tutorialTest;
         private bool _autotest, _scripted, _lineupShot, _lineupClose, _lineupBack;
         private string _onlineHost;
         private Light _sun;
@@ -148,11 +149,13 @@ namespace Veil.App
                 if (args[i] == "-autotest-online" && i + 1 < args.Length) { _autotest = true; _scripted = true; _onlineHost = args[i + 1]; }
                 if (args[i] == "-shotdir" && i + 1 < args.Length) _shotDir = args[i + 1];
                 if (args[i] == "-nohud") _noHud = true;
+                if (args[i] == "-tutorialtest") _tutorialTest = true;
                 if (args[i] == "-walkpreview") { _autotest = true; _walkTest = true; }
                 if (args[i] == "-mapshot") { StartCoroutine(MapShots()); return; }
                 if (args[i] == "-sniper") { var l = Profile.Look; l.Weapon = 1; Profile.Look = l; Stage.UpdateLook(l); }   // test: equip the sniper
             }
-            if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
+            if (_tutorialTest) StartCoroutine(TutorialShots());
+            else if (_autotest) StartCoroutine(_walkTest ? WalkPreviewTest() : _onlineHost != null ? OnlineTest() : _scripted ? ScriptedTest() : AutoTest());
         }
 
         // ------------------------------------------------------------------ setup
@@ -304,12 +307,57 @@ namespace Veil.App
 
         public void GoMenu(int tab = 0)
         {
+            if (!Onboarding.Done && !_autotest && State == AppState.Title) { PlayTour(false); return; }
             HideAll();
             State = AppState.Menu;
             Stage.SetVisible(true);
             Stage.LobbyPose(Profile.Look);
             _menu.Show(true);
             _menu.SelectTab(tab);
+        }
+
+        // ------------------------------------------------------------------ onboarding / tutorial
+
+        private CinematicTour _tour;
+        private TutorialDirector _tutorial;
+        private bool _tutorialOutro;
+
+        /// <summary>Training done: leave the drill and show how a squad wins, then the lobby.</summary>
+        private void FinishTutorial()
+        {
+            _tutorialOutro = false;
+            _tutorial = null;
+            EndMatchCleanup();
+            HideAll();
+            State = AppState.Tour;
+            Stage.SetVisible(false);
+            _tour = new CinematicTour(Canvas, CinematicTour.Outro(Map), () => { _tour = null; GoMenu(0); });
+        }
+
+        /// <summary>Cinematic island tour (first-launch intro, or HOW TO PLAY with the full chapters).</summary>
+        public void PlayTour(bool full)
+        {
+            HideAll();
+            State = AppState.Tour;
+            Stage.SetVisible(false);
+            CamRig.SetFov(55f);
+            if (full)
+                _tour = new CinematicTour(Canvas, CinematicTour.Full(Map), () => { _tour = null; GoMenu(0); }, "PLAY TRAINING", () => { _tour = null; StartTutorialMatch(); });
+            else
+                _tour = new CinematicTour(Canvas, CinematicTour.Intro(Map), () => { _tour = null; StartTutorialMatch(); });
+        }
+
+        /// <summary>Guided offline match: steps, highlighted buttons, bots hold fire until the objective step.</summary>
+        public void StartTutorialMatch()
+        {
+            _tour = null;
+            var settings = new MatchSettings { MatchSeconds = 600, TotalPlayers = GameConfig.MaxPlayers, Seed = 4242, BotsHoldFire = true };
+            var driver = new LocalMatchDriver(Map, settings, Profile.Name, Profile.Look, false);
+            BeginMatch(driver);
+            _tutorial = new TutorialDirector(Canvas, _match, driver, _touch);
+            var tut = _tutorial;
+            _match.Event += e => tut.OnEvent(e);
+            tut.Completed = () => _tutorialOutro = true;
         }
 
         public void StartOfflineMatch(bool autopilot = false)
@@ -605,6 +653,7 @@ namespace Veil.App
             State = AppState.Match;
             Stage.SetVisible(false);
             _match = new ClientMatch(driver, Map, _input);
+            Sfx.SetMatchAudio(true);
             _matchView = new MatchView(_match, World, CamRig, null);
             _hud = new Hud(Canvas, _match, _matchView, Cam, Platform.IsMobile);
             if (Platform.IsMobile && !driver.Autopilot) _touch = new TouchControls(Canvas, _match, () => SetPaused(!_paused));
@@ -628,6 +677,7 @@ namespace Veil.App
 
         private void EndMatchCleanup()
         {
+            if (_tutorial != null) { _tutorial.Dispose(); _tutorial = null; Onboarding.MarkDone(); }
             _touch?.Dispose();
             _touch = null;
             _hud?.Dispose();
@@ -636,6 +686,7 @@ namespace Veil.App
             _hud = null;
             _matchView = null;
             _match = null;
+            Sfx.SetMatchAudio(false);
         }
 
         private void ShowResults(List<PlayerResult> results, int localId)
@@ -729,9 +780,12 @@ namespace Veil.App
             Cursor.visible = !lockCursor;
             if (_touch != null) { _touch.Update(); _hud?.SetScoreboard(_touch.ScoreboardOpen); }
 
-            _match.Update(dt, CamRig.Yaw, ComputeAimYaw(), inputOn);
+            var aim = ComputeAim();
+            _match.Update(dt, CamRig.Yaw, aim.x, aim.y, inputOn);
             _matchView?.Update(dt);
             _hud?.Update(dt, CamRig.Yaw);
+            _tutorial?.Update(dt, CamRig.Yaw);
+            if (_tutorialOutro) { FinishTutorial(); return; }
 
             if (_endTimer >= 0)
             {
@@ -752,6 +806,9 @@ namespace Veil.App
             float t = Time.time;
             switch (State)
             {
+                case AppState.Tour:
+                    if (_tour == null || !_tour.Tick(dt, CamRig)) _tour = null;
+                    break;
                 case AppState.Title:
                     CamRig.Shot(new Vector3(Mathf.Sin(t * 0.05f) * 70f, 30f, Mathf.Cos(t * 0.05f) * 70f), new Vector3(0, 8, 0), dt, 1.5f);
                     break;
@@ -817,7 +874,8 @@ namespace Veil.App
                     var me = _match.Predicted;
                     float fov = (Platform.IsMobile ? 50f : 62f) + (me.Sprinting ? 5f : 0f) + (me.DashT > 0 ? 10f : 0f);   // wide phone screens: narrower FOV so the world looks closer
                     // sniper scope: hold right mouse (desktop) or the SCOPE toggle (phones)
-                    Scoped = me.Alive && me.Look.Weapon == 1 && !(_match.Latest?.Self?.Fists ?? false) && (VirtualInput.ScopeOn || (Mouse.current != null && Mouse.current.rightButton.isPressed && !Platform.IsMobile));
+                    if (me.Vel.Length > 2.2f || me.Sprinting) VirtualInput.ScopeOn = false;   // moving closes the scope
+                    Scoped = me.Vel.Length <= 2.2f && !me.Sprinting && me.Alive && me.Look.Weapon == 1 && !(_match.Latest?.Self?.Fists ?? false) && (VirtualInput.ScopeOn || (Mouse.current != null && Mouse.current.rightButton.isPressed && !Platform.IsMobile));
                     if (Scoped) fov = GameConfig.ScopeFov;
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
@@ -849,17 +907,19 @@ namespace Veil.App
         /// thing it hits (enemy, wall, ground or max range) and fire from the player toward that point.
         /// Without this the offset/elevated camera makes shots land left of and below the crosshair.
         /// </summary>
-        private float ComputeAimYaw()
+        /// <summary>
+        /// PUBG-style aim: a ray from the camera through the centre crosshair finds what it hits (enemy, wall,
+        /// ground or max range); the shot leaves the player's chest toward that point, in 3D (yaw + pitch).
+        /// </summary>
+        private Vector2 ComputeAim()
         {
-            if (_match == null || _matchView == null || Cam == null) return CamRig.Yaw;
+            if (_match == null || _matchView == null || Cam == null) return new Vector2(CamRig.Yaw, 0);
             var ray = Cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
             Vector3 player = _matchView.Local.Pos;
-            // ignore everything between the camera and the player
             float tMin = Mathf.Max(0.5f, Vector3.Dot(player + Vector3.up * 1.2f - ray.origin, ray.direction));
             float tMax = GameConfig.Current(_match.Predicted.Look.Weapon, _match.Latest?.Self?.Fists ?? false).Range + tMin + 5f;
             float best = tMax;
 
-            // enemies / decoys: vertical capsule approximation
             Vector2 o2 = new Vector2(ray.origin.x, ray.origin.z), d2 = new Vector2(ray.direction.x, ray.direction.z);
             float dd = Mathf.Max(1e-5f, Vector2.Dot(d2, d2));
             foreach (var kv in _matchView.Avatars)
@@ -870,26 +930,30 @@ namespace Veil.App
                 float t = Vector2.Dot(p2 - o2, d2) / dd;
                 if (t < tMin || t > best) continue;
                 float y = ray.origin.y + ray.direction.y * t;
-                if (y < av.Pos.y - 0.1f || y > av.Pos.y + 2.3f) continue;
-                if ((o2 + d2 * t - p2).magnitude < 0.65f) best = t;
+                if (y < av.Pos.y - 0.1f || y > av.Pos.y + GameConfig.BodyHeight + 0.1f) continue;
+                if ((o2 + d2 * t - p2).magnitude < GameConfig.HitRadius) best = t;
             }
-            // ground
             if (ray.direction.y < -0.001f)
             {
                 float tg = -ray.origin.y / ray.direction.y;
                 if (tg > tMin && tg < best) best = tg;
             }
-            // walls / props (march)
             for (float t = tMin; t < best; t += 0.35f)
             {
                 var p = ray.GetPoint(t);
                 if (Map.BlocksShotAt(new Vec2(p.x, p.z), Mathf.Max(0f, p.y), 0.05f)) { best = t; break; }
             }
             Vector3 aim = ray.GetPoint(best);
-            Vector2 dir = new Vector2(aim.x - player.x, aim.z - player.z);
-            if (dir.sqrMagnitude < 1.5f * 1.5f) return CamRig.Yaw;
-            return Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+            AimPoint = aim;
+            Vector3 muzzle = player + Vector3.up * GameConfig.MuzzleHeight;
+            Vector3 d = aim - muzzle;
+            float flat = new Vector2(d.x, d.z).magnitude;
+            if (flat < 1.5f) return new Vector2(CamRig.Yaw, 0);
+            float pitch = Mathf.Clamp(Mathf.Atan2(d.y, flat) * Mathf.Rad2Deg, -GameConfig.MaxAimPitch, GameConfig.MaxAimPitch);
+            return new Vector2(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, pitch);
         }
+
+        public static Vector3 AimPoint { get; private set; }
 
         /// <summary>Mobile: while firing, gently pull the camera toward the nearest visible enemy in front.</summary>
         private void AimAssist(float dt)
@@ -1072,6 +1136,24 @@ namespace Veil.App
         }
 
         private bool _noHud;   // -nohud: in-match screenshots without the HUD (store screenshots)
+
+        /// <summary>Test: intro tour → tutorial match → layout editor, with screenshots.</summary>
+        private IEnumerator TutorialShots()
+        {
+            yield return new WaitForSeconds(2f);
+            PlayTour(false);
+            yield return new WaitForSeconds(3f); yield return Shot("t01_tour_intro");
+            yield return new WaitForSeconds(8f); yield return Shot("t02_tour_vault");
+            yield return new WaitForSeconds(5f); yield return Shot("t02b_heli_lift");
+            yield return new WaitForSeconds(4f); yield return Shot("t02c_heli_away");
+            float w = 0; while (State != AppState.Match && w < 90) { w += Time.deltaTime; yield return null; }
+            yield return new WaitForSeconds(3f); yield return Shot("t03_tutorial_move");
+            CamRig.Pitch = -5f; yield return new WaitForSeconds(1f); yield return Shot("t04_aim_up");
+            LayoutEditor.Open(Canvas);
+            yield return new WaitForSeconds(1f); yield return Shot("t05_layout_editor");
+            yield return new WaitForSeconds(0.5f);
+            Application.Quit();
+        }
 
         private IEnumerator Shot(string name)
         {

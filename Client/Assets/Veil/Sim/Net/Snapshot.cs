@@ -29,6 +29,7 @@ namespace Veil.Sim
         public byte Vis;
         public Vec2 Pos, Vel;
         public float H, Yaw, Health01;
+        public float Pitch;
         public AvatarFlags Flags;
         public byte FireSeq, CastSeq, HitSeq, JumpSeq;
         public byte State;          // AvatarState bits
@@ -47,6 +48,7 @@ namespace Veil.Sim
     {
         public int Id, Owner;
         public Vec2 Pos, Vel;
+        public float Z, Vz;
         public byte Kind;   // 0 bullet, 1 grenade, 2 punch
     }
 
@@ -154,7 +156,7 @@ namespace Veil.Sim
                 if (vis == Visibility.None) continue;
                 var a = new AvatarSnap
                 {
-                    AvatarId = p.Id, OwnerId = p.Id, Vis = vis, Pos = p.Pos, Vel = p.Vel, H = p.H, Yaw = p.Yaw,
+                    AvatarId = p.Id, OwnerId = p.Id, Vis = vis, Pos = p.Pos, Vel = p.Vel, H = p.H, Yaw = p.Yaw, Pitch = p.AimPitch,
                     Health01 = p.HealthFrac, FireSeq = p.FireSeq, CastSeq = p.CastSeq, HitSeq = p.HitSeq, JumpSeq = p.JumpSeq,
                 };
                 if (p.Sprinting) a.Flags |= AvatarFlags.Sprinting;
@@ -212,7 +214,7 @@ namespace Veil.Sim
             foreach (var p in sim.Projectiles)
             {
                 if (p.Owner != viewer.Id && !NearSquad(sim, viewer, p.Pos, pr)) continue;
-                snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel, Kind = p.Kind });
+                snap.Projectiles.Add(new ProjectileSnap { Id = p.Id, Owner = p.Owner, Pos = p.Pos, Vel = p.Vel, Z = p.Z, Vz = p.Vz, Kind = p.Kind });
             }
 
             if (snap.Zones.Length != sim.Zones.Length)

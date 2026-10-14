@@ -51,6 +51,7 @@ namespace Veil.View
         private const float HipY = 0.62f;
         public Transform Head => _head;
         public Transform BlasterTip => _blasterTip;
+        public Transform Gun => _gun;
         public float DeathProgress => _deathT;
         public bool IsAiming => _aimT > 0;
 
@@ -402,7 +403,7 @@ namespace Veil.View
                 Vector3 right = transform.right, upv = transform.up;
                 Vector3 barrel = (upv * 0.82f + right * 0.57f).normalized;           // ~35° off vertical, barrel over the right shoulder
                 var backRot = Quaternion.LookRotation(fwd, barrel);                 // gun +Y = barrel, -Z = top → top faces away from the back
-                var backPos = _chest.position - fwd * 0.2f - right * 0.14f - upv * 0.22f;
+                var backPos = _chest.position - fwd * 0.2f - right * 0.1f + upv * 0.1f;
                 // the gun travels on an arc up past the right shoulder (quadratic bezier), not straight through the body
                 var over = _chest.position + upv * 0.38f + right * 0.24f - fwd * 0.05f;
                 gunPos = (1 - t) * (1 - t) * handPos + 2 * (1 - t) * t * over + t * t * backPos;

@@ -251,18 +251,27 @@ namespace Veil.UI
             return t;
         }
 
+        /// <summary>Soft drop shadow: a faint wide layer under a tighter one (a single hard Shadow looked like a double print).</summary>
         public static void Shadow(Graphic g, float dist = 2f, float alpha = 0.6f)
         {
-            var s = g.gameObject.AddComponent<Shadow>();
-            s.effectColor = new Color(0, 0, 0, alpha);
-            s.effectDistance = new Vector2(dist, -dist);
+            var wide = g.gameObject.AddComponent<Shadow>();
+            wide.effectColor = new Color(0, 0, 0, alpha * 0.22f);
+            wide.effectDistance = new Vector2(dist * 0.6f, -dist * 1.6f);
+            var near = g.gameObject.AddComponent<Shadow>();
+            near.effectColor = new Color(0, 0, 0, alpha * 0.45f);
+            near.effectDistance = new Vector2(dist * 0.3f, -dist * 0.8f);
         }
 
+        /// <summary>Thin, softened outline + a soft drop below it, so text reads on any background without a heavy black rim.</summary>
         public static void Outline(Graphic g, Color c, float dist = 2f)
         {
             var o = g.gameObject.AddComponent<Outline>();
-            o.effectColor = c;
-            o.effectDistance = new Vector2(dist, -dist);
+            o.effectColor = new Color(c.r, c.g, c.b, c.a * 0.55f);
+            float d = Mathf.Min(dist, 1.6f) * 0.75f;
+            o.effectDistance = new Vector2(d, -d);
+            var s = g.gameObject.AddComponent<Shadow>();
+            s.effectColor = new Color(c.r, c.g, c.b, c.a * 0.3f);
+            s.effectDistance = new Vector2(0, -Mathf.Max(1.5f, dist));
         }
 
         public enum ButtonStyle { Primary, Secondary, Ghost, Tab }

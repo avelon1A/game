@@ -9,7 +9,7 @@ namespace Veil.UI
     public static class Icons
     {
         public static Sprite Dash, Pulse, Decoy, Blaster, Tower, Vault, Reactor, Market, Ruins, Key, Core, Energy, Health, Players, Clock, Shield, Speed, Target, Arrow, Skull, Trophy, Eye,
-            Mic, MicOff, Speaker, SpeakerOff, Crown, Check, Gear, Copy, Plus;
+            Mic, MicOff, Speaker, SpeakerOff, Crown, Check, Gear, Copy, Plus, Fist, Rifle;
 
         public static void Init()
         {
@@ -55,6 +55,23 @@ namespace Veil.UI
                 c.Box(0.4f, 0.4f, 0.25f, 0.25f); c.Erase(e => e.Box(0.4f, 0.4f, 0.18f, 0.18f));
             });
             Plus = Make(c => { c.Box(0.5f, 0.5f, 0.07f, 0.34f); c.Box(0.5f, 0.5f, 0.34f, 0.07f); });
+            Fist = Make(c =>
+            {
+                c.Box(0.5f, 0.5f, 0.27f, 0.22f);
+                for (int i = 0; i < 4; i++) c.Circle(0.3f + i * 0.133f, 0.7f, 0.075f);
+                c.Box(0.25f, 0.42f, 0.09f, 0.12f);
+                c.Box(0.5f, 0.18f, 0.18f, 0.08f);
+                c.Erase(e => { for (int i = 1; i < 4; i++) e.Line(0.24f + i * 0.133f, 0.56f, 0.24f + i * 0.133f, 0.74f, 0.018f); });
+            });
+            Rifle = Make(c =>
+            {
+                c.Box(0.48f, 0.56f, 0.34f, 0.07f);
+                c.Box(0.9f, 0.56f, 0.07f, 0.025f);
+                c.Poly(new[] { new Vector2(0.14f, 0.62f), new Vector2(0.06f, 0.42f), new Vector2(0.18f, 0.42f), new Vector2(0.24f, 0.54f) });
+                c.Poly(new[] { new Vector2(0.4f, 0.5f), new Vector2(0.36f, 0.3f), new Vector2(0.44f, 0.3f), new Vector2(0.48f, 0.5f) });
+                c.Poly(new[] { new Vector2(0.56f, 0.5f), new Vector2(0.6f, 0.32f), new Vector2(0.66f, 0.34f), new Vector2(0.64f, 0.5f) });
+                c.Box(0.46f, 0.67f, 0.1f, 0.03f);
+            });
         }
 
         private static Vector2[] Ellipse(float cx, float cy, float rx, float ry, int n)

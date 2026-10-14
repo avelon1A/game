@@ -110,10 +110,13 @@ namespace Veil.Match
         /// <summary>Called every frame.</summary>
         /// <summary>Yaw the blaster fires along (from the player toward the crosshair target).</summary>
         public float AimYaw { get; private set; }
+        public float AimPitch { get; private set; }
 
         public void Update(float dt, float cameraYaw, bool inputEnabled) => Update(dt, cameraYaw, cameraYaw, inputEnabled);
 
-        public void Update(float dt, float cameraYaw, float aimYaw, bool inputEnabled)
+        public void Update(float dt, float cameraYaw, float aimYaw, bool inputEnabled) => Update(dt, cameraYaw, aimYaw, 0f, inputEnabled);
+
+        public void Update(float dt, float cameraYaw, float aimYaw, float aimPitch, bool inputEnabled)
         {
             Driver.Poll();
             if (Ended) return;
@@ -125,18 +128,19 @@ namespace Veil.Match
             while (_acc >= GameConfig.Dt)
             {
                 _acc -= GameConfig.Dt;
-                ClientTick(cameraYaw, aimYaw, inputEnabled && !Paused);
+                ClientTick(cameraYaw, aimYaw, aimPitch, inputEnabled && !Paused);
                 if (Ended) break;
             }
             Alpha = _acc / GameConfig.Dt;
             CorrectionOffset = Vector3.Lerp(CorrectionOffset, Vector3.zero, 1 - Mathf.Exp(-12f * dt));
         }
 
-        private void ClientTick(float cameraYaw, float aimYaw, bool inputEnabled)
+        private void ClientTick(float cameraYaw, float aimYaw, float aimPitch, bool inputEnabled)
         {
             AimYaw = aimYaw;
+            AimPitch = aimPitch;
             var cmd = ScriptedInput != null ? ScriptedInput(cameraYaw) : _input.Sample(cameraYaw, inputEnabled);
-            if (ScriptedInput == null) cmd.Yaw = aimYaw;   // movement is camera-relative, shots go to the crosshair
+            if (ScriptedInput == null) { cmd.Yaw = aimYaw; cmd.Pitch = aimPitch; }   // movement is camera-relative, shots go to the crosshair
             cmd.Seq = ++_seq;
             cmd = Protocol.Quantize(cmd);
             PrevPredictedPos = PredictedPos;

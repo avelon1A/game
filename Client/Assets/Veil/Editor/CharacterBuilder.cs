@@ -232,19 +232,19 @@ namespace Veil.EditorTools
             mat.shader = Shader.Find("Veil/Toon");
             mat.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/{name}/{name}_albedo.png"));
             mat.SetColor("_BaseColor", Color.white);
-            mat.SetColor("_ShadeColor", new Color(0.78f, 0.78f, 0.95f));
+            mat.SetColor("_ShadeColor", new Color(0.9f, 0.9f, 0.96f));
             mat.SetColor("_RimColor", new Color(1, 1, 1, 0.12f));
-            mat.SetFloat("_Ramp", 0.35f);
+            mat.SetFloat("_Ramp", 0.5f);
             mat.SetFloat("_Gloss", 0f);
             // finished textured models (Meshy / hand-made) carry plain albedo → let the toon lighting shade them;
             // projected concept art already has painted lighting → keep most of it
             bool textured = File.Exists($"{Root}/{name}/{name}_textured.txt");
-            mat.SetFloat("_ArtKeep", textured ? 0.35f : 0.85f);
+            mat.SetFloat("_ArtKeep", textured ? 0.7f : 0.85f);   // keep the Meshy colours close to Blender
             mat.SetFloat("_Cull", textured ? 0f : 2f);   // textured models are thin shells: double-sided hides seams
-            mat.SetFloat("_ShadowStrength", textured ? 0.6f : 0.45f);   // soft self-shadows so faces stay readable
+            mat.SetFloat("_ShadowStrength", textured ? 0.4f : 0.45f);   // soft self-shadows so faces stay readable
             var emis = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/{name}/{name}_emission.png");
             mat.SetTexture("_EmissionMap", emis);
-            float e = textured ? 1.6f : 2.2f;
+            float e = textured ? 1.0f : 2.2f;
             mat.SetColor("_EmissionColor", emis != null ? new Color(e, e, e) : Color.black);
             mat.enableInstancing = true;
             EditorUtility.SetDirty(mat);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -15,24 +16,29 @@ namespace Veil.UI
     {
         public readonly RectTransform Root;
         private readonly ClientMatch _m;
-        private Button _switch;
         private readonly Joystick _stick;
-        private readonly ActionButton _fire, _jump, _dash, _pulse, _decoy;
+        private readonly ActionButton _fire, _jump, _dash, _pulse, _decoy, _switch;
+        private readonly bool _edit;
+        public readonly List<(RectTransform rt, string key, Vector2 pos)> Controls = new List<(RectTransform, string, Vector2)>();
         private readonly RectTransform _market;
         public bool ScoreboardOpen { get; private set; }
 
-        public TouchControls(Transform canvas, ClientMatch match, Action onPause)
+        public TouchControls(Transform canvas, ClientMatch match, Action onPause, bool editMode = false)
         {
             _m = match;
+            _edit = editMode;
             Root = UIKit.Fill(canvas, "TouchControls");
             Root.gameObject.AddComponent<SafeArea>();
-            VirtualInput.Reset();
-            VirtualInput.Active = true;
+            if (!editMode)
+            {
+                VirtualInput.Reset();
+                VirtualInput.Active = true;
+            }
 
             // look pad covers the screen behind everything else
             var look = UIKit.Fill(Root, "LookPad");
-            UIKit.Image(look, UIKit.Square, new Color(0, 0, 0, 0), true);
-            look.gameObject.AddComponent<LookPad>();
+            UIKit.Image(look, UIKit.Square, new Color(0, 0, 0, 0), !editMode);
+            if (!editMode) look.gameObject.AddComponent<LookPad>();
 
             // joystick zone: bottom-left
             var zone = UIKit.Rect(Root, "StickZone", new Vector2(0, 0), new Vector2(0.42f, 0.62f), new Vector2(0, 0), Vector2.zero, Vector2.zero);
@@ -47,21 +53,20 @@ namespace Veil.UI
             _pulse = Btn("PULSE", Icons.Pulse, new Vector2(-230, 390), 118, Theme.Purple, false, Buttons.Pulse);
             _decoy = Btn("DECOY", Icons.Decoy, new Vector2(-70, 400), 118, Theme.PurpleLight, false, Buttons.Decoy);
             // sniper scope: tap to zoom in / out (only shown when you carry the sniper)
-            _scope = UIKit.Button(Root, "SCOPE", new Vector2(1, 0), new Vector2(-150, 300), new Vector2(120, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn, 20);
-            ((RectTransform)_scope.transform).pivot = new Vector2(0.5f, 0.5f);
-            // gun <-> fists
-            _switch = UIKit.Button(Root, "FISTS", new Vector2(1, 0), new Vector2(-520, 120), new Vector2(130, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.Press(Buttons.Switch), 20);
-            ((RectTransform)_switch.transform).pivot = new Vector2(0.5f, 0.5f);
-            // squad ping at the crosshair, grenade throw (only while carrying some)
-            _ping = UIKit.Button(Root, "PING", new Vector2(1, 0), new Vector2(-520, 200), new Vector2(130, 64), UIKit.ButtonStyle.Secondary, () => VirtualInput.Press(Buttons.Ping), 20);
-            ((RectTransform)_ping.transform).pivot = new Vector2(0.5f, 0.5f);
-            _grenade = UIKit.Button(Root, "GRENADE", new Vector2(1, 0), new Vector2(-520, 280), new Vector2(130, 64), UIKit.ButtonStyle.Primary, () => VirtualInput.Press(Buttons.Grenade), 18);
+            _scope = Btn("SCOPE", Icons.Target, new Vector2(-62, 292), 92, Theme.Cyan, false, 0);
+            _scope.OnTap = () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn;
+            // gun <-> fists: a round icon button like the other controls
+            _switch = Btn("FISTS", Icons.Fist, new Vector2(-520, 110), 104, Theme.Text, false, Buttons.Switch);
+            // grenade throw (only while carrying some)
+            _grenade = UIKit.Button(Root, "GRENADE", new Vector2(1, 0), new Vector2(-520, 250), new Vector2(130, 64), UIKit.ButtonStyle.Primary, () => VirtualInput.Press(Buttons.Grenade), 18);
             ((RectTransform)_grenade.transform).pivot = new Vector2(0.5f, 0.5f);
+            Reg((RectTransform)_grenade.transform, "grenade");
 
             // squad voice: hold to talk (push-to-talk mode)
             var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
             talk.pivot = new Vector2(0.5f, 0.5f);
             talk.gameObject.AddComponent<TalkButton>().Build();
+            Reg(talk, "talk");
 
             // market purchases (only visible inside the Market)
             _market = UIKit.At(Root, "Market", new Vector2(0.5f, 0), new Vector2(0, 250), new Vector2(620, 90));
@@ -77,9 +82,56 @@ namespace Veil.UI
             // top buttons
             var pause = UIKit.Button(Root, "II", new Vector2(1, 1), new Vector2(-300, -24), new Vector2(90, 72), UIKit.ButtonStyle.Ghost, () => onPause?.Invoke(), 30);
             var board = UIKit.Button(Root, "LIST", new Vector2(1, 1), new Vector2(-400, -24), new Vector2(90, 72), UIKit.ButtonStyle.Ghost, () => ScoreboardOpen = !ScoreboardOpen, 20);
+            if (editMode) { pause.gameObject.SetActive(false); board.gameObject.SetActive(false); _market.gameObject.SetActive(false); }
+
+            if (!editMode) ControlLayout.Changed += Reapply;
+            if (editMode)
+            {
+                _scope.gameObject.SetActive(true);
+                _grenade.gameObject.SetActive(true);
+                foreach (var c in Controls) LayoutHandle.Attach(c.rt, c.key, this);
+            }
         }
 
-        private UnityEngine.UI.Button _scope, _ping, _grenade;
+        private UnityEngine.UI.Button _grenade;
+        private ActionButton _scope;
+
+        private void Reg(RectTransform rt, string key)
+        {
+            Controls.Add((rt, key, rt.anchoredPosition));
+            ControlLayout.Apply(rt, key);
+        }
+
+        private void Reapply()
+        {
+            foreach (var c in Controls)
+            {
+                if (!c.rt) continue;
+                c.rt.anchoredPosition = c.pos;
+                c.rt.localScale = Vector3.one;
+                ControlLayout.Apply(c.rt, c.key);
+            }
+        }
+
+        private RectTransform _glow;
+
+        /// <summary>Tutorial: a pulsing ring around one control (null clears it).</summary>
+        public void Highlight(string key)
+        {
+            if (_glow) UnityEngine.Object.Destroy(_glow.gameObject);
+            if (key == null) return;
+            foreach (var c in Controls)
+            {
+                if (c.key != key || !c.rt) continue;
+                _glow = UIKit.At(c.rt, "TutorialGlow", new Vector2(0.5f, 0.5f), Vector2.zero, c.rt.sizeDelta * 1.35f);
+                UIKit.Image(_glow, UIKit.Ring, Theme.Yellow).raycastTarget = false;
+                _glow.gameObject.AddComponent<Pulse>();
+                return;
+            }
+        }
+
+        public LayoutHandle Selected;
+        public Action<LayoutHandle> SelectionChanged;
 
         private ActionButton Btn(string name, Sprite icon, Vector2 pos, float size, Color c, bool hold, Buttons b)
         {
@@ -87,11 +139,13 @@ namespace Veil.UI
             rt.pivot = new Vector2(0.5f, 0.5f);
             var btn = rt.gameObject.AddComponent<ActionButton>();
             btn.Build(name, icon, size, c, hold, b);
+            Reg(rt, name.ToLowerInvariant());
             return btn;
         }
 
         public void Update()
         {
+            if (_edit) return;
             var me = _m.Predicted;
             _dash.SetCooldown(me.DashCd / GameConfig.DashCooldown, me.Energy >= GameConfig.DashCost);
             _pulse.SetCooldown(me.PulseCd / GameConfig.PulseCooldown, me.Energy >= GameConfig.PulseCost);
@@ -101,14 +155,14 @@ namespace Veil.UI
             int special = self?.Special ?? 0;
             var ws = GameConfig.Current(me.Look.Weapon, fistsNow, special);
             _fire.SetCooldown(me.FireCd / ws.Cooldown, true);
-            UIKit.ButtonLabel(_switch).text = fistsNow ? (special > 0 ? SpecialName(special) : me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") : "FISTS";
+            _switch.SetFace(fistsNow ? Icons.Rifle : Icons.Fist, fistsNow ? (special > 0 ? SpecialName(special) : me.Look.Weapon == 1 ? "SNIPER" : "RIFLE") : "FISTS");
             int nades = self?.Grenades ?? 0;
             if (_grenade.gameObject.activeSelf != (nades > 0 && me.Alive)) _grenade.gameObject.SetActive(nades > 0 && me.Alive);
             UIKit.ButtonLabel(_grenade).text = $"GRENADE ×{nades}";
             bool sniper = me.Look.Weapon == 1 && me.Alive && !fistsNow && special == 0;
             if (_scope.gameObject.activeSelf != sniper) _scope.gameObject.SetActive(sniper);
             if (!sniper) VirtualInput.ScopeOn = false;
-            UIKit.ButtonLabel(_scope).text = VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE";
+            _scope.SetFace(Icons.Target, VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE");
             bool market = me.Alive && me.ZoneId >= 0 && _m.Map.Zones[me.ZoneId].Type == ZoneType.Market;
             if (_market.gameObject.activeSelf != market) _market.gameObject.SetActive(market);
             Root.gameObject.SetActive(!_m.Ended && !_m.Paused);
@@ -118,8 +172,12 @@ namespace Veil.UI
 
         public void Dispose()
         {
-            VirtualInput.Reset();
-            VirtualInput.Active = false;
+            if (!_edit)
+            {
+                ControlLayout.Changed -= Reapply;
+                VirtualInput.Reset();
+                VirtualInput.Active = false;
+            }
             UnityEngine.Object.Destroy(Root.gameObject);
         }
     }
@@ -265,9 +323,11 @@ namespace Veil.UI
     }
 
     /// <summary>Round action button: hold (Fire/Jump) or tap (abilities), with cooldown sweep.</summary>
-    public sealed class ActionButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    public sealed class ActionButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler, IDragHandler
     {
         private Image _cd, _icon, _back;
+        private Text _label;
+        public Action OnTap;
         private bool _hold;
         private Buttons _button;
         private float _press;
@@ -287,6 +347,13 @@ namespace Veil.UI
             _cd.type = Image.Type.Filled; _cd.fillMethod = Image.FillMethod.Radial360; _cd.fillOrigin = 2; _cd.fillClockwise = false;
             var t = UIKit.LabelAt(rt, label, Mathf.RoundToInt(size * 0.14f), Theme.Text, new Vector2(0.5f, 0), new Vector2(0, size * 0.14f), new Vector2(size, 24), TextAnchor.MiddleCenter, UIKit.BoldFont);
             UIKit.Outline(t, new Color(0, 0, 0, 0.7f), 1.5f);
+            _label = t;
+        }
+
+        public void SetFace(Sprite icon, string label)
+        {
+            if (_icon.sprite != icon) _icon.sprite = icon;
+            if (_label.text != label) _label.text = label;
         }
 
         public void SetCooldown(float frac, bool affordable)
@@ -307,10 +374,178 @@ namespace Veil.UI
         {
             _press = 1f;
             if (_hold) { Set(true); if (_button == Buttons.Jump) VirtualInput.Press(Buttons.Jump); }
+            else if (OnTap != null) OnTap();
             else VirtualInput.Press(_button);
         }
 
         public void OnPointerUp(PointerEventData e) { if (_hold) Set(false); }
         public void OnPointerExit(PointerEventData e) { }
+
+        // PUBG-style: slide the finger on the fire button to aim while shooting
+        public void OnDrag(PointerEventData e)
+        {
+            if (_button != Buttons.Fire) return;
+            float norm = 1080f / Mathf.Max(1, Screen.height);
+            VirtualInput.LookDelta += e.delta * norm * 1.1f;
+        }
+    }
+}
+
+namespace Veil.UI
+{
+    /// <summary>Saved HUD button positions and sizes (PUBG-style "customize layout").</summary>
+    public static class ControlLayout
+    {
+        private const string Prefix = "layout2.";
+        public static event Action Changed;
+        public static void NotifyChanged() => Changed?.Invoke();
+
+        public static void Apply(RectTransform rt, string key)
+        {
+            var v = PlayerPrefs.GetString(Prefix + key, "");
+            var parts = v.Split(',');
+            if (parts.Length != 3) return;
+            if (!float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)) return;
+            float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y);
+            float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sc);
+            rt.anchoredPosition = new Vector2(x, y);
+            rt.localScale = Vector3.one * Mathf.Clamp(sc <= 0 ? 1 : sc, 0.5f, 1.8f);
+        }
+
+        public static void Save(RectTransform rt, string key)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            PlayerPrefs.SetString(Prefix + key, rt.anchoredPosition.x.ToString(ci) + "," + rt.anchoredPosition.y.ToString(ci) + "," + rt.localScale.x.ToString(ci));
+        }
+
+        public static void Clear(string key) => PlayerPrefs.DeleteKey(Prefix + key);
+    }
+
+    /// <summary>Edit-mode overlay on a control: drag to move, tap to select (the editor's size slider then scales it).</summary>
+    public sealed class LayoutHandle : MonoBehaviour, IPointerDownHandler, IDragHandler
+    {
+        public string Key;
+        public RectTransform Target;
+        private TouchControls _owner;
+        private Image _frame;
+
+        public static void Attach(RectTransform rt, string key, TouchControls owner)
+        {
+            foreach (var b in rt.GetComponentsInChildren<Behaviour>(true))
+                if (b is Button || b is ActionButton || b is TalkButton) b.enabled = false;
+            foreach (var g in rt.GetComponentsInChildren<Graphic>(true)) g.raycastTarget = false;
+            var tb = rt.GetComponent<TalkButton>();
+            if (tb) { foreach (Transform c in rt) c.gameObject.SetActive(true); var lbl = rt.GetComponentInChildren<Text>(true); if (lbl) lbl.gameObject.SetActive(true); var img = rt.GetComponent<Image>(); if (img) img.enabled = true; }
+            var o = UIKit.Fill(rt, "EditHandle");
+            var h = o.gameObject.AddComponent<LayoutHandle>();
+            h.Key = key; h.Target = rt; h._owner = owner;
+            h._frame = UIKit.Image(o, UIKit.RoundedSmall, new Color(1f, 0.85f, 0.25f, 0.12f), true);
+        }
+
+        public void SetSelected(bool on) => _frame.color = on ? new Color(1f, 0.85f, 0.25f, 0.4f) : new Color(1f, 0.85f, 0.25f, 0.12f);
+
+        public void OnPointerDown(PointerEventData e)
+        {
+            if (_owner.Selected) _owner.Selected.SetSelected(false);
+            _owner.Selected = this;
+            SetSelected(true);
+            _owner.SelectionChanged?.Invoke(this);
+        }
+
+        public void OnDrag(PointerEventData e)
+        {
+            var canvas = Target.GetComponentInParent<Canvas>();
+            float k = canvas ? canvas.scaleFactor : 1f;
+            Target.anchoredPosition += e.delta / k;
+        }
+    }
+}
+
+namespace Veil.UI
+{
+    /// <summary>Full-screen "customize controls" editor: drag buttons, resize the selected one, save or reset.</summary>
+    public sealed class LayoutEditor
+    {
+        private readonly RectTransform _root;
+        private readonly TouchControls _controls;
+        private readonly Text _hint;
+
+        public static void Open(Transform canvas) => new LayoutEditor(canvas);
+
+        private LayoutEditor(Transform canvas)
+        {
+            _root = UIKit.Fill(canvas, "LayoutEditor");
+            _root.SetAsLastSibling();
+            UIKit.Image(_root, UIKit.Square, new Color(0.02f, 0.03f, 0.08f, 0.82f), true);
+            _controls = new TouchControls(_root, null, null, true);
+            _controls.SelectionChanged = h => _hint.text = "Selected: " + h.Key.ToUpperInvariant() + "  ·  drag to move";
+
+            var bar = UIKit.At(_root, "Toolbar", new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1180, 84));
+            bar.pivot = new Vector2(0.5f, 1);
+            UIKit.Image(bar, UIKit.RoundedSmall, new Color(0.06f, 0.07f, 0.16f, 0.95f), true);
+            _hint = UIKit.LabelAt(bar, "Tap a button to select it, drag to move", 18, Theme.Text, new Vector2(0, 0.5f), new Vector2(24, 0), new Vector2(430, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
+            _hint.rectTransform.pivot = new Vector2(0, 0.5f);
+            UIKit.Fit(_hint, 11);
+            float x = -600 + 470;
+            void B(string label, UIKit.ButtonStyle st, Action a, float w)
+            {
+                var b = UIKit.Button(bar, label, new Vector2(0.5f, 0.5f), new Vector2(x + w / 2, 0), new Vector2(w, 60), st, a, 20);
+                x += w + 10;
+            }
+            B("SIZE −", UIKit.ButtonStyle.Secondary, () => Scale(-0.1f), 110);
+            B("SIZE +", UIKit.ButtonStyle.Secondary, () => Scale(0.1f), 110);
+            B("RESET", UIKit.ButtonStyle.Ghost, Reset, 110);
+            B("CANCEL", UIKit.ButtonStyle.Ghost, Close, 120);
+            B("SAVE", UIKit.ButtonStyle.Primary, Save, 120);
+        }
+
+        private void Scale(float d)
+        {
+            var h = _controls.Selected;
+            if (!h) { _hint.text = "Select a button first"; return; }
+            float s = Mathf.Clamp(h.Target.localScale.x + d, 0.5f, 1.8f);
+            h.Target.localScale = Vector3.one * s;
+        }
+
+        private void Reset()
+        {
+            foreach (var c in _controls.Controls)
+            {
+                ControlLayout.Clear(c.key);
+                c.rt.anchoredPosition = c.pos;
+                c.rt.localScale = Vector3.one;
+            }
+            PlayerPrefs.Save();
+            ControlLayout.NotifyChanged();
+            _hint.text = "Default layout restored";
+        }
+
+        private void Save()
+        {
+            foreach (var c in _controls.Controls) ControlLayout.Save(c.rt, c.key);
+            PlayerPrefs.Save();
+            Close();
+            ControlLayout.NotifyChanged();
+        }
+
+        private void Close()
+        {
+            _controls.Dispose();
+            UnityEngine.Object.Destroy(_root.gameObject);
+        }
+    }
+}
+
+namespace Veil.UI
+{
+    public sealed class Pulse : MonoBehaviour
+    {
+        private void Update()
+        {
+            float k = (Mathf.Sin(Time.unscaledTime * 6f) + 1f) * 0.5f;
+            transform.localScale = Vector3.one * (1f + 0.12f * k);
+            var g = GetComponent<Graphic>();
+            if (g) { var c = g.color; c.a = 0.45f + 0.55f * k; g.color = c; }
+        }
     }
 }

@@ -52,8 +52,14 @@ namespace Veil.View
             float hit = CollisionDistance(pivot, rot * Vector3.back, want);
             // pull in fast, ease out slowly
             _collisionDist = hit < _collisionDist ? hit : Mathf.Lerp(_collisionDist, hit, 1 - Mathf.Exp(-4f * dt));
-            Vector3 camPos = pivot + rot * Vector3.back * _collisionDist + rot * Vector3.right * 0.35f;
+            Vector3 camPos = pivot + rot * Vector3.back * _collisionDist + rot * Vector3.right * Mathf.Min(0.9f, 0.3f + _collisionDist * 0.12f);   // over the right shoulder: the centre crosshair stays clear of the player
             if (camPos.y < 0.4f) camPos.y = 0.4f;
+            if (Veil.App.GameApp.Scoped)
+            {
+                // scoped: first-person view from the eyes
+                camPos = new Vector3(target.x, target.y + 1.62f, target.z) + rot * Vector3.forward * 0.25f;
+                _collisionDist = Distance;
+            }
 
             _pos = camPos;
             _rot = rot;

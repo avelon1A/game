@@ -245,7 +245,7 @@ namespace Veil.UI
             ((RectTransform)modeBtn.transform).pivot = new Vector2(0, 0.5f);
             _voiceMode = UIKit.ButtonLabel(modeBtn);
             _voiceMode.supportRichText = true;
-            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => { _howTo.gameObject.SetActive(!_howTo.gameObject.activeSelf); _howTo.SetAsLastSibling(); }, 30);
+            var help = UIKit.Button(tab, "?", new Vector2(0, 0), new Vector2(366, 110), new Vector2(64, 64), UIKit.ButtonStyle.Secondary, () => _app.PlayTour(true), 30);   // HOW TO PLAY: cinematic tutorial
             ((RectTransform)help.transform).pivot = new Vector2(0, 0);
             _help = (RectTransform)help.transform;
             _howTo = BuildHowTo(tab);
@@ -330,7 +330,6 @@ namespace Veil.UI
                     _mmFoundT = 0f;
                     PunchFx.On(_mm).Kick(0.35f);
                     Sfx.Play(Sfx.Objective, 0.9f);
-                    _app.Stage.Cheer(2.2f);   // the squad celebrates on the dock
                 }
                 _mmState = state;
             }
@@ -439,6 +438,7 @@ namespace Veil.UI
             mb.onClick.AddListener(() => _app.Toast("RILO ISLAND — 400 m island, 8 regions. Press START to drop in!"));
             // BATTLE PASS (season progress follows your level for now)
             var bp = UIKit.At(root, "BattlePass", new Vector2(0, 1), new Vector2(0, -192), new Vector2(440, 130));
+            bp.gameObject.SetActive(false);
             bp.pivot = new Vector2(0, 1);
             var bpBg = UIKit.Image(bp, UIKit.RoundedSmall, new Color(0.12f, 0.16f, 0.42f, 0.92f), true);
             var b1 = UIKit.LabelAt(bp, "BATTLE PASS", 28, Color.white, new Vector2(0, 1), new Vector2(20, -14), new Vector2(300, 34), TextAnchor.MiddleLeft, UIKit.TitleFont);
@@ -468,8 +468,8 @@ namespace Veil.UI
                 l.supportRichText = true;
                 return l;
             }
-            _missionsLabel = Row("MISSIONS", Icons.Target, -334, false, () => ShowMissions(root));
-            Row("DAILY REWARDS", Icons.Key, -408, true);
+            _missionsLabel = Row("MISSIONS", Icons.Target, -196, false, () => ShowMissions(root));
+            Row("DAILY REWARDS", Icons.Key, -270, true);
             EnterFx.Add(root, new Vector2(48, 0), 0.06f);
         }
 
@@ -914,7 +914,7 @@ namespace Veil.UI
                 r.Crown.gameObject.SetActive(m.Leader && !m.Bot && _online);
                 r.Name.rectTransform.anchoredPosition = new Vector2(m.Leader && !m.Bot && _online ? 112 : 86, -12);
                 r.Name.text = m.Name + (m.Me ? " <color=#aab0d8>(You)</color>" : "");
-                r.Level.text = m.Bot ? $"BOT · {SocialUi.CharacterName(m.Look)}" : $"Lv. {m.Level}" + (m.Ping > 0 && _online ? $"  <color=#6a6f90>{m.Ping} ms</color>" : "");
+                r.Level.text = m.Bot ? $"Lv. {BotCover.Level(m.Name)}" : $"Lv. {m.Level}" + (m.Ping > 0 && _online ? $"  <color=#6a6f90>{m.Ping} ms</color>" : "");
                 r.Mic.transform.parent.gameObject.SetActive(!m.Bot);
                 r.Spk.transform.parent.gameObject.SetActive(!m.Bot);
                 r.Status.text = !m.Online ? "<color=#8a90b8>OFFLINE</color>" : m.Ready || m.Bot ? "<color=#7dff9a>READY</color>"
@@ -922,14 +922,14 @@ namespace Veil.UI
             }
 
             // mode card
-            _modeTitle.text = _online ? "ONLINE SQUADS" : "SQUAD vs BOTS";
+            _modeTitle.text = _online ? "ONLINE SQUADS" : "PRACTICE";
             _modeThumbIcon.sprite = _online ? Icons.Players : Icons.Target;
             _modeThumbIcon.transform.parent.GetComponent<Image>().color = _online ? new Color(0.3f, 0.55f, 1f) : new Color(0.45f, 0.35f, 0.95f);
             bool needConnect = _online && !g.Online;
             _connectRow.gameObject.SetActive(needConnect);
-            _modeSub.text = !_online ? "Practice with your squad against AI bots"
+            _modeSub.text = !_online ? "Practice match · 4 squads of 4"
                 : needConnect ? (g.Status == GatewayClient.State.Connecting ? "Connecting…" : "Server (found automatically on Wi-Fi):")
-                : $"4 squads of 4 · bots fill empty seats\n<color=#7dff9a>●</color> {g.Handle} · {g.PingMs} ms";
+                : $"4 squads of 4\n<color=#7dff9a>●</color> {g.Handle} · {g.PingMs} ms";
             _length.Root.gameObject.SetActive(false);   // no match length to pick: a match runs until a squad escapes
             UpdateStage();
             UpdateStatus();
@@ -958,7 +958,7 @@ namespace Veil.UI
             bool actionOn = true;
             if (!_online)
             {
-                s = "Practice: your squad + 3 bots vs 3 bot squads";
+                s = "Practice match: 4 squads of 4";
                 action = _offlineCountdown ? "CANCEL" : "START";
             }
             else if (!g.Online)
@@ -1059,13 +1059,13 @@ namespace Veil.UI
                 float minX = -halfW + 430f + 112f, maxX = halfW - 490f - 112f;
                 p.Root.anchoredPosition = new Vector2(Mathf.Clamp(lp.x, minX, Mathf.Max(minX, maxX)), lp.y + 30);
                 p.Name.text = m.Name;
-                p.Level.text = m.Bot ? "BOT" : $"Lv. {m.Level}";
+                p.Level.text = $"Lv. {(m.Bot ? BotCover.Level(m.Name) : m.Level)}";
                 bool crown = m.Leader && !m.Bot && _online;
                 p.Crown.gameObject.SetActive(crown);
                 bool me = i == 0;
-                p.Accent.color = me ? Theme.Gold : m.Bot ? new Color(0.6f, 0.62f, 0.75f) : Theme.Green;
-                p.LevelBg.color = m.Bot ? new Color(1, 1, 1, 0.08f) : new Color(1f, 0.82f, 0.25f, 0.2f);
-                p.Level.color = m.Bot ? Theme.TextDim : Theme.Gold;
+                p.Accent.color = me ? Theme.Gold : Theme.Green;
+                p.LevelBg.color = new Color(1f, 0.82f, 0.25f, 0.2f);
+                p.Level.color = Theme.Gold;
                 var nameWin = (RectTransform)p.Name.rectTransform.parent;
                 nameWin.anchoredPosition = new Vector2(crown ? 40 : 16, -6);
                 nameWin.sizeDelta = new Vector2(crown ? 118 : 142, 26);
@@ -1409,6 +1409,16 @@ namespace Veil.UI
                 if (_inviteLeft <= 0) { _app.Gateway.Invites.RemoveAll(x => x.inviteId == _current.inviteId); Next(); }
             }
             if (_noticeT > 0) { _noticeT -= dt; if (_noticeT <= 0) _notice.gameObject.SetActive(false); }
+        }
+    }
+
+    internal static class BotCover
+    {
+        public static int Level(string name)
+        {
+            int h = 17;
+            foreach (char c in name ?? "") h = h * 31 + c;
+            return 6 + (h & 0x7fffffff) % 38;
         }
     }
 }

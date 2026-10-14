@@ -43,6 +43,7 @@ namespace Veil.Sim
         public int Seq;
         public float MoveX, MoveY;
         public float Yaw;
+        public float Pitch;             // aim elevation in degrees (+ up), shots fly in 3D
         public Buttons Buttons;
         public float MarkX, MarkY;      // world position of a map marker (only with Buttons.Mark)
 
@@ -158,6 +159,7 @@ namespace Veil.Sim
         // kinematics (predicted on the client — see Movement)
         public Vec2 Pos, Vel, Knock, DashDir;
         public float H, VH, Yaw;
+        public float AimPitch;   // last aim elevation (others see shots go up / down)
         public bool Grounded = true;
         public float DashT;
         public float DashCd;
@@ -235,6 +237,7 @@ namespace Veil.Sim
         public int Id;
         public int Owner;
         public Vec2 Pos, Vel;
+        public float Z, Vz;         // height above ground and vertical speed
         public float Travelled;
         public bool Dead;
         public float Damage = GameConfig.ProjectileDamage, Range = GameConfig.ProjectileRange;
@@ -279,7 +282,7 @@ namespace Veil.Sim
         PulseCast, DecoySpawn, DecoyPop, Hit, Eliminated, Respawned, PickupSpawned, PickupCollected,
         ZoneCaptured, VaultOpened, ObjectiveComplete, PhaseChanged, DashStart, Purchase, ShieldBreak,
         AbilityPlay, Fire, Revealed, MatchEnded, Land, Downed, Revived, StageComplete, ExtractRevealed, ExtractControl, HackGlitch, NodeDestroyed, HackActivity, HackContested, CenterBonus, ExtractOpen, ExtractAlert, ExtractFinal,
-        Explosion, SquadWiped, Ping, Redeployed, WorldEvent, Sabotage, BeingHacked,
+        Explosion, SquadWiped, Ping, Redeployed, WorldEvent, Sabotage, BeingHacked, Headshot,
     }
 
     public struct SimEvent

@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 18;
+        public const int ProtocolVersion = 20;
         public const float ExtractSeeRange = 70f;      // squads without the Vault only see the helicopter with their own eyes, this close;
 
         // ---- Simulation ----
@@ -152,6 +152,11 @@ namespace Veil.Sim
         public const float SabotageTime = 25f, SabotageSlow = 0.55f, SabotageReveal = 12f;
         public const float ScopeFov = 26f;
         public const float ProjectileHeight = 1.0f;
+        public const float MuzzleHeight = 1.35f;          // shots start at chest height and fly where the crosshair points
+        public const float BodyHeight = 1.85f, DownedBodyHeight = 0.7f;
+        public const float HeadHeight = 1.5f;             // hits above this (from the feet) are headshots
+        public const float HeadshotMultiplier = 1.8f;
+        public const float MaxAimPitch = 60f;
         public const float HitRadius = 0.55f;
         public const float Knockback = 7f;
         public const float FireNoiseTime = 1.5f;           // firing pings you on nearby minimaps
@@ -241,6 +246,7 @@ namespace Veil.Sim
         public int TotalPlayers = GameConfig.MaxPlayers;
         public int Seed = 1;
         public bool FillWithBots = true;
+        public bool BotsHoldFire;   // training: bots move but do not shoot
 
         /// <summary>Objective targets scale down for short test matches.</summary>
         public float ObjectiveScale => MathUtil.Clamp(MatchSeconds / 900f, 0.4f, 1f);

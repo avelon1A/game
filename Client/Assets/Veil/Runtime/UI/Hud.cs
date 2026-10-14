@@ -175,6 +175,7 @@ namespace Veil.UI
             foreach (var z in m.Map.Zones) _zoneMarkers.Add(MakeZoneMarker(z));
             BuildCinematic(canvas);
             _extras = new HudExtras(Root, m, view, cam, _minimap, mobile, Feed, (a, b, t) => Banner(a, b, t), Popup);
+            _extras.HeadshotFlash = () => _hitT = 0.55f;
             view.OnEvent += HandleEvent;
             view.OnEvent += _extras.HandleEvent;
             _mobile = mobile;
@@ -239,6 +240,7 @@ namespace Veil.UI
         {
             _players = Pill(new Vector2(24, -24), 220, Icons.Players, "15 Players", out _);
             _timer = Pill(new Vector2(254, -24), 128, Icons.Clock, "15:00", out _);
+            _timer.transform.parent.gameObject.SetActive(false);   // no match clock: the game runs until a squad escapes
             var phaseRt = UIKit.At(Root, "Phase", new Vector2(0, 1), new Vector2(24, -82), new Vector2(358, 44));
             UIKit.Image(phaseRt, UIKit.RoundedSmall, new Color(0.07f, 0.08f, 0.16f, 0.7f));
             _phase = UIKit.LabelAt(phaseRt, "EXPLORATION", 18, Theme.PurpleLight, new Vector2(0, 1), new Vector2(14, -4), new Vector2(300, 24), TextAnchor.UpperLeft, UIKit.BoldFont);
@@ -248,6 +250,7 @@ namespace Veil.UI
             UIKit.Image(fillRt, UIKit.Pill, new Color(1, 1, 1, 0.12f));
             var inner = UIKit.Rect(fillRt, "Inner", Vector2.zero, new Vector2(0, 1), new Vector2(0, 0.5f), Vector2.zero, Vector2.zero);
             _phaseFill = UIKit.Image(inner, UIKit.Pill, Theme.Purple);
+            fillRt.gameObject.SetActive(false);   // the phase bar counted time; only the phase name stays
             _score = UIKit.LabelAt(Root, "SCORE 0", 26, Theme.Gold, new Vector2(0, 1), new Vector2(26, -134), new Vector2(360, 34), TextAnchor.UpperLeft, UIKit.TitleFont);
             _score.rectTransform.pivot = new Vector2(0, 1);
             UIKit.Shadow(_score);
@@ -260,7 +263,7 @@ namespace Veil.UI
         {
             _minimap = new Minimap(Root, _m.Map, new Vector2(1, 1), new Vector2(-24, -24), 250);
             ((RectTransform)Root.Find("Minimap")).pivot = new Vector2(1, 1);
-            _feedRoot = UIKit.At(Root, "Feed", new Vector2(1, 1), new Vector2(-24, -300), new Vector2(420, 200));
+            _feedRoot = UIKit.At(Root, "Feed", new Vector2(1, 1), new Vector2(-24, -340), new Vector2(420, 200));
             _feedRoot.pivot = new Vector2(1, 1);
         }
 
@@ -350,7 +353,7 @@ namespace Veil.UI
                 var rc = c.Ring.color;
                 rc.a = Mathf.MoveTowards(rc.a, talking ? 1f : 0f, dt * 8f);
                 c.Ring.color = rc;
-                string st = !alive ? "<color=#ff7a8a>DOWN</color>" : c.Entry.IsBot ? "<color=#8a90b8>BOT</color>" : "";
+                string st = !alive ? "<color=#ff7a8a>DOWN</color>" : "";
                 if (talking) st = "<color=#7dff9a>TALKING</color>";
                 else if (voice != null && !string.IsNullOrEmpty(c.Entry.ProfileId) && voice.IsMuted(c.Entry.ProfileId)) st = "<color=#8a90b8>MUTED</color>";
                 c.State.text = st;
@@ -737,8 +740,7 @@ namespace Veil.UI
             if (overtime && !_overtimeShown)
             {
                 _overtimeShown = true;
-                Banner("OVERTIME", "No time limit — open your Vault and extract to win", 5f);
-                Audio.Sfx.Play(Audio.Sfx.Beep, 1f);
+
             }
             if (overtime)
             {
@@ -1073,13 +1075,7 @@ namespace Veil.UI
         public void PlaceCrosshair(float dt)
         {
             var rt = _crosshair.rectTransform;
-            Vector2 target = Vector2.zero;
-            if (_view.HasShotImpact)
-            {
-                Vector3 sp = _cam.WorldToScreenPoint(_view.ShotImpact);
-                if (sp.z > 0) RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)Root, sp, null, out target);
-            }
-            _crossPos = Vector2.Lerp(_crossPos, target, 1 - Mathf.Exp(-30f * dt));
+            _crossPos = Vector2.zero;   // fixed at screen centre like PUBG: shots go where it points
             rt.anchoredPosition = _crossPos;
             _hitMarker.rectTransform.anchoredPosition = _crossPos;
             _crosshair.color = _view.ShotHitsAvatar ? new Color(1f, 0.35f, 0.35f, 0.95f) : new Color(1, 1, 1, 0.85f);

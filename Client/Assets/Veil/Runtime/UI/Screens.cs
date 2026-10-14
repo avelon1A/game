@@ -224,14 +224,15 @@ namespace Veil.UI
             _coins = Currency(Icons.Core, new Color(1f, 0.78f, 0.15f), out _);
 
             // ---------------- left menu
-            var nav = UIKit.At(Root, "Nav", new Vector2(0, 1), new Vector2(28, -150), new Vector2(256, 7 * 82));
+            var nav = UIKit.At(Root, "Nav", new Vector2(0, 1), new Vector2(28, -150), new Vector2(256, 6 * 82));
             nav.pivot = new Vector2(0, 1);
             string[] navNames = { "LOBBY", "CHARACTERS", "LOADOUT", "BATTLE PASS", "STORE", "EVENTS", "RANKINGS" };
             Sprite[] navIcons = { Icons.Tower, Icons.Players, Icons.Blaster, Icons.Shield, Icons.Core, Icons.Clock, Icons.Trophy };
             for (int i = 0; i < navNames.Length; i++)
             {
                 int idx = i;
-                var rt = UIKit.At(nav, "Nav" + i, new Vector2(0, 1), new Vector2(0, -i * 82), new Vector2(256, 72));
+                var rt = UIKit.At(nav, "Nav" + i, new Vector2(0, 1), new Vector2(0, -(i > 3 ? i - 1 : i) * 82), new Vector2(256, 72));
+                if (i == 3) rt.gameObject.SetActive(false);   // no battle pass yet
                 rt.pivot = new Vector2(0, 1);
                 _navBg[i] = UIKit.Image(rt, UIKit.RoundedSmall, new Color(0.04f, 0.05f, 0.1f, 0.78f), true);
                 var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = _navBg[i];
@@ -242,7 +243,7 @@ namespace Veil.UI
                 _navIcon[i] = UIKit.Image(ic, navIcons[i], Color.white);
                 _navLabel[i] = UIKit.LabelAt(rt, navNames[i], 22, Color.white, new Vector2(0, 0.5f), new Vector2(72, 0), new Vector2(176, 40), TextAnchor.MiddleLeft, UIKit.BoldFont);
                 _navLabel[i].rectTransform.pivot = new Vector2(0, 0.5f); UIKit.Fit(_navLabel[i], 13);
-                if (i == 3 || i == 5)
+                if (i == 5)
                 {
                     var dot = UIKit.At(rt, "Dot", new Vector2(1, 1), new Vector2(-8, -8), new Vector2(14, 14));
                     dot.pivot = new Vector2(1, 1); UIKit.Image(dot, UIKit.Circle, Theme.Red);
@@ -912,6 +913,11 @@ namespace Veil.UI
             Slider("GYRO SENSITIVITY", 0.2f, 3f, prof.GyroSensitivity, v => { prof.GyroSensitivity = v; Save(); }, v => v.ToString("0.0") + "x");
             int inv = (prof.GyroInvertX ? 1 : 0) + (prof.GyroInvertY ? 2 : 0);
             Chips("GYRO INVERT", new[] { "NONE", "LEFT-RIGHT", "UP-DOWN", "BOTH" }, inv, i => { prof.GyroInvertX = (i & 1) != 0; prof.GyroInvertY = (i & 2) != 0; Save(); });
+            {
+                var c = Labeled("BUTTON LAYOUT", "move and resize the touch buttons");
+                var b = UIKit.Button(c, "CUSTOMIZE", new Vector2(0, 0.5f), Vector2.zero, new Vector2(10, 44), UIKit.ButtonStyle.Primary, () => LayoutEditor.Open(Root.GetComponentInParent<Canvas>().transform), 18);
+                var br = (RectTransform)b.transform; br.anchorMin = new Vector2(0, 0); br.anchorMax = new Vector2(1, 1); br.offsetMin = Vector2.zero; br.offsetMax = Vector2.zero;
+            }
 
             // ---------------- GRAPHICS
             Section("GRAPHICS & DISPLAY");
@@ -1231,7 +1237,7 @@ namespace Veil.UI
         {
             var dim = UIKit.Fill(Root, "Dim");
             UIKit.Image(dim, UIKit.Square, new Color(0.02f, 0.02f, 0.08f, 0.6f), true);
-            var panel = UIKit.Panel(Root, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 720));
+            var panel = UIKit.Panel(Root, "Panel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 820));
             var p = panel.transform;
             var t = UIKit.LabelAt(p, "PAUSED", 48, Theme.Text, new Vector2(0.5f, 1), new Vector2(0, -50), new Vector2(500, 60), TextAnchor.MiddleCenter, UIKit.TitleFont);
             UIKit.Button(p, "RESUME", new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(420, 76), UIKit.ButtonStyle.Primary, () => App.SetPaused(false), 36);
@@ -1241,6 +1247,7 @@ namespace Veil.UI
                 i => { app.Profile.MusicOn = i == 0; app.Profile.Save(); app.ApplySettings(); }, 120);
             new ChipRow(p, new Vector2(0.5f, 1), new Vector2(-40, -330), "GYRO", new[] { "OFF", "FIRING", "ALWAYS" }, app.Profile.GyroMode,
                 i => { app.Profile.GyroMode = i; app.Profile.Save(); }, 120);
+            UIKit.Button(p, "CUSTOMIZE CONTROLS", new Vector2(0.5f, 0), new Vector2(0, 200), new Vector2(420, 60), UIKit.ButtonStyle.Ghost, () => LayoutEditor.Open(Root.GetComponentInParent<Canvas>().transform), 22);
             UIKit.Button(p, "LEAVE MATCH", new Vector2(0.5f, 0), new Vector2(0, 50), new Vector2(420, 64), UIKit.ButtonStyle.Secondary, () => { App.SetPaused(false); App.LeaveMatch(); }, 26);
             var note = UIKit.LabelAt(p, "Offline matches pause. Online matches keep running.", 16, Theme.TextDim, new Vector2(0.5f, 0), new Vector2(0, 130), new Vector2(500, 26), TextAnchor.MiddleCenter, UIKit.BodyFont);
         }

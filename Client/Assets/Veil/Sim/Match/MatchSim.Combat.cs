@@ -20,7 +20,10 @@ namespace Veil.Sim
                 p.SpawnProtT = 0;
                 Vec2 dir = Vec2.FromYaw(cmd.Yaw);
                 Vec2 origin = p.Pos + dir * 0.6f;
-                if (!Map.BlocksShotAt(origin, GameConfig.ProjectileHeight + p.H, GameConfig.ProjectileRadius))
+                float pitch = MathUtil.Clamp(cmd.Pitch, -GameConfig.MaxAimPitch, GameConfig.MaxAimPitch) * MathF.PI / 180f;
+                float cosP = MathF.Cos(pitch), sinP = MathF.Sin(pitch);
+                float z0 = p.H + GameConfig.MuzzleHeight;
+                if (!Map.BlocksShotAt(origin, z0, GameConfig.ProjectileRadius))
                 {
                     int pellets = special == GameConfig.Shotgun ? GameConfig.ShotgunPellets : 1;
                     for (int i = 0; i < pellets; i++)
@@ -28,7 +31,8 @@ namespace Veil.Sim
                         float off = pellets > 1 ? (i / (float)(pellets - 1) - 0.5f) * GameConfig.ShotgunSpread : 0f;
                         Projectiles.Add(new Projectile
                         {
-                            Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = Vec2.FromYaw(cmd.Yaw + off) * ws.Speed, Damage = ws.Damage, Range = ws.Range,
+                            Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = Vec2.FromYaw(cmd.Yaw + off) * (ws.Speed * cosP), Damage = ws.Damage, Range = ws.Range,
+                            Z = z0, Vz = ws.Speed * sinP,
                             Kind = (byte)(p.Fists ? 2 : 0),
                         });
                     }
@@ -146,12 +150,15 @@ namespace Veil.Sim
             {
                 if (pr.Dead) continue;
                 Vec2 delta = pr.Vel * dt;
-                float len = delta.Length;
+                float dz = pr.Vz * dt;
+                float len = MathF.Sqrt(delta.LengthSq + dz * dz);
                 int steps = Math.Max(1, (int)MathF.Ceiling(len / 0.4f));
                 Vec2 step = delta / steps;
+                float stepZ = dz / steps;
                 for (int s = 0; s < steps && !pr.Dead; s++)
                 {
                     pr.Pos += step;
+                    if (pr.Kind != 1) pr.Z += stepZ;
                     pr.Travelled += len / steps;
                     if (pr.Kind == 1)
                     {
@@ -165,7 +172,7 @@ namespace Veil.Sim
                         continue;
                     }
                     if (pr.Travelled > pr.Range) { pr.Dead = true; break; }
-                    if (Map.BlocksShotAt(pr.Pos, GameConfig.ProjectileHeight, GameConfig.ProjectileRadius))
+                    if (pr.Z <= 0f || Map.BlocksShotAt(pr.Pos, pr.Z, GameConfig.ProjectileRadius))
                     {
                         pr.Dead = true;
                         Events.Add(new SimEvent(EventType.Hit, pr.Owner, -1, 0, pr.Pos));
@@ -178,7 +185,12 @@ namespace Veil.Sim
                     {
                         if (p.Id == pr.Owner || Allies(p, shooter) || !p.Alive) continue;   // no friendly fire
                         if (Vec2.DistSq(p.Pos, pr.Pos) > hitR2) continue;
-                        Damage(p, pr.Owner, pr.Damage, pr.Vel.Normalized * (pr.Kind == 2 ? GameConfig.FistsKnockback : 1f));
+                        float rel = pr.Z - p.H;
+                        bool punch = pr.Kind == 2;
+                        if (!punch && (rel < -0.1f || rel > (p.Downed ? GameConfig.DownedBodyHeight : GameConfig.BodyHeight))) continue;
+                        bool head = !punch && !p.Downed && rel >= GameConfig.HeadHeight;
+                        if (head) Events.Add(new SimEvent(EventType.Headshot, pr.Owner, p.Id, 0, p.Pos));
+                        Damage(p, pr.Owner, pr.Damage * (head ? GameConfig.HeadshotMultiplier : 1f), pr.Vel.Normalized * (punch ? GameConfig.FistsKnockback : 1f));
                         pr.Dead = true;
                         break;
                     }
@@ -186,7 +198,7 @@ namespace Veil.Sim
                     foreach (var d in Decoys)
                     {
                         if (d.Dead || Allies(Players[d.Owner], shooter)) continue;
-                        if (Vec2.DistSq(d.Pos, pr.Pos) > hitR2) continue;
+                        if (Vec2.DistSq(d.Pos, pr.Pos) > hitR2 || pr.Z > GameConfig.BodyHeight) continue;
                         pr.Dead = true;
                         PopDecoy(d);
                         AbilityPlay(Players[d.Owner], 2); // the decoy fooled someone

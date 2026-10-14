@@ -23,11 +23,11 @@ namespace Veil.Sim
 
         public static readonly Item[] Items =
         {
-            new Item { Id = "hero:0", Name = "VANGUARD", Desc = "Starter hero", Price = 0, Hero = 0 },
-            new Item { Id = "hero:2", Name = "LYRA", Desc = "Starter hero", Price = 0, Hero = 2 },
-            new Item { Id = "hero:1", Name = "VOLT", Desc = "Neon striker", Price = 600, Hero = 1 },
-            new Item { Id = "hero:3", Name = "NOVA", Desc = "Pink techwear muse", Price = 800, Hero = 3 },
-            new Item { Id = "hero:4", Name = "SOL", Desc = "Solar paladin", Price = 1200, Hero = 4 },
+            new Item { Id = "hero:0", Name = "VANGUARD", Desc = "Frontline striker · starter hero", Price = 0, Hero = 0 },
+            new Item { Id = "hero:2", Name = "KUNOICHI", Desc = "Crimson shadow ninja · starter hero", Price = 0, Hero = 2 },
+            new Item { Id = "hero:1", Name = "HAZARD", Desc = "Hazard-suit breacher", Price = 600, Hero = 1 },
+            new Item { Id = "hero:3", Name = "VALKYRIE", Desc = "Arctic cyber valkyrie", Price = 800, Hero = 3 },
+            new Item { Id = "hero:4", Name = "SENTINEL", Desc = "Neon combat android", Price = 1200, Hero = 4 },
             new Item { Id = "gun:1", Name = "PLASMA RIFLE", Desc = "Rifle skin · gold plasma core", Price = 900, Skin = 1, WeaponType = 0 },
             new Item { Id = "gun:2", Name = "DRAGON SNIPER", Desc = "Sniper skin · dragon scales", Price = 1500, Skin = 2, WeaponType = 1 },
         };

@@ -13,8 +13,8 @@
 Everything a hero lacks (jump, hits, punches, fall, dash, shoot, death, victory, downed/revive) comes from the shared
 RILO pack (`Characters/_anim/rilo_anims.fbx`), then the Universal Animation Library.
 
-Names / store descriptions in `Sim/Config/StoreCatalog.cs` and `Palette.Outfits` still describe the old designs — update
-them when the new looks are final.
+Display names (`Sim/Config/StoreCatalog.cs`, `Palette.Outfits`): VANGUARD, HAZARD (`hero:1`), KUNOICHI (`hero:2`),
+VALKYRIE (`hero:3`), SENTINEL (`hero:4`). Folder / clip names keep the old ids (volt, lyra, nova, sol).
 
 ## Add or replace a hero
 

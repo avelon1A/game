@@ -9,6 +9,7 @@ namespace Veil.Match
     public sealed class NetMatchDriver : IMatchDriver
     {
         private readonly VeilNetClient _net;
+        public int PingMs => _net.Ping;
         private readonly List<InputCmd> _recent = new List<InputCmd>();
 
         public int LocalPlayerId { get; }
