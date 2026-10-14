@@ -158,7 +158,7 @@ namespace Veil.UI
             _joinCode = SocialUi.SmallButton(_squadPanel, "JOIN CODE", new Vector2(1, 1), new Vector2(-126, -38), 124, UIKit.ButtonStyle.Ghost, () => ShowJoinPopup(), 14);
             for (int i = 0; i < _rows.Length; i++) _rows[i] = MakeRow(_squadPanel, i);
             _invite = IconButton(_squadPanel, Icons.Plus, "INVITE FRIEND", new Vector2(0, 0), new Vector2(16, 18), new Vector2(200, 50), () => OpenFriends?.Invoke());
-            _copy = IconButton(_squadPanel, Icons.Copy, "COPY CODE", new Vector2(1, 0), new Vector2(-16, 18), new Vector2(200, 50), CopyCode);
+            _copy = IconButton(_squadPanel, Icons.Copy, "SHARE CODE", new Vector2(1, 0), new Vector2(-16, 18), new Vector2(200, 50), CopyCode);
 
             // ---------------- mode card
             _modePanel = (RectTransform)UIKit.Panel(tab, "Mode", new Vector2(1, 0), new Vector2(-24, 128), new Vector2(440, 176)).transform;
@@ -237,11 +237,11 @@ namespace Veil.UI
             _voicePill = UIKit.At(tab, "Voice", new Vector2(0, 0), new Vector2(28, 110), new Vector2(330, 64));
             _voicePill.pivot = new Vector2(0, 0);
             UIKit.Image(_voicePill, UIKit.Pill, new Color(0.05f, 0.06f, 0.15f, 0.88f));
-            var micB = PillIcon(_voicePill, Icons.Mic, new Vector2(12, 0), () => { _app.Voice.MicMuted = !_app.Voice.MicMuted; });
+            var micB = PillIcon(_voicePill, Icons.Mic, new Vector2(12, 0), ToggleMic);
             _micPillIcon = micB;
             var spkB = PillIcon(_voicePill, Icons.Speaker, new Vector2(68, 0), () => { _app.Voice.Deafened = !_app.Voice.Deafened; });
             _spkPillIcon = spkB;
-            var modeBtn = UIKit.Button(_voicePill, "", new Vector2(0, 0.5f), new Vector2(124, 0), new Vector2(194, 48), UIKit.ButtonStyle.Ghost, CycleVoiceMode, 15);
+            var modeBtn = UIKit.Button(_voicePill, "", new Vector2(0, 0.5f), new Vector2(124, 0), new Vector2(194, 48), UIKit.ButtonStyle.Ghost, ToggleMic, 15);
             ((RectTransform)modeBtn.transform).pivot = new Vector2(0, 0.5f);
             _voiceMode = UIKit.ButtonLabel(modeBtn);
             _voiceMode.supportRichText = true;
@@ -560,7 +560,7 @@ namespace Veil.UI
             r.Level.supportRichText = true;
             r.Mic = IconIn(r.Root, Icons.Mic, new Vector2(-150, 0), out r.MicBtn);
             r.Spk = IconIn(r.Root, Icons.Speaker, new Vector2(-112, 0), out r.SpkBtn);
-            r.MicBtn.onClick.AddListener(() => { if (_rows[idx].M != null && _rows[idx].M.Me) _app.Voice.MicMuted = !_app.Voice.MicMuted; });
+            r.MicBtn.onClick.AddListener(() => { if (_rows[idx].M != null && _rows[idx].M.Me) ToggleMic(); });
             r.SpkBtn.onClick.AddListener(() =>
             {
                 var m = _rows[idx].M;
@@ -705,7 +705,7 @@ namespace Veil.UI
                 (Veil.Match.Platform.IsMobile
                     ? "<color=#ffd84a>Left thumb</color> move · <color=#ffd84a>right side</color> look · hold <color=#ffd84a>FIRE</color>\n" +
                       "<color=#ffd84a>DASH · PULSE · DECOY</color> abilities · <color=#ffd84a>PING</color> mark for your squad\n" +
-                      "<color=#ffd84a>FISTS</color> switch weapon · tap the <color=#ffd84a>minimap</color> for the full map · hold <color=#ffd84a>TALK</color> for voice"
+                      "<color=#ffd84a>FISTS</color> switch weapon · tap the <color=#ffd84a>minimap</color> for the full map · tap <color=#ffd84a>MIC</color> to talk or mute"
                     : "<color=#ffd84a>WASD</color> move · <color=#ffd84a>Mouse</color> aim · <color=#ffd84a>LMB</color> fire · <color=#ffd84a>Space</color> jump · <color=#ffd84a>Shift</color> sprint\n" +
                       "<color=#ffd84a>Q</color> Dash · <color=#ffd84a>E</color> Pulse · <color=#ffd84a>R</color> Decoy · <color=#ffd84a>G</color> grenade · <color=#ffd84a>X</color> fists\n" +
                       "<color=#ffd84a>Z / middle mouse</color> ping · <color=#ffd84a>M</color> map · <color=#ffd84a>V</color> talk · <color=#ffd84a>Esc</color> pause"),
@@ -737,13 +737,12 @@ namespace Veil.UI
 
         // ------------------------------------------------------------------ actions
 
-        private void CycleVoiceMode()
+        private void ToggleMic()
         {
             var v = _app.Voice;
-            v.Mode = (VoiceMode)(((int)v.Mode + 1) % 3);
-            _app.Profile.VoiceMode = (int)v.Mode;
-            _app.Profile.Save();
-            Flash(v.Mode == VoiceMode.PushToTalk ? (Veil.Match.Platform.IsMobile ? "Voice: push-to-talk (hold TALK)" : "Voice: push-to-talk (hold V)") : v.Mode == VoiceMode.OpenMic ? "Voice: open mic" : "Voice chat off");
+            v.MicMuted = !v.MicMuted;
+            PlayerPrefs.SetInt("micMuted", v.MicMuted ? 1 : 0);
+            Flash(v.MicMuted ? "Mic off" : "Mic on");
         }
 
         private void CopyCode()
@@ -753,6 +752,7 @@ namespace Veil.UI
             if (g.Party.Empty) { g.CreateRoom((ok, err) => { if (ok) CopyCode(); else Result(ok, err); }); return; }
             GUIUtility.systemCopyBuffer = g.Party.code;
             Flash($"Room code <color=#ffd84a>{g.Party.code}</color> copied — friends use JOIN CODE");
+            NativeShare.Share($"Join my RILO squad! Open RILO → JOIN CODE → {g.Party.code}", "Invite to your squad");
         }
 
         private void Leave()
@@ -1037,9 +1037,7 @@ namespace Veil.UI
             _micPillIcon.color = v.MicMuted ? Theme.Red : v.LocalSpeaking ? Theme.Green : Theme.Text;
             _spkPillIcon.sprite = v.Deafened ? Icons.SpeakerOff : Icons.Speaker;
             _spkPillIcon.color = v.Deafened ? Theme.Red : Theme.Text;
-            string pttKey = Veil.Match.Platform.IsMobile ? "TALK" : "V";
-            _voiceMode.text = v.Mode == VoiceMode.Off ? "<color=#8a90b8>VOICE OFF</color>" : v.LocalSpeaking ? "<color=#7dff9a>● TALKING</color>"
-                : v.Mode == VoiceMode.OpenMic ? "OPEN MIC" : $"HOLD {pttKey} TO TALK";
+            _voiceMode.text = v.MicMuted ? "<color=#ff6a7a>MIC OFF</color>" : v.LocalSpeaking ? "<color=#7dff9a>● TALKING</color>" : "<color=#7dff9a>MIC ON</color>";
 
             // name tags over the squad on the stage
             bool show = _app.State == GameApp.AppState.Menu && _app.Cam != null;
@@ -1176,13 +1174,20 @@ namespace Veil.UI
             var close = UIKit.Button(Root, "✕", new Vector2(1, 1), new Vector2(-20, -24), new Vector2(52, 44), UIKit.ButtonStyle.Ghost, () => Show(false), 22);
             ((RectTransform)close.transform).pivot = new Vector2(1, 1);
 
-            _me = UIKit.LabelAt(Root, "", 18, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -80), new Vector2(420, 30), TextAnchor.MiddleLeft, UIKit.BodyFont);
+            _me = UIKit.LabelAt(Root, "", 18, Theme.TextDim, new Vector2(0, 1), new Vector2(28, -80), new Vector2(270, 30), TextAnchor.MiddleLeft, UIKit.BodyFont);
             _me.rectTransform.pivot = new Vector2(0, 1);
+            UIKit.Fit(_me, 11);
             _me.supportRichText = true;
-            var copy = SocialUi.SmallButton(Root, "COPY MY ID", new Vector2(1, 1), new Vector2(-24, -95), 140, UIKit.ButtonStyle.Ghost, () =>
+            var copy = SocialUi.SmallButton(Root, "COPY ID", new Vector2(1, 1), new Vector2(-24, -95), 112, UIKit.ButtonStyle.Ghost, () =>
             {
                 GUIUtility.systemCopyBuffer = _app.Gateway.Handle;
                 Message($"Copied {_app.Gateway.Handle} — share it so friends can add you");
+            }, 14);
+            SocialUi.SmallButton(Root, "SHARE", new Vector2(1, 1), new Vector2(-146, -95), 112, UIKit.ButtonStyle.Primary, () =>
+            {
+                var h = _app.Gateway.Handle;
+                if (string.IsNullOrEmpty(h)) { Message("Go online first to get your ID"); return; }
+                if (!NativeShare.Share($"Add me on RILO! My player ID: {h}", "Share your RILO ID")) Message($"Copied {h}");
             }, 14);
 
             _add = SocialUi.Field(Root, new Vector2(0, 1), new Vector2(28, -150), 360, "Friend's ID, e.g. Nova#1234", 24);

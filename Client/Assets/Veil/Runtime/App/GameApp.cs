@@ -129,7 +129,7 @@ namespace Veil.App
                 if (Gateway.Online && Gateway.UsesUdp && !_profileRequested) { _profileRequested = true; FetchProfile(p => OnlineProfile = p, e => _profileRequested = false); }
                 if (!Gateway.Online) _profileRequested = false;
             };
-            Voice = new VoiceChat { Mode = (VoiceMode)Mathf.Clamp(Profile.VoiceMode, 0, 2), OutputVolume = Profile.VoiceVolume, Sensitivity = Profile.MicSensitivity };
+            Voice = new VoiceChat { Mode = VoiceMode.OpenMic, MicMuted = PlayerPrefs.GetInt("micMuted", 0) == 1, OutputVolume = Profile.VoiceVolume, Sensitivity = Profile.MicSensitivity };
 
             _title = new TitleScreen(Canvas, this);
             _menu = new MenuScreen(Canvas, this);

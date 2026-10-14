@@ -901,8 +901,7 @@ namespace Veil.UI
 
             // ---------------- VOICE
             Section("VOICE CHAT");
-            Chips("MODE", new[] { "PUSH TO TALK", "OPEN MIC", "OFF" }, prof.VoiceMode, i => { prof.VoiceMode = i; App.Voice.Mode = (Veil.Voice.VoiceMode)i; Save(); },
-                  Veil.Match.Platform.IsMobile ? "hold TALK to speak" : "hold V to speak");
+            Chips("MIC", new[] { "ON", "OFF" }, App.Voice.MicMuted ? 1 : 0, i => { App.Voice.MicMuted = i == 1; PlayerPrefs.SetInt("micMuted", i); }, "open mic: your squad hears you when you speak");
             Slider("VOICE VOLUME", 0f, 2f, prof.VoiceVolume, v => { prof.VoiceVolume = v; App.Voice.OutputVolume = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%");
             Slider("OPEN MIC LEVEL", 0f, 1f, prof.MicSensitivity, v => { prof.MicSensitivity = v; App.Voice.Sensitivity = v; Save(); }, v => Mathf.RoundToInt(v * 100) + "%", "how loud before it sends");
 

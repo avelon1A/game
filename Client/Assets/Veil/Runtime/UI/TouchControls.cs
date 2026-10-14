@@ -63,7 +63,7 @@ namespace Veil.UI
             Reg((RectTransform)_grenade.transform, "grenade");
 
             // squad voice: hold to talk (push-to-talk mode)
-            var talk = UIKit.At(Root, "Btn_TALK", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
+            var talk = UIKit.At(Root, "Btn_MIC", new Vector2(1, 0.5f), new Vector2(-110, 140), new Vector2(104, 104));
             talk.pivot = new Vector2(0.5f, 0.5f);
             talk.gameObject.AddComponent<TalkButton>().Build();
             Reg(talk, "talk");
@@ -182,32 +182,45 @@ namespace Veil.UI
         }
     }
 
-    /// <summary>Hold-to-talk button for squad voice.</summary>
-    public sealed class TalkButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+    /// <summary>Squad voice: one tap toggles the mic (open mic when on). Green ring while you are heard.</summary>
+    public sealed class TalkButton : MonoBehaviour, IPointerDownHandler
     {
-        private Image _back;
+        private Image _back, _icon, _ring;
         private Text _label;
 
         public void Build()
         {
             var rt = (RectTransform)transform;
-            _back = UIKit.Image(rt, UIKit.Circle, new Color(0.08f, 0.08f, 0.2f, 0.55f), true);
+            _back = UIKit.Image(rt, UIKit.Circle, new Color(0.08f, 0.08f, 0.2f, 0.6f), true);
             var ring = UIKit.Fill(rt, "Ring");
-            UIKit.Image(ring, UIKit.Ring, new Color(0.4f, 1f, 0.5f, 0.8f));
-            _label = UIKit.Label(rt, "TALK", 20, Theme.Text, TextAnchor.MiddleCenter, UIKit.BoldFont);
+            _ring = UIKit.Image(ring, UIKit.Ring, new Color(0.4f, 1f, 0.5f, 0.8f));
+            var ic = UIKit.At(rt, "Icon", new Vector2(0.5f, 0.5f), new Vector2(0, 8), new Vector2(44, 44));
+            _icon = UIKit.Image(ic, Icons.Mic, Color.white);
+            _label = UIKit.LabelAt(rt, "MIC", 15, Theme.Text, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(104, 22), TextAnchor.MiddleCenter, UIKit.BoldFont);
             UIKit.Outline(_label, new Color(0, 0, 0, 0.7f), 1.5f);
         }
 
-        public void OnPointerDown(PointerEventData e) => VirtualInput.TalkHeld = true;
-        public void OnPointerUp(PointerEventData e) => VirtualInput.TalkHeld = false;
+        public void OnPointerDown(PointerEventData e)
+        {
+            var v = Veil.App.GameApp.I != null ? Veil.App.GameApp.I.Voice : null;
+            if (v == null) return;
+            v.MicMuted = !v.MicMuted;
+            PlayerPrefs.SetInt("micMuted", v.MicMuted ? 1 : 0);
+        }
 
         private void Update()
         {
             var v = Veil.App.GameApp.I != null ? Veil.App.GameApp.I.Voice : null;
-            bool on = v != null && v.LocalSpeaking;
-            _back.color = on ? new Color(0.2f, 0.7f, 0.3f, 0.75f) : new Color(0.08f, 0.08f, 0.2f, 0.55f);
-            bool usable = v != null && v.Mode == Veil.Voice.VoiceMode.PushToTalk && !string.IsNullOrEmpty(v.Channel);
-            if (_label.gameObject.activeSelf != usable) { _label.gameObject.SetActive(usable); _back.enabled = usable; transform.GetChild(0).gameObject.SetActive(usable); }
+            bool usable = v != null && !string.IsNullOrEmpty(v.Channel);
+            for (int i = 0; i < transform.childCount; i++) if (transform.GetChild(i).gameObject.activeSelf != usable && transform.GetChild(i).name != "EditHandle") transform.GetChild(i).gameObject.SetActive(usable);
+            _back.enabled = usable;
+            if (!usable) return;
+            bool muted = v.MicMuted;
+            _icon.sprite = muted ? Icons.MicOff : Icons.Mic;
+            _icon.color = muted ? Theme.Red : Color.white;
+            _label.text = muted ? "MIC OFF" : "MIC ON";
+            _ring.color = muted ? new Color(1f, 0.35f, 0.4f, 0.8f) : v.LocalSpeaking ? new Color(0.4f, 1f, 0.5f, 1f) : new Color(0.4f, 1f, 0.5f, 0.45f);
+            _back.color = !muted && v.LocalSpeaking ? new Color(0.2f, 0.7f, 0.3f, 0.75f) : new Color(0.08f, 0.08f, 0.2f, 0.6f);
         }
     }
 
