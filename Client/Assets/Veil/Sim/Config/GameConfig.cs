@@ -7,7 +7,7 @@ namespace Veil.Sim
     /// </summary>
     public static class GameConfig
     {
-        public const int ProtocolVersion = 21;
+        public const int ProtocolVersion = 22;
         public const float ExtractSeeRange = 70f;      // squads without the Vault only see the helicopter with their own eyes, this close;
 
         // ---- Simulation ----
@@ -106,10 +106,10 @@ namespace Veil.Sim
         public const float DecoyCost = 30f, DecoyCooldown = 14f, DecoyLifetime = 5f;
 
         // ---- Combat ----
-        public const float FireCooldown = 0.3f;
+        public const float FireCooldown = 0.11f;            // ~550 rounds/min
         public const float ProjectileSpeed = 900f;          // ~instant: covers the full range in one 30 Hz tick
-        public const float ProjectileRange = 30f;
-        public const float ProjectileDamage = 11f;          // quicker fire rate, similar time-to-kill
+        public const float ProjectileRange = 45f;
+        public const float ProjectileDamage = 12f;          // ~9 body / 5 head shots to kill: aim matters
         public const float ProjectileRadius = 0.22f;
 
         // ---- weapons (chosen in Characters → WEAPON, stored in Appearance.Weapon) ----
@@ -119,7 +119,7 @@ namespace Veil.Sim
         public static readonly WeaponStats[] Weapons =
         {
             new WeaponStats { Cooldown = FireCooldown, Damage = ProjectileDamage, Range = ProjectileRange, Speed = ProjectileSpeed },
-            new WeaponStats { Cooldown = 1.25f, Damage = 48f, Range = 75f, Speed = 1500f },   // sniper: 3 hits kill, slow, long reach
+            new WeaponStats { Cooldown = 1.5f, Damage = 60f, Range = 125f, Speed = 1500f },   // sniper: bolt action, 2 body / 1 head kills, 125 m
             new WeaponStats { Cooldown = 0.42f, Damage = 22f, Range = 2.4f, Speed = 900f },   // fists: close range only, quick, hits hard
             new WeaponStats { Cooldown = 0.85f, Damage = 9f, Range = 13f, Speed = 900f },     // shotgun (pickup): 7 pellets, deadly up close
             new WeaponStats { Cooldown = 0.1f, Damage = 6.5f, Range = 22f, Speed = 900f },    // SMG (pickup): fast, short reach
@@ -158,6 +158,10 @@ namespace Veil.Sim
         public const float BodyHeight = 1.85f, DownedBodyHeight = 0.7f;
         public const float HeadHeight = 1.5f;             // hits above this (from the feet) are headshots
         public const float HeadshotMultiplier = 1.8f;
+        public const float SniperHeadshotMultiplier = 2.5f;   // 150: one headshot kills even through a full shield
+        public const float RifleBloomPerShot = 0.55f, RifleBloomMax = 3.5f, BloomRecover = 7f;   // first shot exact, sprays spread
+        public const float SniperHipSpread = 6f;              // unscoped sniper shots wander: scope up for precision
+        public const float ScopeVisionRange = 125f, ScopeVisionCone = 9f;   // scoped: see this far inside a narrow cone
         public const float MaxAimPitch = 60f;
         public const float HitRadius = 0.55f;
         public const float Knockback = 7f;

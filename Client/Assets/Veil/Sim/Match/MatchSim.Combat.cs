@@ -20,7 +20,14 @@ namespace Veil.Sim
                 p.SpawnProtT = 0;
                 Vec2 dir = Vec2.FromYaw(cmd.Yaw);
                 Vec2 origin = p.Pos + dir * 0.6f;
-                float pitch = MathUtil.Clamp(cmd.Pitch, -GameConfig.MaxAimPitch, GameConfig.MaxAimPitch) * MathF.PI / 180f;
+                // accuracy: rifle spray blooms, unscoped sniper shots wander; first rifle shot / scoped sniper are exact
+                bool sniper = !p.Fists && special == 0 && p.Look.Weapon == 1;
+                float spread = sniper ? (p.Scoped ? 0f : GameConfig.SniperHipSpread) : (!p.Fists && special == 0 ? p.Bloom : 0f);
+                float yawJ = spread > 0 ? Rng.Range(-spread, spread) : 0f, pitchJ = spread > 0 ? Rng.Range(-spread, spread) * 0.6f : 0f;
+                if (!p.Fists && special == 0 && !sniper) p.Bloom = MathF.Min(GameConfig.RifleBloomMax, p.Bloom + GameConfig.RifleBloomPerShot);
+                dir = Vec2.FromYaw(cmd.Yaw + yawJ);
+                origin = p.Pos + dir * 0.6f;
+                float pitch = MathUtil.Clamp(cmd.Pitch + pitchJ, -GameConfig.MaxAimPitch, GameConfig.MaxAimPitch) * MathF.PI / 180f;
                 float cosP = MathF.Cos(pitch), sinP = MathF.Sin(pitch);
                 float z0 = p.H + GameConfig.MuzzleHeight;
                 if (!Map.BlocksShotAt(origin, z0, GameConfig.ProjectileRadius))
@@ -31,8 +38,8 @@ namespace Veil.Sim
                         float off = pellets > 1 ? (i / (float)(pellets - 1) - 0.5f) * GameConfig.ShotgunSpread : 0f;
                         Projectiles.Add(new Projectile
                         {
-                            Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = Vec2.FromYaw(cmd.Yaw + off) * (ws.Speed * cosP), Damage = ws.Damage, Range = ws.Range,
-                            Z = z0, Vz = ws.Speed * sinP,
+                            Id = NextEntityId(), Owner = p.Id, Pos = origin, Vel = Vec2.FromYaw(cmd.Yaw + yawJ + off) * (ws.Speed * cosP), Damage = ws.Damage, Range = ws.Range,
+                            Z = z0, Vz = ws.Speed * sinP, Sniper = sniper,
                             Kind = (byte)(p.Fists ? 2 : 0),
                         });
                     }
@@ -190,7 +197,8 @@ namespace Veil.Sim
                         if (!punch && (rel < -0.1f || rel > (p.Downed ? GameConfig.DownedBodyHeight : GameConfig.BodyHeight))) continue;
                         bool head = !punch && !p.Downed && rel >= GameConfig.HeadHeight;
                         if (head) Events.Add(new SimEvent(EventType.Headshot, pr.Owner, p.Id, 0, p.Pos));
-                        Damage(p, pr.Owner, pr.Damage * (head ? GameConfig.HeadshotMultiplier : 1f), pr.Vel.Normalized * (punch ? GameConfig.FistsKnockback : 1f));
+                        float mult = head ? (pr.Sniper ? GameConfig.SniperHeadshotMultiplier : GameConfig.HeadshotMultiplier) : 1f;
+                        Damage(p, pr.Owner, pr.Damage * mult, pr.Vel.Normalized * (punch ? GameConfig.FistsKnockback : 1f), head && pr.Sniper);
                         pr.Dead = true;
                         break;
                     }
@@ -259,10 +267,10 @@ namespace Veil.Sim
 
         // ------------------------------------------------------------------ damage
 
-        public void Damage(PlayerState victim, int attacker, float amount, Vec2 dir)
+        public void Damage(PlayerState victim, int attacker, float amount, Vec2 dir, bool lethal = false)
         {
             if (!victim.Alive || victim.SpawnProtT > 0) return;
-            if (Phase == MatchPhase.Exploration) amount *= GameConfig.ExplorationDamageScale;
+            if (Phase == MatchPhase.Exploration && !lethal) amount *= GameConfig.ExplorationDamageScale;   // a sniper headshot always kills
             if (victim.Shield > 0)
             {
                 float a = MathF.Min(victim.Shield, amount);

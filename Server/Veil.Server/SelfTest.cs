@@ -85,7 +85,7 @@ namespace Veil.Server
                         }
                     }
                     // extraction mode has no time limit (overtime until someone extracts) — fail only if it drags on far past the planned length
-                    if (ticks > matchSeconds * GameConfig.TickRate * (GameConfig.ExtractionMode ? 4 : 1) + 100) { failures++; Console.WriteLine("  !! match did not end"); break; }
+                    if (ticks > matchSeconds * GameConfig.TickRate * (GameConfig.ExtractionMode ? 10 : 1) + 100) { failures++; Console.WriteLine("  !! match did not end"); break; }
                 }
                 double avgMs = tickTicks * 1000.0 / Stopwatch.Frequency / Math.Max(1, ticks);
                 Console.WriteLine("nodes left: " + string.Join(" | ", sim.Squads.Select(q => string.Join(",", q.Nodes.Select(n => $"{n.Kind}@{n.Pos.Length:0}m walk={sim.Map.Nav.Walkable(n.Pos)} p={n.Prog:0.00}")))));

@@ -169,6 +169,13 @@ namespace Veil.UI
             var h = UIKit.At(_scope, "H", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700, 2)); UIKit.Image(h, UIKit.Square, new Color(0, 0, 0, 0.7f));
             var v = UIKit.At(_scope, "V", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2, 700)); UIKit.Image(v, UIKit.Square, new Color(0, 0, 0, 0.7f));
             var dot = UIKit.At(_scope, "Dot", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8, 8)); UIKit.Image(dot, UIKit.Circle, new Color(1f, 0.25f, 0.3f, 0.95f));
+            // zoom levels while scoped: − 4x +
+            var zoom = UIKit.At(_scope, "Zoom", new Vector2(1, 0.5f), new Vector2(-170, 120), new Vector2(240, 76));
+            UIKit.Image(zoom, UIKit.Pill, new Color(0.03f, 0.03f, 0.1f, 0.7f), true);
+            UIKit.Button(zoom, "−", new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(64, 60), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1), 34);
+            UIKit.Button(zoom, "+", new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(64, 60), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1), 34);
+            _zoomLabel = UIKit.Label(zoom, "4x", 28, Theme.Yellow, TextAnchor.MiddleCenter, UIKit.TitleFont);
+            if (mobile) zoom.gameObject.SetActive(false);   // phones: the touch layer has its own zoom buttons
             _scope.gameObject.SetActive(false);
             BuildSquad();
             BuildVitals();
@@ -716,6 +723,7 @@ namespace Veil.UI
 
         private CanvasGroup _introFade;
         private Image _respawnBg;
+        private Text _zoomLabel;
         private int _introFrames;
 
         public void Update(float dt, float cameraYaw)
@@ -739,6 +747,7 @@ namespace Veil.UI
             _compass.Update(s, me, cameraYaw);
             _extras.Update(dt, cameraYaw);
             if (_scope.gameObject.activeSelf != GameApp.Scoped) _scope.gameObject.SetActive(GameApp.Scoped);
+            if (GameApp.Scoped) _zoomLabel.text = VirtualInput.ScopeZoom == 0 ? "2x" : VirtualInput.ScopeZoom == 1 ? "4x" : "8x";
 
             // phase
             if (s.Phase != _lastPhase)

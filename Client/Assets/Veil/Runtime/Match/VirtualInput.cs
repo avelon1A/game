@@ -12,7 +12,8 @@ namespace Veil.Match
         public static bool Active;              // touch controls on screen
         public static Vector2 Move;             // joystick, camera-relative (x right, y forward), |v| <= 1
         public static Vector2 LookDelta;        // pixels this frame (consumed by the camera)
-        public static bool FireHeld, JumpHeld, TalkHeld, SprintLock;
+        public static bool FireHeld, JumpHeld, TalkHeld, SprintLock, ScopedNow;
+        public static int ScopeZoom = 1;   // 0 = 2x, 1 = 4x, 2 = 8x
         public static bool ScopeOn;             // sniper scope (toggle button)
         public static Vector2 MarkPos;          // world X/Z of the last map marker (sent with Buttons.Mark)
         public static System.Func<Vector2, bool> Tap;   // a quick tap on the look pad (screen position) — e.g. the minimap

@@ -35,6 +35,7 @@ namespace Veil.Sim
         Ping = 1 << 11,      // squad ping at the crosshair (enemy / go here / need help / loot)
         Grenade = 1 << 12,   // throw a grenade (picked up in the world)
         Mark = 1 << 13,      // "go here" marker placed on the map (MarkX / MarkY)
+        Scope = 1 << 14,     // looking through the sniper scope (held): long, narrow sight line
     }
 
     /// <summary>One tick of player intent. Move is world-space (already rotated by the camera).</summary>
@@ -54,7 +55,7 @@ namespace Veil.Sim
         public InputCmd HeldOnly()
         {
             var c = this;
-            c.Buttons &= Buttons.Jump | Buttons.Sprint | Buttons.Fire;
+            c.Buttons &= Buttons.Jump | Buttons.Sprint | Buttons.Fire | Buttons.Scope;
             return c;
         }
     }
@@ -160,6 +161,8 @@ namespace Veil.Sim
         public Vec2 Pos, Vel, Knock, DashDir;
         public float H, VH, Yaw;
         public float AimPitch;   // last aim elevation (others see shots go up / down)
+        public bool Scoped;      // sniper scope up: sees far along a narrow cone
+        public float Bloom;      // rifle spray spread (degrees), grows per shot, recovers fast
         public bool Grounded = true;
         public float DashT;
         public float DashCd;
@@ -242,6 +245,7 @@ namespace Veil.Sim
         public bool Dead;
         public float Damage = GameConfig.ProjectileDamage, Range = GameConfig.ProjectileRange;
         public byte Kind;           // 0 bullet, 1 grenade (explodes where it stops)
+        public bool Sniper;         // sniper round: a headshot is always lethal
     }
 
     public sealed class Decoy

@@ -762,7 +762,7 @@ namespace Veil.View
                     if (av.Rig.BlasterTip) { Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.9f, 0.7f), 0.45f, 0.06f); }
                     if (seen) Tracer(av, local);
                     Sfx.PlayGun(Sfx.Sniper, av.Pos + Vector3.up, local, local ? 0.85f : 0.7f);
-                    if (local) _cam.Shake(0.25f);
+                    if (local) { _cam.Shake(0.25f); _cam.Kick(Veil.App.GameApp.Scoped ? 1.2f : 3f, 0.4f); }
                 }
                 else if (av.Rig.Special == 1)
                 {
@@ -778,6 +778,7 @@ namespace Veil.View
                     if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.85f, 0.6f), smg ? 0.14f : 0.18f, 0.04f);
                     if (seen) Tracer(av, local);
                     Sfx.PlayGun(smg ? Sfx.Smg : Sfx.Shoot, av.Pos + Vector3.up, local, local ? (smg ? 0.5f : 0.6f) : 0.45f);
+                    if (local) _cam.Kick(smg ? 0.25f : 0.38f, 0.12f);   // rifle recoil: pull down while spraying
                 }
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }

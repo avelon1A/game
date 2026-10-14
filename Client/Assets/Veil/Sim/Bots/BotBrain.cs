@@ -520,6 +520,7 @@ namespace Veil.Sim
                     float turn = 540f * dt * (0.6f + _skill);
                     cmd.Yaw = _p.Yaw + MathUtil.Clamp(MathUtil.DeltaAngle(_p.Yaw, desired), -turn, turn);
                     cmd.Pitch = MathF.Atan2(t.H + 1.1f - (_p.H + GameConfig.MuzzleHeight), MathF.Max(1f, d)) * 180f / MathF.PI;
+                    if (_p.Look.Weapon == 1 && !_p.Fists) cmd.Buttons |= Buttons.Scope;   // bot snipers aim down the scope
                     if (MathF.Abs(MathUtil.DeltaAngle(cmd.Yaw, desired)) < 9f && _sim.Phase != MatchPhase.Ended && !_sim.Settings.BotsHoldFire) cmd.Buttons |= Buttons.Fire;
 
                     // busy with an objective: keep walking to it while shooting

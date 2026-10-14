@@ -59,6 +59,15 @@ namespace Veil.UI
             _scope.OnTap = () => VirtualInput.ScopeOn = !VirtualInput.ScopeOn;
             // gun <-> fists: a round icon button like the other controls
             _switch = Btn("FISTS", Icons.Fist, new Vector2(-520, 110), 104, Theme.Text, false, Buttons.Switch);
+            // scope zoom − 4x + (only while scoped)
+            _zoom = UIKit.At(Root, "ScopeZoom", new Vector2(1, 0.5f), new Vector2(-330, 150), new Vector2(240, 76));
+            _zoom.pivot = new Vector2(0.5f, 0.5f);
+            UIKit.Image(_zoom, UIKit.Pill, new Color(0.03f, 0.03f, 0.1f, 0.75f), true);
+            UIKit.Button(_zoom, "−", new Vector2(0, 0.5f), new Vector2(40, 0), new Vector2(68, 64), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1), 36);
+            UIKit.Button(_zoom, "+", new Vector2(1, 0.5f), new Vector2(-40, 0), new Vector2(68, 64), UIKit.ButtonStyle.Ghost, () => VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1), 36);
+            _zoomLabel = UIKit.Label(_zoom, "4x", 28, Theme.Yellow, TextAnchor.MiddleCenter, UIKit.TitleFont);
+            _zoomLabel.raycastTarget = false;
+            Reg(_zoom, "zoom");
             // grenade throw (only while carrying some)
             _grenade = UIKit.Button(Root, "GRENADE", new Vector2(1, 0), new Vector2(-520, 250), new Vector2(130, 64), UIKit.ButtonStyle.Primary, () => VirtualInput.Press(Buttons.Grenade), 18);
             ((RectTransform)_grenade.transform).pivot = new Vector2(0.5f, 0.5f);
@@ -91,11 +100,14 @@ namespace Veil.UI
             {
                 _scope.gameObject.SetActive(true);
                 _grenade.gameObject.SetActive(true);
+                _zoom.gameObject.SetActive(true);
                 foreach (var c in Controls) LayoutHandle.Attach(c.rt, c.key, this);
             }
         }
 
         private UnityEngine.UI.Button _grenade;
+        private RectTransform _zoom;
+        private Text _zoomLabel;
         private ActionButton _scope;
 
         private void Reg(RectTransform rt, string key)
@@ -178,6 +190,9 @@ namespace Veil.UI
             bool sniper = me.Look.Weapon == 1 && me.Alive && !fistsNow && special == 0;
             if (_scope.gameObject.activeSelf != sniper) _scope.gameObject.SetActive(sniper);
             if (!sniper) VirtualInput.ScopeOn = false;
+            bool scoped = Veil.App.GameApp.Scoped;
+            if (_zoom.gameObject.activeSelf != scoped) _zoom.gameObject.SetActive(scoped);
+            if (scoped) _zoomLabel.text = VirtualInput.ScopeZoom == 0 ? "2x" : VirtualInput.ScopeZoom == 1 ? "4x" : "8x";
             _scope.SetFace(Icons.Target, VirtualInput.ScopeOn ? "UNSCOPE" : "SCOPE");
             bool market = me.Alive && me.ZoneId >= 0 && _m.Map.Zones[me.ZoneId].Type == ZoneType.Market;
             if (_market.gameObject.activeSelf != market) _market.gameObject.SetActive(market);

@@ -33,12 +33,19 @@ namespace Veil.View
 
         public void Shake(float amount) => _shake = Mathf.Max(_shake, amount);
 
+        /// <summary>Recoil: kicks the aim up (and a little sideways); the player pulls down to stay on target.</summary>
+        public void Kick(float up, float side)
+        {
+            Pitch = Mathf.Clamp(Pitch - up, -8f, 65f);
+            Yaw += Random.Range(-side, side);
+        }
+
         public void SetFov(float fov) => _fovTarget = fov;
 
         /// <summary>Gameplay follow. lookDelta in pixels, scroll in notches.</summary>
         public void Follow(Vector3 target, Vector2 lookDelta, float scroll, float dt)
         {
-            float sens = Sensitivity * (Veil.App.GameApp.Scoped ? 0.4f : 1f);   // finer aim while scoped
+            float sens = Sensitivity * (Veil.App.GameApp.Scoped ? Mathf.Clamp(Veil.App.GameApp.ScopeFov / 60f, 0.12f, 0.5f) : 1f);   // finer aim the further you zoom
             Yaw += lookDelta.x * sens;
             Pitch = Mathf.Clamp(Pitch - lookDelta.y * sens, -8f, 65f);
             Distance = Mathf.Clamp(Distance - scroll * 0.9f, 2.6f, 14f);

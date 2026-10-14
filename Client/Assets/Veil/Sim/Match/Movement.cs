@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Veil.Sim
@@ -13,6 +14,8 @@ namespace Veil.Sim
             if (!p.Alive) return;
             p.Yaw = cmd.Yaw;
             p.AimPitch = cmd.Pitch;
+            p.Scoped = cmd.Has(Buttons.Scope) && p.Look.Weapon == 1 && !p.Fists && p.Special == 0;
+            p.Bloom = MathF.Max(0f, p.Bloom - GameConfig.BloomRecover * dt * (cmd.Has(Buttons.Fire) ? 0.25f : 1f));
             if (p.Downed)
             {
                 // crawl: no dash, sprint or jump

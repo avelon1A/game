@@ -72,6 +72,8 @@ namespace Veil.App
         private float _endTimer = -1;
         private bool _paused;
         public static bool Scoped { get; private set; }
+        public static readonly float[] ScopeFovs = { 28f, 15f, 7.5f };   // 2x, 4x, 8x
+        public static float ScopeFov => ScopeFovs[Mathf.Clamp(VirtualInput.ScopeZoom, 0, 2)];
         private string _shotDir;
         private bool _tutorialTest, _foundTest, _resultsTest, _ruinsTest;
         private float _fitT;
@@ -889,7 +891,18 @@ namespace Veil.App
                     // sniper scope: hold right mouse (desktop) or the SCOPE toggle (phones)
                     if (me.Vel.Length > 2.2f || me.Sprinting) VirtualInput.ScopeOn = false;   // moving closes the scope
                     Scoped = me.Vel.Length <= 2.2f && !me.Sprinting && me.Alive && me.Look.Weapon == 1 && !(_match.Latest?.Self?.Fists ?? false) && (VirtualInput.ScopeOn || (Mouse.current != null && Mouse.current.rightButton.isPressed && !Platform.IsMobile));
-                    if (Scoped) fov = GameConfig.ScopeFov;
+                    VirtualInput.ScopedNow = Scoped;
+                    if (Scoped)
+                    {
+                        // scope zoom levels (2x / 4x / 8x): touch − / + buttons, mouse wheel on desktop
+                        if (Mouse.current != null && !Platform.IsMobile)
+                        {
+                            float wheel = Mouse.current.scroll.ReadValue().y;
+                            if (wheel > 0.5f) VirtualInput.ScopeZoom = Mathf.Min(2, VirtualInput.ScopeZoom + 1);
+                            else if (wheel < -0.5f) VirtualInput.ScopeZoom = Mathf.Max(0, VirtualInput.ScopeZoom - 1);
+                        }
+                        fov = ScopeFovs[Mathf.Clamp(VirtualInput.ScopeZoom, 0, 2)];
+                    }
                     CamRig.SetFov(fov);
                     Vector3 target = _matchView.Local.Pos;
                     if (!_match.Predicted.Alive)

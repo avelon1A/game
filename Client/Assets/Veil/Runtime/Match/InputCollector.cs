@@ -51,6 +51,7 @@ namespace Veil.Match
                 if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) x -= 1;
             }
             var b = _latched;
+            if (VirtualInput.ScopedNow) b |= Buttons.Scope;
             // touch joystick (pushed all the way = sprint)
             if (VirtualInput.Active && VirtualInput.SprintLock && x == 0 && y == 0) { y = 1f; b |= Buttons.Sprint; }   // sprint lock: keep running forward
             else if (VirtualInput.Active && VirtualInput.Move.sqrMagnitude > 0.0025f && x == 0 && y == 0)

@@ -1,3 +1,4 @@
+using System;
 namespace Veil.Sim
 {
     /// <summary>
@@ -52,7 +53,15 @@ namespace Veil.Sim
         {
             float d2 = Vec2.DistSq(viewer.Pos, pos);
             float vr = GameConfig.VisionRadius;
-            if (d2 > vr * vr) return false;
+            if (d2 > vr * vr)
+            {
+                // looking through the sniper scope: far sight, but only along a narrow cone where you aim
+                float sr2 = GameConfig.ScopeVisionRange * GameConfig.ScopeVisionRange;
+                if (!viewer.Scoped || d2 > sr2) return false;
+                if (MathF.Abs(MathUtil.DeltaAngle(viewer.Yaw, (pos - viewer.Pos).Yaw)) > GameConfig.ScopeVisionCone) return false;
+                if (targetZone == sim.RuinsZone && d2 > GameConfig.StealthRadius * GameConfig.StealthRadius) return false;
+                return sim.Map.HasLineOfSight(viewer.Pos, pos);
+            }
             if (targetZone == sim.RuinsZone)
             {
                 float sr = viewer.ZoneId == sim.RuinsZone ? GameConfig.StealthRadius * 1.6f : GameConfig.StealthRadius;
