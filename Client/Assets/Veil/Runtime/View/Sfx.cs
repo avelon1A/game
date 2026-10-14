@@ -40,8 +40,8 @@ namespace Veil.Audio
             Hover = Tone(0.03f, t => Sin(t, 1400) * Env(t, 0.03f, 0.002f) * 0.25f);
             float wl = 0;
             Whoosh = Tone(0.7f, t => { wl += (Noise() - wl) * Mathf.Lerp(0.02f, 0.25f, Mathf.Sin(t / 0.7f * Mathf.PI)); return wl * 2.2f * Mathf.Sin(t / 0.7f * Mathf.PI); });
-            Shoot = Gun(0.42f, 0.55f, 95f, 0.016f, 0.28f, 0.11f, 0.8f);
-            Smg = Gun(0.26f, 0.5f, 120f, 0.012f, 0.16f, 0.08f, 0.6f);
+            Shoot = Gun(0.34f, 0.5f, 95f, 0.014f, 0.2f, 0.1f, 0.8f);
+            Smg = Gun(0.2f, 0.45f, 120f, 0.01f, 0.11f, 0.07f, 0.6f);
             Sniper = Gun(1.7f, 1f, 52f, 0.022f, 1.3f, 0.32f, 1f);
             Shotgun = Gun(0.75f, 0.35f, 60f, 0.045f, 0.5f, 0.16f, 1f);
             float ilp = 0;
@@ -131,8 +131,8 @@ namespace Veil.Audio
             var data = new float[dry.Length];
             for (int i = 0; i < data.Length; i++)
             {
-                float v = dry[i] + (i >= lag ? dry[i - lag] * 0.28f : 0f) + (i >= lag * 2 ? dry[i - lag * 2] * 0.1f : 0f);
-                data[i] = Mathf.Clamp((float)System.Math.Tanh(v * 1.4f) * vol * 0.75f, -1, 1);
+                float v = dry[i] + (i >= lag ? dry[i - lag] * 0.18f : 0f) + (i >= lag * 2 ? dry[i - lag * 2] * 0.05f : 0f);
+                data[i] = Mathf.Clamp((float)System.Math.Tanh(v * 1.15f) * vol * 0.7f, -1, 1);
             }
             int fade = Mathf.Min(800, data.Length / 4);
             for (int i = 0; i < fade; i++) data[data.Length - 1 - i] *= i / (float)fade;
@@ -186,6 +186,64 @@ namespace Veil.Audio
             s.dopplerLevel = 0;
             s.pitch = pitch * Random.Range(0.94f, 1.06f);
             s.PlayOneShot(clip, vol * Volume);
+        }
+
+        private static readonly List<AudioSource> GunPool = new List<AudioSource>();
+        private static readonly List<float> GunEnds = new List<float>();
+        private const int MaxRemoteGuns = 4;
+
+        /// <summary>
+        /// Gunfire with a real mix: your own shots always play; other players' shots are limited to a few at once,
+        /// fade with distance (log roll-off) and lose their highs far away, so a big fight doesn't turn into noise.
+        /// </summary>
+        public static void PlayGun(AudioClip clip, Vector3 pos, bool local, float vol)
+        {
+            if (clip == null || _host == null) return;
+            if (GunPool.Count == 0)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    var go = new GameObject("Gun" + i);
+                    go.transform.SetParent(_host.transform, false);
+                    var src = go.AddComponent<AudioSource>();
+                    src.playOnAwake = false;
+                    go.AddComponent<AudioLowPassFilter>();
+                    GunPool.Add(src); GunEnds.Add(0);
+                }
+            }
+            var cam = Camera.main;
+            Vector3 ear = cam ? cam.transform.position : Vector3.zero;
+            float dist = local ? 0f : Vector3.Distance(ear, pos);
+            if (!local && dist > 90f) return;
+            float now = Time.unscaledTime;
+            if (!local)
+            {
+                int busy = 0;
+                for (int i = 1; i < GunPool.Count; i++) if (GunEnds[i] > now) busy++;
+                if (busy >= MaxRemoteGuns) return;
+            }
+            // slot 0 is reserved for your own gun (a new shot cuts your previous tail instead of stacking)
+            int slot = 0;
+            if (!local)
+            {
+                slot = -1;
+                for (int i = 1; i < GunPool.Count; i++) if (GunEnds[i] <= now) { slot = i; break; }
+                if (slot < 0) return;
+            }
+            var s = GunPool[slot];
+            s.Stop();
+            s.transform.position = pos;
+            s.clip = clip;
+            s.spatialBlend = local ? 0f : 0.9f;
+            s.rolloffMode = AudioRolloffMode.Logarithmic;
+            s.minDistance = 6f;
+            s.maxDistance = 90f;
+            s.dopplerLevel = 0;
+            s.pitch = Random.Range(0.96f, 1.04f);
+            s.volume = vol * Volume * (local ? 1f : 0.75f);
+            s.GetComponent<AudioLowPassFilter>().cutoffFrequency = local ? 22000f : Mathf.Lerp(16000f, 1600f, Mathf.Clamp01(dist / 60f));
+            s.Play();
+            GunEnds[slot] = now + clip.length * 0.9f;
         }
 
         /// <summary>Finale: the music speeds up and gets louder while someone is about to win.</summary>

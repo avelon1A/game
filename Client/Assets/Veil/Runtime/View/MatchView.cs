@@ -741,7 +741,7 @@ namespace Veil.View
                     var c = Palette.AccentColors[av.Rig.Look.Color % 8];
                     if (av.Rig.BlasterTip) { Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.9f, 0.7f), 0.45f, 0.06f); }
                     if (seen) Tracer(av, local);
-                    Sfx.PlayAt(Sfx.Sniper, av.Pos + Vector3.up, local ? 0.9f : 0.75f, 1f);
+                    Sfx.PlayGun(Sfx.Sniper, av.Pos + Vector3.up, local, local ? 0.85f : 0.7f);
                     if (local) _cam.Shake(0.25f);
                 }
                 else if (av.Rig.Special == 1)
@@ -749,7 +749,7 @@ namespace Veil.View
                     // shotgun: wide flash, a fan of short streaks, a heavy boom
                     if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.75f, 0.35f), 0.45f, 0.06f);
                     if (seen) for (int i = 0; i < 5; i++) Tracer(av, false, (i / 4f - 0.5f) * GameConfig.ShotgunSpread);
-                    Sfx.PlayAt(Sfx.Shotgun, av.Pos + Vector3.up, local ? 0.9f : 0.75f, 1f);
+                    Sfx.PlayGun(Sfx.Shotgun, av.Pos + Vector3.up, local, local ? 0.8f : 0.6f);
                     if (local) _cam.Shake(0.2f);
                 }
                 else
@@ -757,7 +757,7 @@ namespace Veil.View
                     bool smg = av.Rig.Special == 2;
                     if (av.Rig.BlasterTip) Fx.I.Flash(av.Rig.BlasterTip.position, new Color(1f, 0.85f, 0.6f), smg ? 0.14f : 0.18f, 0.04f);
                     if (seen) Tracer(av, local);
-                    Sfx.PlayAt(smg ? Sfx.Smg : Sfx.Shoot, av.Pos + Vector3.up, local ? (smg ? 0.55f : 0.7f) : 0.6f, 1f);
+                    Sfx.PlayGun(smg ? Sfx.Smg : Sfx.Shoot, av.Pos + Vector3.up, local, local ? (smg ? 0.5f : 0.6f) : 0.45f);
                 }
             }
             if (cast != av.CastSeq) { av.CastSeq = cast; av.Rig.TriggerCast(); }
@@ -1039,7 +1039,7 @@ namespace Veil.View
                     break;
                 case EventType.Hit:
                     Fx.I.Sparks(pos + Vector3.up * 1f, e.B < 0 ? new Color(1f, 0.9f, 0.6f) : new Color(1f, 0.5f, 0.4f), e.B < 0 ? 5 : 10);
-                    if (e.B >= 0) Sfx.PlayAt(Sfx.Hit, pos, me ? 0.8f : 0.5f);
+                    if (e.B >= 0 && (me || e.B == Match.LocalId)) Sfx.PlayAt(Sfx.Hit, pos, me ? 0.6f : 0.5f);   // only hits that involve you: a big fight stays readable
                     break;
                 case EventType.Eliminated:
                 {
