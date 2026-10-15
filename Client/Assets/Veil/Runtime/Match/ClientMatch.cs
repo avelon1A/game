@@ -159,6 +159,9 @@ namespace Veil.Match
         private void HandleSnapshot(Snapshot s)
         {
             if (Latest != null && s.Tick <= Latest.Tick) return;
+            // online snapshots don't carry your own look: take it (weapon = rifle / sniper) from the roster,
+            // otherwise the sniper scope and weapon UI think you hold the rifle
+            if (Driver.IsOnline) { var me = Entry(LocalId); if (me != null) { Predicted.Look = me.Look; if (s.Self != null) s.Self.Look = me.Look; } }
             float est = s.Time - Time.unscaledTime;
             if (!_hasClock) { _clockOffset = est; _hasClock = true; }
             else if (est > _clockOffset) _clockOffset = Mathf.Lerp(_clockOffset, est, 0.5f);

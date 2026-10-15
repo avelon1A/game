@@ -263,6 +263,9 @@ namespace Veil.Server
             p.BotKind = on ? BotKind.Explorer : BotKind.None;
             if (on) _sim.Bots.Add(new BotBrain(_sim, p, Environment.TickCount + h.PlayerId));
             p.PendingInputs.Clear();
+            // a rejoining client starts counting inputs from 1 again: without this every input is dropped as "old",
+            // the server never moves you and the client rubber-bands
+            if (!on) { p.LastSeq = 0; p.LastInput = default; }
         }
 
         /// <summary>Binds a peer to its seat. Returns the peer that now owns the seat's old connection (to drop), the
