@@ -607,7 +607,24 @@ namespace Veil.Sim
 
             while (_pathIdx < _path.Count && Vec2.Dist(_path[_pathIdx], _p.Pos) < 1.1f) _pathIdx++;
             Vec2 wp = _pathIdx < _path.Count ? _path[_pathIdx] : dest;
-            return (wp - _p.Pos).Normalized;
+            Vec2 dir = (wp - _p.Pos).Normalized;
+            // jump pads only throw one way: step around any pad that doesn't point toward where we're going,
+            // otherwise the bot gets launched back, walks back onto it and loops forever
+            Vec2 toGoal = (dest - _p.Pos).Normalized;
+            foreach (var jp in _sim.Map.JumpPads)
+            {
+                Vec2 to = jp.Pos - _p.Pos;
+                float d = to.Length;
+                float reach = GameConfig.PadRadius + 3f;
+                if (d > reach || d < 0.01f || Vec2.Dot(jp.Dir, toGoal) > 0.6f) continue;
+                float push = 1.8f * (1f - MathF.Max(0f, d - GameConfig.PadRadius) / 3f);
+                Vec2 away = -to / d;
+                // slide past on the side we are already on rather than straight back
+                Vec2 side = new Vec2(-dir.Y, dir.X);
+                if (Vec2.Dot(side, away) < 0) side = -side;
+                dir = (dir + (away * 0.6f + side * 0.8f) * push).Normalized;
+            }
+            return dir;
         }
     }
 }
